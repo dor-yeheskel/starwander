@@ -35,6 +35,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 .mk .l small{display:block;font-size:10px;opacity:.65;letter-spacing:.08em}
 .mk.live .l b{color:#9fffc4;font-weight:400}
 .mk:hover .r{border-color:#fff}.mk:hover .l{opacity:1}
+.mk.sel .r{border:2px solid #ffcf7a;box-shadow:0 0 14px rgba(255,190,110,.65)}.mk.sel .l{opacity:1;color:#ffe2b0}
 #tip{position:fixed;pointer-events:none;font-size:12px;letter-spacing:.06em;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:7px 11px;display:none;z-index:7;line-height:1.55;backdrop-filter:blur(4px)}
 #tip b{font-weight:500;letter-spacing:.12em}#tip span{opacity:.55;font-size:11px}
 #syslist{position:fixed;left:24px;top:22px;font-size:12px;letter-spacing:.06em;line-height:1.9;z-index:4;opacity:0;transition:opacity 1.5s;text-shadow:0 0 8px #000;pointer-events:none}
@@ -62,25 +63,28 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 <div id="syslist" class="ui"></div>
 <div id="bar" class="ui">
   <button id="bLand" title="Land / take off (L)" style="display:none">LAND</button>
-  <button id="bAuto" class="on" title="Autopilot (Space)">AUTOPILOT</button>
+  <button id="bAuto" class="on" title="Autopilot (P)">AUTOPILOT</button>
+  <button id="bJump" title="Hyperspace jump to selection (Space)">JUMP</button>
   <button id="bNext" title="Next destination (N)">NEXT</button>
+  <button id="bView" class="on" title="Third / first person (V)">VIEW</button>
   <button id="bMarks" class="on" title="Markers (T)">MARKERS</button>
   <button id="bMusic" class="on" title="Music (M)">MUSIC</button>
   <button id="bHelp" title="Controls (?)">?</button>
   <button id="bFull" title="Fullscreen (F)">&#x26F6;</button>
 </div>
 <div id="help" class="ui">
-  <div><b>Drag</b>look around</div>
-  <div><b>Click</b>travel to a galaxy, star or planet</div>
+  <div><b>Drag</b>steer (manual) / look around</div>
+  <div><b>Click</b>select &amp; travel to a galaxy, star or planet</div>
+  <div><b>Space</b>hyperspace jump to selection &middot; <i>on foot:</i> jump</div>
   <div><b>&#9670; green</b>worlds you can land on</div>
-  <div><b>W / S</b>fly forward / back</div>
-  <div><b>A / D</b>turn</div>
-  <div><b>Q / E</b>roll &middot; <i>on ground:</i> altitude</div>
+  <div><b>W</b>thrust &middot; <b style="min-width:0">Shift</b> boost</div>
+  <div><b>S / X</b>brake / full stop</div>
+  <div><b>A / D</b>turn &middot; <b style="min-width:0">&uarr; &darr;</b> pitch</div>
+  <div><b>Q / E</b>roll &middot; <i>on planets:</i> down / up</div>
   <div><b>L</b>land &amp; walk / take off</div>
-  <div><b>Shift</b>run while walking</div>
-  <div><b>Wheel</b>speed multiplier</div>
-  <div><b>Space</b>toggle autopilot</div>
-  <div><b>N</b>next destination / take off</div>
+  <div><b>V</b>third / first person &middot; <b style="min-width:0">Wheel</b> zoom</div>
+  <div><b>P</b>autopilot on / off</div>
+  <div><b>N</b>next destination / leave planet</div>
   <div><b>T</b>markers on / off</div>
   <div><b>H</b>hide interface</div>
   <div><b>M</b>music &middot; <b style="min-width:0">F</b> fullscreen</div>
@@ -392,12 +396,20 @@ void main(){ vec3 c=texture(uT,vUV).rgb*4.;
  c+=texture(uT,vUV+uPx*vec2(-1,-1)).rgb; c+=texture(uT,vUV+uPx*vec2(1,-1)).rgb; c+=texture(uT,vUV+uPx*vec2(-1,1)).rgb; c+=texture(uT,vUV+uPx*vec2(1,1)).rgb;
  o=vec4(c/16.*uW,1.); }`);
 const P_copy = program(FS_VS, `in vec2 vUV; uniform sampler2D uT; out vec4 o; void main(){ o=texture(uT,vUV); }`);
-const P_final = program(FS_VS, `in vec2 vUV; uniform sampler2D uT, uB; uniform float uExp, uBloom, uFade, uTime; uniform vec3 uFadeCol; uniform vec2 uPx; out vec4 o;
+const P_final = program(FS_VS, `in vec2 vUV; uniform sampler2D uT, uB; uniform float uExp, uBloom, uFade, uTime, uWarp; uniform vec3 uFadeCol; uniform vec2 uPx; out vec4 o;
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); }
 float h(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
 vec3 tm(vec2 uv){ return aces((texture(uT,uv).rgb+texture(uB,uv).rgb*uBloom)*uExp); }
 float lu(vec3 c){ return sqrt(dot(c,vec3(.299,.587,.114))); }
 void main(){
+ vec3 col;
+ if(uWarp>.01){
+  vec2 d=vUV-.5; vec3 s=vec3(0.);
+  for(int i=0;i<12;i++) s+=tm(.5+d*(1.-uWarp*.25*float(i)/11.));
+  col=s/12.;
+  col=mix(col,col*vec3(.75,.9,1.35)+vec3(.04,.07,.14)*uWarp,uWarp*.6);
+  col+=vec3(.6,.8,1.)*pow(max(0.,1.-length(d)*2.4),3.)*uWarp*.7;
+ } else {
  vec3 nw=tm(vUV+uPx*vec2(-1,-1)), ne=tm(vUV+uPx*vec2(1,-1)), sw=tm(vUV+uPx*vec2(-1,1)), se=tm(vUV+uPx*vec2(1,1)), m=tm(vUV);
  float a=lu(nw), b=lu(ne), c=lu(sw), d=lu(se), e=lu(m);
  float lo=min(e,min(min(a,b),min(c,d))), hi=max(e,max(max(a,b),max(c,d)));
@@ -407,7 +419,8 @@ void main(){
  vec3 A=.5*(tm(vUV+dir*(1./3.-.5))+tm(vUV+dir*(2./3.-.5)));
  vec3 B=A*.5+.25*(tm(vUV-dir*.5)+tm(vUV+dir*.5));
  float lb=lu(B);
- vec3 col=(hi-lo<.04)?m:((lb<lo||lb>hi)?A:B);
+ col=(hi-lo<.04)?m:((lb<lo||lb>hi)?A:B);
+ }
  col=pow(col,vec3(1./2.2));
  vec2 q=vUV-.5; col*=1.-dot(q,q)*.55;
  col=mix(col,uFadeCol,uFade);
@@ -426,7 +439,7 @@ function resizeTargets(w, h) {
   for (let i = 0; i < 6 && mw > 2 && mh > 2; i++) { post.mips.push(target(mw, mh, false)); mw >>= 1; mh >>= 1; }
 }
 function fsDraw() { gl.bindVertexArray(emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); }
-function postProcess(exposure, fade, fadeCol, time) {
+function postProcess(exposure, fade, fadeCol, time, warp) {
   glState({});
   const m = post.mips;
   gl.bindFramebuffer(gl.FRAMEBUFFER, m[0].fb); gl.viewport(0, 0, m[0].w, m[0].h);
@@ -443,7 +456,7 @@ function postProcess(exposure, fade, fadeCol, time) {
   glState({});
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height);
   P_final.use().tex('uT', post.hdr.tex).tex('uB', m[0].tex).set('uExp', exposure).set('uBloom', 0.22)
-    .set('uFade', fade).set('uFadeCol', fadeCol).set('uTime', time).set('uPx', [1 / post.w, 1 / post.h]); fsDraw();
+    .set('uFade', fade).set('uFadeCol', fadeCol).set('uTime', time).set('uPx', [1 / post.w, 1 / post.h]).set('uWarp', warp || 0); fsDraw();
 }
 
 // ---------------------------------------------------------------- view
@@ -1687,6 +1700,164 @@ const floaterMesh = (function () {
   return instMesh(new Float32Array(B.v));
 })();
 
+// ---- the player's ship and astronaut (third-person models)
+function shipGeo() {
+  const B = meshBuilder(2024);
+  const quad = (a, b, c, d, part) => { const n = vnorm(vcross(vsub(b, a), vsub(c, a))); B.tri(a, b, c, n, n, n, part, 0, 0, 0); B.tri(a, c, d, n, n, n, part, 0, 0, 0); };
+  const slab = (pts, th, part, part2) => {
+    const dn = pts.map(p => vadd(p, [0, -th, 0]));
+    quad(pts[0], pts[1], pts[2], pts[3], part); quad(dn[3], dn[2], dn[1], dn[0], part2);
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(pts[i], dn[i], dn[j], pts[j], part2); }
+  };
+  B.blob([0, 0, 0.2], [0.8, 0.5, 3.0], 0, 0, 0, 2);
+  B.blob([0, 0.3, -1.05], [0.46, 0.33, 1.05], 2, 0, 0, 2);
+  B.blob([0, -0.04, -2.55], [0.3, 0.2, 0.7], 1, 0, 0, 1);
+  for (const sx of [-1, 1]) {
+    slab([[sx * 0.55, -0.02, -0.5], [sx * 3.4, -0.24, 1.25], [sx * 3.5, -0.24, 2.0], [sx * 0.55, -0.02, 2.2]], 0.1, 0, 1);
+    slab([[sx * 3.05, -0.17, 1.0], [sx * 3.55, -0.2, 1.2], [sx * 3.6, -0.2, 2.05], [sx * 3.1, -0.17, 2.05]], 0.16, 4, 4);
+    B.tube([sx * 1.15, -0.12, 0.2], [sx * 1.15, -0.12, 2.9], 0.34, 0.4, 10, 1, 0, 0);
+    B.blob([sx * 1.15, -0.12, 0.2], [0.34, 0.34, 0.45], 0, 0, 0, 1);
+    B.blob([sx * 1.15, -0.12, 2.93], [0.31, 0.31, 0.07], 3, 0, 0, 1);
+    const f0 = [sx * 0.3, 0.3, 1.5], f1 = [sx * 1.0, 1.35, 2.55], f2 = [sx * 1.05, 1.35, 3.0], f3 = [sx * 0.33, 0.3, 2.9];
+    quad(f0, f1, f2, f3, 4); quad(f3, f2, f1, f0, 4);
+  }
+  B.blob([0, 0, 3.12], [0.4, 0.28, 0.08], 3, 0, 0, 1);
+  return new Float32Array(B.v);
+}
+function heroGeo() {
+  const B = meshBuilder(77);
+  for (const sx of [-1, 1]) {
+    const leg = sx < 0 ? 1 : 2, arm = sx < 0 ? 3 : 4;
+    B.tube([sx * 0.1, 0.98, 0], [sx * 0.11, 0.52, 0.01], 0.085, 0.07, 7, 0, leg, leg);
+    B.tube([sx * 0.11, 0.52, 0.01], [sx * 0.12, 0.1, 0], 0.07, 0.06, 7, 0, leg, leg);
+    B.blob([sx * 0.12, 0.07, -0.04], [0.075, 0.07, 0.13], 1, leg, 0, 1);
+    B.tube([sx * 0.25, 1.48, 0], [sx * 0.29, 1.15, 0], 0.06, 0.055, 6, 0, arm, arm);
+    B.tube([sx * 0.29, 1.15, 0], [sx * 0.3, 0.86, -0.02], 0.055, 0.05, 6, 0, arm, arm);
+    B.blob([sx * 0.3, 0.82, -0.02], [0.055, 0.06, 0.055], 1, arm, 0, 1);
+    B.blob([sx * 0.24, 1.47, 0], [0.09, 0.08, 0.09], 0, arm, 0, 1);
+  }
+  B.blob([0, 1.02, 0], [0.19, 0.12, 0.13], 1, 0, 0, 1);
+  B.blob([0, 1.28, 0], [0.22, 0.27, 0.15], 0, 0, 0, 2);
+  B.blob([0, 1.33, 0.17], [0.17, 0.22, 0.08], 1, 0, 0, 1);
+  B.blob([0, 1.72, 0], [0.155, 0.165, 0.155], 0, 0, 0, 2);
+  B.blob([0, 1.72, -0.07], [0.125, 0.095, 0.11], 2, 0, 0, 2);
+  B.blob([0, 1.38, -0.15], [0.03, 0.03, 0.02], 3, 0, 0, 0);
+  return new Float32Array(B.v);
+}
+function modelMesh(geo) {
+  const b = buffer(geo);
+  return { vao: vao([{ buf: b, loc: 0, size: 3, stride: 32, offset: 0 }, { buf: b, loc: 1, size: 3, stride: 32, offset: 12 }, { buf: b, loc: 2, size: 2, stride: 32, offset: 24 }]), n: geo.length / 8 };
+}
+const shipMesh = modelMesh(shipGeo()), heroMesh = modelMesh(heroGeo());
+const SHIP_COLS = [[0.78, 0.8, 0.84], [0.16, 0.18, 0.22], [0.03, 0.05, 0.08], [0.45, 0.75, 1.0], [0.95, 0.42, 0.12]];
+const HERO_COLS = [[0.88, 0.88, 0.86], [0.28, 0.3, 0.34], [0.35, 0.25, 0.08], [1.0, 0.85, 0.55], [0.95, 0.42, 0.12]];
+const MODEL_VS = `layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM;
+uniform mat3 uRot; uniform vec3 uPos; uniform float uPhase, uWalk, uAir;
+vec3 modelRel(out vec3 n){
+  vec3 p=aP, nn=aN; int id=int(aM.y+.5);
+  if(id>=1&&id<=4){
+    float side=(id==1||id==3)?1.:-1.;
+    float a=id<=2?sin(uPhase)*.6*side*uWalk-uAir*(side>0.?.6:.15):-sin(uPhase)*.5*side*uWalk+uAir*.9;
+    float piv=id<=2?.98:1.48;
+    vec2 q=vec2(p.y-piv,p.z); float c=cos(a), s=sin(a);
+    p.y=piv+q.x*c-q.y*s; p.z=q.x*s+q.y*c; nn.yz=vec2(nn.y*c-nn.z*s,nn.y*s+nn.z*c);
+  }
+  n=uRot*nn; return uPos+uRot*p;
+}`;
+const P_model = program(MODEL_VS + `uniform mat4 uVP; out vec3 vRel; out vec3 vN; out float vPart;
+void main(){ vec3 n; vec3 r=modelRel(n); vRel=r; vN=n; vPart=aM.x; gl_Position=uVP*vec4(r,1.); }`,
+  SKY_GLSL + SHADOW_GLSL + `in vec3 vRel; in vec3 vN; in float vPart; out vec4 o;
+uniform vec3 uCam, uC0, uC1, uC2, uC3, uC4, uL, uLCol, uAmb; uniform float uSurf, uGlow;
+void main(){ vec3 n=normalize(vN), V=normalize(-vRel); if(dot(n,V)<0.) n=-n;
+  vec3 c=vPart<.5?uC0:vPart<1.5?uC1:vPart<2.5?uC2:vPart<3.5?uC3:uC4;
+  vec3 L, lc, amb; float sh=1.;
+  if(uSurf>.5){ L=uSun; lc=sunLight(); amb=ambient(); sh=shadowAt(vRel+uCam,.00015); } else { L=uL; lc=uLCol; amb=uAmb; }
+  bool glass=vPart>1.5&&vPart<2.5;
+  float dif=max(dot(n,L),0.)*sh;
+  vec3 H=normalize(L+V); float spec=pow(max(dot(n,H),0.),glass?160.:48.)*(glass?2.:.45)*sh;
+  float fr=pow(1.-max(dot(n,V),0.),4.);
+  vec3 col=c*(lc*dif+amb)+lc*spec;
+  if(glass){ vec3 R=reflect(-V,n); col+=(uSurf>.5?skyCol(vec3(R.x,abs(R.y),R.z)):amb*2.5+vec3(.02,.03,.05))*(.2+.8*fr); }
+  col+=amb*fr*.8;
+  if(vPart>2.5&&vPart<3.5) col=uC3*uGlow;
+  if(uSurf>.5) col=fogApply(col,vRel,length(vRel));
+  o=vec4(col,1.); }`);
+const P_shModel = program(MODEL_VS + `uniform mat4 uLVP; uniform vec3 uShO, uCam; void main(){ vec3 n; vec3 r=modelRel(n); gl_Position=uLVP*vec4(r+uCam-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
+// m: { mesh, rel (model position relative to camera), q, phase, walk, air, cols, glow }
+function drawModel(p, m) {
+  p.set('uRot', mat3FromQuat(m.q)).set('uPos', m.rel).set('uPhase', m.phase || 0).set('uWalk', m.walk || 0).set('uAir', m.air || 0);
+  if (m.cols) p.set('uC0', m.cols[0]).set('uC1', m.cols[1]).set('uC2', m.cols[2]).set('uC3', m.cols[3]).set('uC4', m.cols[4]).set('uGlow', m.glow || 0);
+  gl.bindVertexArray(m.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, m.mesh.n);
+}
+function shipLight() {
+  if (S.mode === 'system') {
+    const d = vlen(S.pos), flux = S.star.L / Math.max((d / AU) ** 2, 1e-4), I = clamp(Math.pow(flux, 0.25), 0.15, 2.5) * 1.5;
+    return { L: vmul(S.pos, -1 / Math.max(d, 1e-9)), col: vmul(S.star.light, I), amb: [0.03, 0.035, 0.045] };
+  }
+  const g = S.hostG || galList.slice().sort((a, b) => a.dist - b.dist)[0];
+  return { L: g ? vnorm(vsub(g.center, S.pos)) : [0, 1, 0], col: S.hostG ? [0.55, 0.48, 0.4] : [0.25, 0.25, 0.3], amb: [0.035, 0.04, 0.055] };
+}
+function renderShipSpace(camQ) {
+  const D = S.camDist, rel = vmul(qrot(camQ, [0, D * 0.16 + 1.2, D]), -1), lt = shipLight();
+  gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
+  glState({ depth: true, write: true });
+  const p = shadowUniforms(P_model.use()).set('uVP', vpFor(0.2, 4000)).set('uCam', [0, 0, 0]).set('uSurf', 0).set('uL', lt.L).set('uLCol', lt.col).set('uAmb', lt.amb);
+  drawModel(p, { mesh: shipMesh, rel, q: S.q, cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
+}
+
+// ---- distant forests: cheap billboards beyond the full-detail radius
+const FT = 384, FAR_R = 5200;
+const FAR_KIND = { conifer: 0, broad: 1, bush: 1, mushroom: 1, bulb: 1, palm: 2, crystal: 3, spiral: 4, cactus: 5 };
+const farMesh = { vao: null, ib: gl.createBuffer(), n: 0 };
+farMesh.vao = vao([{ buf: quadBuf, loc: 0, size: 2 }, { buf: farMesh.ib, loc: 1, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: farMesh.ib, loc: 2, size: 4, stride: 32, offset: 16, divisor: 1 }]);
+const P_far = program(`layout(location=0) in vec2 aC; layout(location=1) in vec4 aI; layout(location=2) in vec4 aJ;
+uniform mat4 uVP; uniform vec3 uCam; uniform float uCurv, uNear, uFar;
+out vec2 vUV; out vec3 vC; out float vK; out vec3 vW; out vec3 vR; out vec3 vF;
+void main(){
+  vec3 to=uCam-aI.xyz; float d=length(to.xz), k=mod(aJ.x,10.);
+  float s=aI.w*smoothstep(uNear,uNear+260.,d)*smoothstep(uFar,uFar*.85,d);
+  vec3 f=normalize(vec3(to.x,0.,to.z)), r=vec3(f.z,0.,-f.x);
+  float wd=k<.5?.34:k<1.5?.5:k<2.5?.45:k<3.5?.32:k<4.5?.3:.3;
+  vec2 c=vec2(aC.x,aC.y*.5+.5);
+  vec3 w=aI.xyz+r*c.x*wd*s+vec3(0.,c.y*s,0.);
+  vUV=c; vC=aJ.yzw; vK=aJ.x; vW=w; vR=r; vF=f;
+  vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv; gl_Position=uVP*vec4(rel,1.);
+}`, SKY_GLSL + `in vec2 vUV; in vec3 vC; in float vK; in vec3 vW; in vec3 vR; in vec3 vF; out vec4 o; uniform vec3 uCam;
+void main(){
+  float k=mod(vK,10.), glow=vK>9.5?1.:0., x=vUV.x, y=vUV.y, m=0.; vec3 nl=vec3(0.,.5,.8); vec3 c=vC;
+  if(k<.5){ float w=(1.-y)*(.95-.25*fract(y*3.2)); m=step(abs(x),w)*step(.08,y); if(y<.1){ m=step(abs(x),.07); c*=.5; } nl=normalize(vec3(x*1.3,.7,.7)); }
+  else if(k<1.5||(k>3.5&&k<4.5)){ vec2 q=vec2(x,(y-.6)/.4); float rr=length(q); m=step(rr,1.); if(m<.5&&abs(x)<.07&&y<.3){ m=1.; c*=.45; } nl=normalize(vec3(q.x,q.y,sqrt(max(0.,1.-rr*rr))+.25)); }
+  else if(k<2.5){ vec2 q=vec2(x,(y-.86)/.18); float rr=length(q); m=step(rr,1.)*step(.25,abs(sin(atan(q.y,q.x)*4.))); if(m<.5&&abs(x-y*y*.2)<.05&&y<.88){ m=1.; c*=.5; } nl=normalize(vec3(q.x,.8,.6)); }
+  else if(k<3.5){ m=step(abs(x),(1.-y)*.9)*step(.05,abs(fract(x*2.+y)-.5)); nl=normalize(vec3(sign(x)*.8,.3,.6)); }
+  else { m=max(step(abs(x),.22),step(abs(abs(x)-.62),.14)*step(.35,y)*step(y,.72))*step(y,.95); nl=normalize(vec3(x,.2,.9)); }
+  if(m<.5) discard;
+  vec3 n=normalize(vR*nl.x+vec3(0.,nl.y,0.)+vF*nl.z);
+  float dif=max(dot(n,uSun),0.)*.8+.2, ao=.55+.45*y;
+  vec3 col=c*(sunLight()*dif*ao+ambient()*ao)+c*glow*(.15+2.*(1.-dayF()));
+  vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.);
+}`);
+function genFarTile(s, tx, tz) {
+  const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 11)), out = [], N = 16, step = FT / N;
+  const sp = E.plants.filter(p => FAR_KIND[p.kind] !== undefined && p.scale[1] >= 3), ns = sp.length, w = new Float64Array(ns);
+  if (!ns) return out;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = tx * FT + (i + r()) * step, z = tz * FT + (j + r()) * step, u = r(), u2 = r(), u3 = r(), u4 = r();
+    const fm = forestM(P, x, z) * P.treeDen;
+    if (u > 0.15 + fm * 0.85) continue;
+    const h = terrH(P, x, z, 1), alt = h - P.sea;
+    if (alt < 0.6) continue;
+    const Z = { forest: fm * (1 - smooth(P.treeLine - 60, P.treeLine + 40, h)), meadow: 1 - fm, beach: 1 - smooth(5, 9, alt), rocky: 0.1,
+      high: smooth(P.coniferLine - 60, P.coniferLine + 60, h) * Math.max(fm, 0.12) * (1 - smooth(P.treeLine, P.treeLine + 80, h)), any: 1 };
+    let tot = 0;
+    for (let k = 0; k < ns; k++) { let wk = 0; for (const zn in sp[k].zones) wk += sp[k].zones[zn] * Z[zn]; wk *= sp[k].den; if (sp[k].tall && h > P.treeLine + 60) wk = 0; w[k] = wk; tot += wk; }
+    if (u >= Math.min(tot, 0.92)) continue;
+    let pv = u2 * tot, k = 0; while (k < ns - 1 && pv > w[k]) { pv -= w[k]; k++; }
+    const p = sp[k], tint = p.tints[Math.floor(u3 * p.tints.length)], tv = 0.85 + u4 * 0.3;
+    out.push(x, h - 0.5, z, lerp(p.scale[0], p.scale[1], r()) * 1.3, FAR_KIND[p.kind] + (p.glowI > 0 ? 10 : 0), tint[0] * tv, tint[1] * tv, tint[2] * tv);
+  }
+  return out;
+}
+
 // ---- per-planet ecology: plant species, creatures, sky life
 const hsv = (h, s, v) => { const f = n => { const k = (n + h * 6) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); }; return [f(5), f(3), f(1)]; };
 function makeCreature(r, alien, woolly) {
@@ -1930,7 +2101,8 @@ function makeSurface(planet, sys, entryDir) {
     tiles: new Map(), dirty: false, rebuildT: 0, chunks: [], flocks: [0, 1, 2, 3].map(() => ({ c: [sx, g0 + 60, sz], r: 60, t: -1 })),
     lookAhead: 0, cloudH: 2300, curv: 1 / (2 * 400000),
     gtiles: new Map(), gdirty: false, grebuildT: 0, atiles: new Map(), floaters: [], ground: g0,
-    pt: 0, cruiseDur: 55 + r() * 35, walkDur: 70 + r() * 50, walked: false, walkV: 0, sideV: 0, bob: 0, wT: 3, wState: 'stand'
+    pt: 0, cruiseDur: 55 + r() * 35, walkDur: 70 + r() * 50, walked: false, walkV: 0, sideV: 0, bob: 0, wT: 3, wState: 'stand',
+    ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null
   };
   s.cloudCov = P.cloud * 0.9;
   s.eco = makeEcology(P, planet.type, mulberry(hashInts(planet.seed, 4242)));
@@ -1938,8 +2110,8 @@ function makeSurface(planet, sys, entryDir) {
   return s;
 }
 function freeSurface(s) {
-  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear();
-  freeEcology(s.eco); grassMesh.n = flowerMesh.n = floaterMesh.n = 0;
+  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear();
+  freeEcology(s.eco); grassMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
 }
 function tileSet(map, size, radius, cx, cz, budget, gen) {
   const tx0 = Math.floor(cx / size), tz0 = Math.floor(cz / size), rt = Math.ceil(radius / size) + 1, missing = [];
@@ -1965,6 +2137,9 @@ function updateSurfaceWorld(s, dt) {
   if (tileSet(s.tiles, TT, TREE_R, s.x, s.z, 6, (tx, tz) => genPlantTile(s, tx, tz))) s.dirty = true;
   s.rebuildT -= dt;
   if (s.dirty && s.rebuildT <= 0) { s.dirty = false; s.rebuildT = 0.25; E.plants.forEach((sp, k) => uploadInst(sp.m, mergeTiles(s.tiles, k))); }
+  if (tileSet(s.ftiles, FT, FAR_R, s.x, s.z, 3, (tx, tz) => [genFarTile(s, tx, tz)])) s.fdirty = true;
+  s.frebuildT -= dt;
+  if (s.fdirty && s.frebuildT <= 0) { s.fdirty = false; s.frebuildT = 0.5; uploadInst(farMesh, mergeTiles(s.ftiles, 0)); }
   // grass & flowers only near the ground
   const low = s.y - s.ground < 45;
   if (low) {
@@ -2029,10 +2204,10 @@ function surfaceSkyUniforms(p, s) {
   return p;
 }
 const terrUniforms = (p, P) => p.set('uTOff', [P.ox, P.oz]).set('uTCont', P.cont).set('uTBase', P.base).set('uTMount', P.mount).set('uTHill', P.hill);
-function renderShadowMap(s, time, chunks, fwd) {
+function renderShadowMap(s, time, chunks, fwd, cam, models) {
   shadow.on = 0;
   if (s.sun[1] < 0.05) return;
-  const low = s.y - s.ground < 30, half = low ? 90 : 300, P = s.P, cam = [s.x, s.y, s.z];
+  const low = s.y - s.ground < 30, half = low ? 90 : 300, P = s.P;
   const center = [s.x + fwd[0] * half * 0.5, s.ground, s.z + fwd[2] * half * 0.5];
   updateShadowMatrix(s.sun, half, center);
   gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.fb); gl.viewport(0, 0, SHN, SHN);
@@ -2049,14 +2224,16 @@ function renderShadowMap(s, time, chunks, fwd) {
   for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); }
   const ap = P_shAnimal.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', ANIM_R);
   for (const C of s.eco.creatures) { ap.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA); drawInst(C.mesh); }
+  const mp = P_shModel.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam);
+  for (const m of models) drawModel(mp, Object.assign({}, m, { rel: vsub(m.w, cam), cols: null }));
   gl.disable(gl.POLYGON_OFFSET_FILL);
   shadow.on = 1;
 }
-function renderSurface(s, time, camQ) {
-  const P = s.P, E = s.eco, cam = [s.x, s.y, s.z];
+function renderSurface(s, time, camQ, cam) {
+  const P = s.P, E = s.eco;
   const day = smooth(-0.2, 0.04, s.sun[1]), agl = s.y - s.ground, walking = s.phase === 'walk';
-  const fwd = qfwd(camQ), chunks = collectChunks(s, fwd);
-  renderShadowMap(s, time, chunks, fwd);
+  const fwd = qfwd(camQ), chunks = collectChunks(s, fwd), models = surfaceModels(s);
+  renderShadowMap(s, time, chunks, fwd, cam, models);
   gl.bindFramebuffer(gl.FRAMEBUFFER, post.hdr.fb); gl.viewport(0, 0, post.w, post.h);
   // night sky: the real galaxy, rotating with the planet
   if (day < 0.995) {
@@ -2069,7 +2246,7 @@ function renderSurface(s, time, camQ) {
   surfaceSkyUniforms(P_sky.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), s).set('uCamRot', mat3FromQuat(camQ)).set('uTan', [tanY * view.aspect, tanY])
     .set('uCam', cam).set('uTime', time).set('uCloudCov', s.cloudCov).set('uCloudH', s.cloudH);
   fsDraw();
-  const vp = vpFor(walking ? 0.08 : clamp(agl * 0.02, 0.1, 0.5), 40000);
+  const vp = vpFor(walking || S.tp ? 0.08 : clamp(agl * 0.02, 0.1, 0.5), 40000);
   gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   // terrain
   glState({ depth: true, write: true });
@@ -2087,6 +2264,11 @@ function renderSurface(s, time, camQ) {
   const pp = shadowUniforms(surfaceSkyUniforms(P_plant.use(), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time);
   pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0);
   for (const sp of E.plants) { pp.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', P.rock).set('uGlowI', sp.glowI); drawInst(sp.m); }
+  if (farMesh.n) {
+    surfaceSkyUniforms(P_far.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uNear', TREE_R * 0.82).set('uFar', FAR_R);
+    gl.bindVertexArray(farMesh.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, farMesh.n);
+    pp.use();
+  }
   if (agl < 45) {
     pp.set('uFadeR', GRASS_R).set('uBias', 0.0001).set('uTwoSide', 1).set('uSway', 0.25).set('uTrunk', vmul(P.grass, 0.8)).set('uRockC', [1, 0.85, 0.3]).set('uGlowI', E.flowerGlow);
     drawInst(grassMesh); drawInst(flowerMesh);
@@ -2097,6 +2279,11 @@ function renderSurface(s, time, camQ) {
     ap.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uCol1', C.c1).set('uCol2', C.c2).set('uCol3', C.c3)
       .set('uSpots', C.spots).set('uGlowA', C.glow);
     drawInst(C.mesh);
+  }
+  // ship & astronaut
+  if (models.length) {
+    const mp = shadowUniforms(surfaceSkyUniforms(P_model.use(), s)).set('uVP', vp).set('uCam', cam).set('uSurf', 1);
+    for (const m of models) drawModel(mp, Object.assign({}, m, { rel: vsub(m.w, cam) }));
   }
   // birds
   const fl = []; s.flocks.forEach(f => fl.push(f.c[0], f.hidden ? -1e5 : f.c[1], f.c[2], f.r));
@@ -2145,7 +2332,7 @@ const Music = {
     this.lp.connect(this.rev); this.lp.connect(this.dry);
     const nb = C.createBuffer(1, C.sampleRate * 3, C.sampleRate), nd = nb.getChannelData(0);
     let b = 0; for (let i = 0; i < nd.length; i++) { b = b * 0.985 + (Math.random() * 2 - 1) * 0.15; nd[i] = b; }
-    const ns = C.createBufferSource(); ns.buffer = nb; ns.loop = true;
+    const ns = C.createBufferSource(); ns.buffer = nb; ns.loop = true; this.noiseBuf = nb;
     this.windF = C.createBiquadFilter(); this.windF.type = 'bandpass'; this.windF.frequency.value = 500; this.windF.Q.value = 0.6;
     this.windG = C.createGain(); this.windG.gain.value = 0;
     ns.connect(this.windF); this.windF.connect(this.windG); this.windG.connect(this.master); ns.start();
@@ -2184,6 +2371,14 @@ const Music = {
       const o = C.createOscillator(); o.type = 'sine'; o.frequency.value = this.f(m) * mul;
       const og = C.createGain(); og.gain.value = v; o.connect(og); og.connect(g); o.start(t0); o.stop(t0 + 5.2);
     }
+  },
+  whoosh() {
+    if (!this.ctx || !this.on) return;
+    const C = this.ctx, t = C.currentTime, src = C.createBufferSource(), f = C.createBiquadFilter(), g = C.createGain();
+    src.buffer = this.noiseBuf; src.loop = true; f.type = 'bandpass'; f.Q.value = 1.4;
+    f.frequency.setValueAtTime(140, t); f.frequency.exponentialRampToValueAtTime(2400, t + 1); f.frequency.exponentialRampToValueAtTime(110, t + 2.4);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.6, t + 0.95); g.gain.linearRampToValueAtTime(0, t + 2.4);
+    src.connect(f); f.connect(g); g.connect(this.master); g.connect(this.rev); src.start(t); src.stop(t + 2.5);
   },
   mood(mode, wind) {
     if (!this.ctx) return;
@@ -2227,18 +2422,49 @@ const S = {
   pos: [0, 0, 0], q: [0, 0, 0, 1], v: 1,
   sys: null, star: null, goal: null, queue: [],
   look: { yaw: 0, pitch: 0, idle: 0 }, fade: 1, fadeCol: [0, 0, 0], fadeT: 0,
-  speedMul: 1, autoMul: 1, galStay: 0, maxStay: 2, hostG: null, resScale: 1
+  speedMul: 1, autoMul: 1, galStay: 0, maxStay: 2, hostG: null, resScale: 1,
+  tp: true, camDist: 16, walkDist: 4.2, thrust: 0.2, warpT: -1, sel: null
 };
+const SPEED_CAP = 80000;
 const visitedStars = new Set(), visitedNeb = new Set();
 const keys = {};
 
 function goFly(target, arrive, extra) { return Object.assign({ kind: 'fly', target, arrive }, extra || {}); }
 function goOrbit(center, axis, dur, w, extra) { return Object.assign({ kind: 'orbit', center, axis, dur, w, t: 0 }, extra || {}); }
-
-function galaxyGoals(g) {
+function goJump(sel, extra) { return Object.assign({ kind: 'jump', sel, t: 0, label: 'jumping to ' + selName(sel) }, extra || {}); }
+const selName = t => t.type === 'star' ? starName(t.o) : t.type === 'planet' ? t.o.name : t.o.title;
+function galaxyViewpoint(g, k) {
   const n = g.normal, rel = vsub(S.pos, g.center), side = vdot(rel, n) >= 0 ? 1 : -1;
   let ip = vsub(vnorm(rel), vmul(n, vdot(vnorm(rel), n))); ip = vlen(ip) < 1e-3 ? perpTo(n) : vnorm(ip);
-  const vp = vadd(g.center, vmul(vnorm(vadd(vmul(n, side * 0.72), vmul(ip, 0.7))), g.R * 2.3));
+  return vadd(g.center, vmul(vnorm(vadd(vmul(n, side * 0.72), vmul(ip, 0.7))), g.R * k));
+}
+const nebulaViewpoint = n => vadd(n.pos, vmul(vnorm(vsub(S.pos, n.pos)), n.R * (n.type === 2 || n.type === 3 ? 2.4 : 0.8)));
+function planetViewpoint(p) {
+  const sys = S.sys, Lw = vnorm(vmul(p.pos, -1)), side = vnorm(vcross(Lw, sys.up));
+  const vd = vnorm(vadd(vmul(Lw, 0.62), vmul(side, 0.78)));
+  return vadd(p.pos, vmul(vnorm(vadd(vd, vmul(sys.up, 0.25))), p.R * (p.rings ? 5.5 : 4)));
+}
+// arrival point & look-at for a hyperspace jump, or null when not reachable from here
+function jumpDest(t) {
+  if (!t) return null;
+  if (S.mode === 'space') {
+    if (t.type === 'star') { const d = vnorm(vsub(S.pos, t.o.p)); return { pos: vadd(t.o.p, vmul(d, ENTER_LY * 0.85)), look: t.o.p }; }
+    if (t.type === 'galaxy') return { pos: galaxyViewpoint(t.o, 2.3), look: t.o.center };
+    if (t.type === 'nebula') return { pos: nebulaViewpoint(t.o), look: t.o.pos };
+  } else if (S.mode === 'system' && t.type === 'planet' && S.sys.planets.includes(t.o)) return { pos: planetViewpoint(t.o), look: t.o.pos };
+  return null;
+}
+function needJump(t) {
+  if (t.type === 'star') return vdist(S.pos, t.o.p) > 0.4;
+  if (t.type === 'galaxy') return vdist(S.pos, t.o.center) > t.o.R * 5;
+  if (t.type === 'nebula') return vdist(S.pos, t.o.pos) > t.o.R * 5 + 300;
+  if (t.type === 'planet') return vdist(S.pos, t.o.pos) > t.o.R * 30;
+  return false;
+}
+
+function galaxyGoals(g, quick) {
+  const n = g.normal, rel = vsub(S.pos, g.center), side = vdot(rel, n) >= 0 ? 1 : -1;
+  const vp = galaxyViewpoint(g, 2.3);
   let lp;
   if (g.type === 'spiral' || g.type === 'barred') {
     const rr = 0.5 + Math.random() * 0.12, k = Math.floor(Math.random() * g.arms), th = k * TAU / g.arms + Math.log(rr / g.rmin) / g.tanp;
@@ -2248,7 +2474,7 @@ function galaxyGoals(g) {
   const dive = galWorld(g, lp);
   return [
     goFly(() => vp, g.R * 0.25, { label: g.title, obj: g }),
-    goOrbit(() => g.center, vmul(n, side), 22, 0.03, { label: g.title, obj: g }),
+    goOrbit(() => g.center, vmul(n, side), quick ? 7 : 22, 0.03, { label: g.title, obj: g }),
     goFly(() => dive, 300, { label: g.title, obj: g, onArrive: () => { visitedGal.add(g.key); S.galStay = 0; } })
   ];
 }
@@ -2259,12 +2485,12 @@ function exitGalaxyGoals(g) {
   visitedGal.add(g.key);
   return [goFly(() => p, g.R * 0.15, { label: 'leaving ' + g.title }), goOrbit(() => g.center, vmul(n, side), 12, 0.03, { label: g.title, obj: g })];
 }
-function nebulaGoals(n) {
+function nebulaGoals(n, quick) {
   visitedNeb.add(n.key);
-  const dir = vnorm(vsub(S.pos, n.pos)), p = vadd(n.pos, vmul(dir, n.R * (n.type === 2 || n.type === 3 ? 2.4 : 0.8)));
+  const dir = vnorm(vsub(S.pos, n.pos)), p = nebulaViewpoint(n);
   const ax = perpTo(dir);
   return [goFly(() => p, n.R * 0.2, { label: n.title, obj: n, onArrive: () => showLoc(n.title, 'nebula · ' + fmtN(n.R * 2) + ' light years across') }),
-  goOrbit(() => n.pos, ax, 18, 0.045, { label: n.title, obj: n })];
+  goOrbit(() => n.pos, ax, quick ? 8 : 18, 0.045, { label: n.title, obj: n })];
 }
 function starGoal(s) { return goFly(() => s.p, ENTER_LY * 0.6, { label: starName(s), obj: s }); }
 function pickStar() {
@@ -2308,13 +2534,12 @@ function avoidBodies(g) {
   }
   return g;
 }
-function planetGoals(p, land) {
+function planetGoals(p, land, quick) {
   const sys = S.sys, Lw = vnorm(vmul(p.pos, -1)), side = vnorm(vcross(Lw, sys.up));
-  const vd = vnorm(vadd(vmul(Lw, 0.62), vmul(side, 0.78)));
-  const vp = vadd(p.pos, vmul(vnorm(vadd(vd, vmul(sys.up, 0.25))), p.R * (p.rings ? 5.5 : 4)));
+  const vp = planetViewpoint(p);
   const out = [];
   out.push(goFly(() => vp, p.R * 0.7, { label: p.name, obj: p, onArrive: () => showLoc(p.name, p.desc + (p.landable ? '' : ' · ' + fmtN(p.R * 2000) + ' km')) }));
-  out.push(goOrbit(() => p.pos, sys.up, 12, (Math.random() < 0.5 ? 1 : -1) * 0.05, { label: p.name, obj: p }));
+  if (!quick || !land) out.push(goOrbit(() => p.pos, sys.up, quick ? 6 : 12, (Math.random() < 0.5 ? 1 : -1) * 0.05, { label: p.name, obj: p }));
   if (land) {
     const en = vnorm(vadd(vmul(Lw, Math.cos(0.9)), vmul(side, Math.sin(0.9))));
     const tg = vnorm(vcross(sys.up, en));
@@ -2342,7 +2567,7 @@ function planSystem() {
   S.queue = q;
 }
 function nextGoal() {
-  if (S.mode === 'system') { if (!S.queue.length) S.queue = [exitSystemGoal()]; return avoidBodies(S.queue.shift()); }
+  if (S.mode === 'system') { if (!S.queue.length) S.queue = [exitSystemGoal()]; const g = S.queue.shift(); return g.kind === 'jump' ? g : avoidBodies(g); }
   if (S.queue.length) return S.queue.shift();
   const g = hostGalaxy(S.pos);
   const inside = g && galaxyDensity(g, galLocal(g, S.pos)) > 0.03;
@@ -2354,7 +2579,9 @@ function nextGoal() {
     const st = pickStar(); if (st) return starGoal(st);
   }
   if (g && vdist(S.pos, g.center) < g.R * 1.3) { S.queue = exitGalaxyGoals(g); S.galStay = 0; return S.queue.shift(); }
-  const tg = pickGalaxy(); S.queue = galaxyGoals(tg); return S.queue.shift();
+  const tg = pickGalaxy(); S.queue = galaxyGoals(tg);
+  if (vdist(S.pos, tg.center) > tg.R * 8) S.queue.unshift(goJump({ type: 'galaxy', o: tg }));
+  return S.queue.shift();
 }
 
 function enterSystem(st) {
@@ -2406,12 +2633,12 @@ function obstacleLimit() {
   for (const p of S.sys.planets) m = Math.min(m, vdist(S.pos, p.pos) - p.R);
   return Math.max(m, 0.01) * 0.9;
 }
-function manualBase() {
-  if (S.mode === 'system') return Math.max(obstacleLimit(), 0.5) * 0.5;
+function speedRange() {
+  if (S.mode === 'system') { const dn = Math.max(obstacleLimit() / 0.9, 0.001); return { min: Math.max(dn * 0.006, 0.005), max: Math.max(dn * 1.5, 0.05) }; }
   const [, d] = nearestStar(S.pos);
-  if (d < Infinity && S.hostG) return clamp(d, 0.01, 60) * 0.5;
+  if (S.hostG && d < Infinity) return { min: clamp(d * 0.05, 0.002, 2), max: SPEED_CAP };
   let m = Infinity; for (const g of galList) m = Math.min(m, vdist(S.pos, g.center) - g.R);
-  return Math.max(m, 1000) * 0.2;
+  return { min: Math.max(m * 0.002, 20), max: SPEED_CAP };
 }
 function flyStep(dt) {
   const manual = !S.auto;
@@ -2420,26 +2647,41 @@ function flyStep(dt) {
     let q = S.q;
     if (k.KeyA || k.ArrowLeft) q = qmul(q, qaxis([0, 1, 0], turn));
     if (k.KeyD || k.ArrowRight) q = qmul(q, qaxis([0, 1, 0], -turn));
-    if (k.ArrowUp) q = qmul(q, qaxis([1, 0, 0], -turn));
-    if (k.ArrowDown) q = qmul(q, qaxis([1, 0, 0], turn));
+    if (k.ArrowUp) q = qmul(q, qaxis([1, 0, 0], turn));
+    if (k.ArrowDown) q = qmul(q, qaxis([1, 0, 0], -turn));
     if (k.KeyQ) q = qmul(q, qaxis([0, 0, 1], turn));
     if (k.KeyE) q = qmul(q, qaxis([0, 0, 1], -turn));
     S.q = qnorm(q);
-    const thr = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0);
-    const tv = thr * manualBase() * S.speedMul;
-    S.v = lerp(S.v, tv, 1 - Math.exp(-dt * 2.5));
+    const boost = k.ShiftLeft || k.ShiftRight, R = speedRange();
+    if (k.KeyW) { S.v = Math.max(S.v, R.min) * Math.exp((boost ? 2.2 : 0.8) * dt); S.thrust = boost ? 1 : 0.6; }
+    else if (k.KeyS) { S.v *= Math.exp(-2.2 * dt); if (S.v < R.min * 0.2) S.v = 0; S.thrust = 0.05; }
+    else S.thrust = S.v > 0 ? 0.25 : 0.08;
+    if (k.KeyX) S.v *= Math.exp(-8 * dt);
+    if (S.v > R.max) S.v = lerp(S.v, R.max, 1 - Math.exp(-dt * 2.5));
     S.pos = vadd(S.pos, vmul(qfwd(S.q), S.v * dt));
     return;
   }
   if (!S.goal) S.goal = nextGoal();
   const g = S.goal; if (!g) return;
   const turnK = 1 - Math.exp(-dt * 0.9);
+  if (g.kind === 'jump') {
+    if (!g.dest) { g.dest = jumpDest(g.sel); if (!g.dest) { S.goal = null; return; } S.warpT = 0; Music.whoosh(); showLoc(selName(g.sel), 'hyperspace jump'); }
+    g.t += dt; S.thrust = 1;
+    let up = refUp(); const dir = vnorm(vsub(g.dest.pos, S.pos)); if (Math.abs(vdot(up, dir)) > 0.97) up = qup(S.q);
+    S.q = qslerp(S.q, qlook(dir, up), 1 - Math.exp(-dt * 4));
+    if (g.t >= 0.95) {
+      const to = vsub(g.dest.look, g.dest.pos); up = refUp(); if (Math.abs(vdot(up, vnorm(to))) > 0.97) up = qup(S.q);
+      S.pos = g.dest.pos; S.q = qlook(to, up); S.v = vlen(to) * 0.04; S.goal = null;
+      if (g.manual) { S.auto = false; S.v = 0; syncButtons(); }
+    }
+    return;
+  }
   if (g.kind === 'orbit') {
     const C = g.center(), rel = vsub(S.pos, C);
     const nrel = qrot(qaxis(g.axis, g.w * dt * S.autoMul), rel);
     S.pos = vadd(C, nrel);
     S.q = qslerp(S.q, qlook(vsub(C, S.pos), g.axis), turnK * 0.7);
-    S.v = Math.abs(g.w) * vlen(rel) * S.autoMul;
+    S.v = Math.abs(g.w) * vlen(rel) * S.autoMul; S.thrust = 0.2;
     g.t += dt;
     if (g.t > g.dur && S.started) { S.goal = null; }
     return;
@@ -2450,10 +2692,12 @@ function flyStep(dt) {
   let up = refUp(); if (Math.abs(vdot(up, dir)) > 0.97) up = qup(S.q);
   S.q = qslerp(S.q, qlook(dir, up), turnK);
   const fwd = qfwd(S.q), align = Math.max(0, vdot(fwd, dir));
-  let vDes = Math.max(d - g.arrive * 0.6, Math.max(g.arrive, d * 0.02) * 0.3) * 0.4 * S.autoMul * Math.pow(align, 4);
-  vDes = Math.min(vDes, obstacleLimit());
+  let vDes = Math.max(d - g.arrive * 0.6, Math.max(g.arrive, d * 0.02) * 0.3) * 0.55 * Math.pow(align, 4);
+  vDes = Math.min(vDes, obstacleLimit(), S.mode === 'space' ? SPEED_CAP : Infinity);
   vDes = Math.max(vDes, 1e-12);
+  const v0 = S.v;
   S.v = Math.exp(lerp(Math.log(Math.max(S.v, 1e-12)), Math.log(vDes), 1 - Math.exp(-dt * 1.3)));
+  S.thrust = lerp(S.thrust, S.v > v0 ? 0.8 : 0.25, 1 - Math.exp(-dt * 3));
   S.pos = vadd(S.pos, vmul(fwd, S.v * dt));
   if (d < g.arrive) { if (g.onArrive) g.onArrive(); S.goal = null; }
 }
@@ -2469,19 +2713,16 @@ function surfStep(dt) {
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   const g0 = terrH(P, s.x, s.z, 3);
   s.ground = Math.max(g0, P.sea);
-  if (s.phase === 'walk') { walkStep(s, dt, g0); Music.mood('surface', 0.03); return; }
+  if (s.phase === 'walk') { walkStep(s, dt); Music.mood('surface', 0.03); return; }
+  if (s.phase !== 'ascend') S.fade = Math.max(0, S.fade - dt * (s.phase === 'descend' ? 0.3 : 1.2));
+  if (!S.auto && s.phase === 'descend') { s.phase = 'cruise'; s.pt = 0; }
+  if (!S.auto && s.phase === 'cruise') { manualSurfFlight(s, dt); return; }
   const landOK = g0 > P.sea + 0.8 && Math.hypot(terrH(P, s.x + 3, s.z, 1) - terrH(P, s.x - 3, s.z, 1), terrH(P, s.x, s.z + 3, 1) - terrH(P, s.x, s.z - 3, 1)) / 6 < 0.35
     && (!S.auto || s.pt > 40 || forestM(P, s.x, s.z) * P.treeDen < 0.35);
-  if (!S.auto && (s.phase === 'cruise' || (s.phase === 'landing' && landOK))) {
+  if (!S.auto && s.phase === 'landing' && landOK) {
     const k = keys;
     const yt = ((k.KeyA || k.ArrowLeft) ? 0.35 : 0) - ((k.KeyD || k.ArrowRight) ? 0.35 : 0);
     s.yawRate = lerp(s.yawRate, yt, 1 - Math.exp(-dt * 2));
-    if (s.phase === 'cruise') {
-      if (k.KeyW || k.ArrowUp) s.speed = Math.min(s.speed + 40 * dt, 320);
-      if (k.KeyS || k.ArrowDown) s.speed = Math.max(s.speed - 40 * dt, 12);
-      if (k.KeyE) s.clear = Math.min(s.clear + 40 * dt, 1200);
-      if (k.KeyQ) s.clear = Math.max(s.clear - 40 * dt, 8);
-    }
   } else if (s.phase !== 'ascend') {
     const side = a => { const d = [-Math.sin(s.yaw + a), 0, -Math.cos(s.yaw + a)]; let m = -1e9; for (const r of [250, 550, 900]) m = Math.max(m, H(s.x + d[0] * r, s.z + d[2] * r)); return m; };
     const hl = side(0.5), hr = side(-0.5), hc = side(0);
@@ -2505,32 +2746,60 @@ function surfStep(dt) {
   } else if (s.phase === 'landing') {
     const a = s.y - s.ground;
     s.speed = lerp(s.speed, landOK ? clamp(a * 0.35 - 0.3, 0, 30) : 30, 1 - Math.exp(-dt * 0.8));
-    vyT = landOK ? clamp((s.ground + 1.7 - s.y) * 0.6, -14, 4) : clamp((gmax + 25 - s.y) * 0.6, -10, 10);
-    minAlt = 1.6;
-    if (landOK && a < 2.4 && s.speed < 1.2) {
-      s.phase = 'walk'; s.pt = 0; s.walkV = 0; s.speed = 0; s.roll = 0; s.wState = 'stand'; s.wT = 4; S.look.yaw = S.look.pitch = 0;
-      toast(S.auto ? 'Landed · press W A S D to walk yourself' : 'Landed · W A S D walk · Shift run · drag to look · L to fly');
+    vyT = landOK ? clamp((s.ground + 1.0 - s.y) * 0.6, -14, 4) : clamp((gmax + 25 - s.y) * 0.6, -10, 10);
+    minAlt = 0.95;
+    if (landOK && a < 1.6 && s.speed < 1.2) {
+      const rt = [Math.cos(s.yaw), 0, -Math.sin(s.yaw)];
+      s.park = { x: s.x, y: s.ground + 0.95, z: s.z, yaw: s.yaw };
+      let hx = s.x + rt[0] * 5, hz = s.z + rt[2] * 5;
+      if (terrH(P, hx, hz, 3) < P.sea + 0.4) { hx = s.x - rt[0] * 5; hz = s.z - rt[2] * 5; }
+      s.x = hx; s.z = hz; s.footY = terrH(P, hx, hz, 3); s.y = s.footY + 1.7; s.heroYaw = s.yaw; s.vyJ = 0; s.air = false;
+      s.phase = 'walk'; s.pt = 0; s.walkV = 0; s.speed = 0; s.roll = 0; s.pitch = -0.12; s.wState = 'stand'; s.wT = 4; S.look.yaw = S.look.pitch = 0;
+      toast(S.auto ? 'Landed · press W A S D to walk yourself' : 'Landed · W A S D walk · Shift run · Space jump · L to fly');
     }
   } else if (s.phase === 'takeoff') {
-    vyT = 5 + s.pt * 5; s.speed = lerp(s.speed, 60, 1 - Math.exp(-dt * 0.4)); minAlt = 1.6;
+    vyT = 5 + s.pt * 5; s.speed = lerp(s.speed, 60, 1 - Math.exp(-dt * 0.4)); minAlt = 0.95;
     if (s.y - s.ground > 50) { s.phase = 'cruise'; s.pt = 0; s.cruiseDur = 40 + Math.random() * 30; }
   } else {
     let clear = s.clear;
     if (s.phase === 'descend') { const k = smooth(0, 16, s.t); clear = lerp(1500, s.clear, k); if (s.t > 16) { s.phase = 'cruise'; s.pt = 0; } }
     vyT = clamp((gmax + clear - s.y) * 0.7, -s.speed * (s.y - gmax - clear > 250 ? 0.75 : 0.45), s.speed * 0.8);
-    S.fade = Math.max(0, 1 - s.t / 3.5);
     minAlt = Math.min(10, s.clear);
   }
   s.vy = lerp(s.vy, vyT, 1 - Math.exp(-dt * 1.4));
   s.y += s.vy * dt;
   s.y = Math.max(s.y, s.ground + minAlt);
   s.x += fw[0] * s.speed * dt; s.z += fw[2] * s.speed * dt;
-  const pT = s.phase === 'ascend' ? 0.4 : s.phase === 'landing' ? -0.12 : Math.atan2(s.vy, Math.max(s.speed, 5)) * 0.7 - 0.09 - (s.phase === 'descend' ? 0.25 * (1 - smooth(0, 14, s.t)) : 0);
+  const pT = s.phase === 'ascend' ? 0.4 : s.phase === 'landing' ? -0.05 : Math.atan2(s.vy, Math.max(s.speed, 5)) * 0.7 - 0.09 - (s.phase === 'descend' ? 0.25 * (1 - smooth(0, 14, s.t)) : 0);
   s.pitch = lerp(s.pitch, pT, 1 - Math.exp(-dt * 1.2));
   s.roll = lerp(s.roll, -s.yawRate * 1.6, 1 - Math.exp(-dt * 1.2));
+  S.thrust = s.phase === 'landing' ? 0.3 : 0.55;
   Music.mood('surface', 0.05 + clamp(s.speed / 300, 0, 0.25));
 }
-function walkStep(s, dt, g0) {
+function manualSurfFlight(s, dt) {
+  const k = keys, P = s.P, boost = k.ShiftLeft || k.ShiftRight;
+  const yt = ((k.KeyA || k.ArrowLeft) ? 0.75 : 0) - ((k.KeyD || k.ArrowRight) ? 0.75 : 0);
+  s.yawRate = lerp(s.yawRate, yt, 1 - Math.exp(-dt * 3));
+  s.yaw += s.yawRate * dt;
+  s.pitch = clamp(s.pitch + (((k.ArrowUp) ? 0.8 : 0) - ((k.ArrowDown) ? 0.8 : 0)) * dt, -1.35, 1.35);
+  if (k.KeyW) s.speed = Math.min(s.speed + (boost ? 220 : 35) * dt, boost ? 1600 : 260);
+  else if (s.speed > 260) s.speed = lerp(s.speed, 260, 1 - Math.exp(-dt * 0.7));
+  if (k.KeyS) s.speed = Math.max(0, s.speed - 70 * dt);
+  if (k.KeyX) s.speed *= Math.exp(-5 * dt);
+  const vert = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0), cp = Math.cos(s.pitch);
+  s.x += -Math.sin(s.yaw) * cp * s.speed * dt; s.z += -Math.cos(s.yaw) * cp * s.speed * dt;
+  s.vy = Math.sin(s.pitch) * s.speed + vert * 25;
+  s.y += s.vy * dt;
+  if (s.y < s.ground + 2.5) { s.y = s.ground + 2.5; if (s.pitch < 0) s.pitch = lerp(s.pitch, 0, 1 - Math.exp(-dt * 4)); }
+  s.roll = lerp(s.roll, -s.yawRate * 0.9, 1 - Math.exp(-dt * 2));
+  S.thrust = k.KeyW ? (boost ? 1 : 0.6) : 0.15 + 0.2 * Math.min(s.speed / 200, 1);
+  const agl = s.y - s.ground;
+  S.fade = Math.max(S.fade, smooth(1700, 2900, agl)); S.fadeCol = skyDisplayColor(P, s.sys.star.light, Math.asin(clamp(s.sun[1], -1, 1)));
+  if (agl > 1200 && !s.hintUp) { s.hintUp = true; toast('Keep climbing to leave the atmosphere'); }
+  if (agl > 2900) { S.fade = 1; exitSurface(); return; }
+  Music.mood('surface', 0.05 + clamp(s.speed / 600, 0, 0.3));
+}
+function walkStep(s, dt) {
   const P = s.P, k = keys, manual = !S.auto;
   let fin = 0, side = 0;
   const run = k.ShiftLeft || k.ShiftRight;
@@ -2547,24 +2816,32 @@ function walkStep(s, dt, g0) {
   const sp = run ? 5 : 1.5;
   s.walkV = lerp(s.walkV, fin * sp, 1 - Math.exp(-dt * 3)); s.sideV = lerp(s.sideV, side * sp * 0.8, 1 - Math.exp(-dt * 3));
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)], rt = [Math.cos(s.yaw), 0, -Math.sin(s.yaw)];
-  const nx = s.x + (fw[0] * s.walkV + rt[0] * s.sideV) * dt, nz = s.z + (fw[2] * s.walkV + rt[2] * s.sideV) * dt;
-  const step = Math.hypot(nx - s.x, nz - s.z);
+  const vx = fw[0] * s.walkV + rt[0] * s.sideV, vz = fw[2] * s.walkV + rt[2] * s.sideV;
+  const nx = s.x + vx * dt, nz = s.z + vz * dt, step = Math.hypot(nx - s.x, nz - s.z), g0 = terrH(P, s.x, s.z, 3);
   if (step > 1e-6) {
     const nh = terrH(P, nx, nz, 3);
-    if (nh > P.sea + 0.3 && (nh - g0) / step < 1.1) { s.x = nx; s.z = nz; }
+    if (nh > P.sea + 0.3 && ((nh - g0) / step < 1.1 || s.air)) { s.x = nx; s.z = nz; }
     else if (!manual) { s.yaw += dt * 1.6; s.walkV *= 0.9; }
   }
-  const mv = Math.hypot(s.walkV, s.sideV);
-  s.bob += dt * mv * 4.2;
-  const eye = terrH(P, s.x, s.z, 3) + 1.7 + Math.sin(s.bob) * 0.035 * Math.min(mv, 1.5);
-  s.y = lerp(s.y, eye, 1 - Math.exp(-dt * 12));
-  s.speed = mv; s.vy = 0; s.yawRate = 0;
+  const mv = Math.hypot(vx, vz), g = terrH(P, s.x, s.z, 3);
+  if (mv > 0.2) { let da = Math.atan2(-vx, -vz) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 8)); }
+  if (s.air) { s.vyJ -= 9.8 * dt; s.footY += s.vyJ * dt; if (s.footY <= g) { s.footY = g; s.air = false; s.vyJ = 0; } }
+  else s.footY = lerp(s.footY, g, 1 - Math.exp(-dt * 20));
+  s.walkPhase += dt * mv * 3.4; s.bob += dt * mv * 4.2;
+  s.y = s.footY + 1.7 + (S.tp || s.air ? 0 : Math.sin(s.bob) * 0.035 * Math.min(mv, 1.5));
+  s.speed = mv; s.vy = 0; s.yawRate = 0; s.ground = Math.max(g, P.sea);
   s.roll = lerp(s.roll, 0, 1 - Math.exp(-dt * 3));
-  if (!manual && !drag) s.pitch = lerp(s.pitch, -0.06 + Math.sin(s.t * 0.13) * 0.06, 1 - Math.exp(-dt * 0.5));
+  if (!manual && !drag) s.pitch = lerp(s.pitch, (S.tp ? -0.18 : -0.06) + Math.sin(s.t * 0.13) * 0.06, 1 - Math.exp(-dt * 0.5));
 }
-function startAscend() { if (!surf || surf.phase === 'ascend') return; surf.phase = 'ascend'; surf.ascT = 0; toast('Leaving the surface'); }
+function heroJump() { if (surf && surf.phase === 'walk' && !surf.air) { surf.air = true; surf.vyJ = 4.6; } }
+function startAscend() { if (!surf || surf.phase === 'ascend') return; if (surf.phase === 'walk') boardShip(surf); surf.phase = 'ascend'; surf.ascT = 0; toast('Leaving the surface'); }
 function startLanding() { if (!surf || surf.phase !== 'cruise') return; surf.phase = 'landing'; surf.pt = 0; surf.walked = true; toast('Landing'); }
-function startTakeoff() { if (!surf || surf.phase !== 'walk') return; surf.phase = 'takeoff'; surf.pt = 0; surf.vy = 2; toast('Taking off'); }
+function boardShip(s) {
+  if (!s.park) return;
+  if (Math.hypot(s.x - s.park.x, s.z - s.park.z) > 12) S.fade = 0.9;
+  s.x = s.park.x; s.z = s.park.z; s.y = s.park.y; s.yaw = s.park.yaw; s.pitch = 0; s.park = null;
+}
+function startTakeoff() { if (!surf || surf.phase !== 'walk') return; boardShip(surf); surf.phase = 'takeoff'; surf.pt = 0; surf.vy = 2; surf.speed = 0; toast('Taking off'); }
 function toggleLand() {
   if (!surf) return;
   if (surf.phase === 'walk') startTakeoff();
@@ -2572,10 +2849,35 @@ function toggleLand() {
   else if (surf.phase === 'landing') { surf.phase = 'cruise'; surf.pt = 0; }
 }
 const surfCamQ = s => qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch)), qaxis([0, 0, 1], s.roll));
+function surfaceCamera(s, lookQ) {
+  const P = s.P;
+  if (s.phase === 'walk') {
+    const q = qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch));
+    if (!S.tp) return { q, pos: [s.x, s.y, s.z] };
+    const pos = vadd([s.x, s.footY + 1.55, s.z], qrot(q, [0.45, 0.3, S.walkDist]));
+    pos[1] = Math.max(pos[1], terrH(P, pos[0], pos[2], 3) + 0.4);
+    return { q, pos };
+  }
+  if (!S.tp) return { q: qmul(surfCamQ(s), lookQ), pos: [s.x, s.y, s.z] };
+  const q = qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch * 0.6 - 0.12)), lookQ);
+  const D = S.camDist, pos = vadd([s.x, s.y, s.z], qrot(q, [0, D * 0.18 + 1.5, D]));
+  pos[1] = Math.max(pos[1], Math.max(terrH(P, pos[0], pos[2], 2), P.sea) + 1.2);
+  return { q, pos };
+}
+// third-person models visible on the surface (positions in world metres)
+function surfaceModels(s) {
+  const out = [];
+  if (s.phase === 'walk') {
+    if (s.park) out.push({ mesh: shipMesh, w: [s.park.x, s.park.y, s.park.z], q: qaxis([0, 1, 0], s.park.yaw), cols: SHIP_COLS, glow: 0.15 });
+    if (S.tp) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * (1 - smooth(-0.2, 0.05, s.sun[1])), phase: s.walkPhase, walk: clamp(s.speed / 1.5, 0, 1.3), air: s.air ? 1 : 0 });
+  } else if (S.tp) out.push({ mesh: shipMesh, w: [s.x, s.y, s.z], q: surfCamQ(s), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
+  return out;
+}
 
 // ---- per-frame update
 function update(dt) {
   S.t += dt;
+  if (S.warpT >= 0) { S.warpT += dt; if (S.warpT > 2.4) S.warpT = -1; }
   const L = S.look; L.idle += dt;
   if (L.idle > 3) { const k = Math.exp(-dt * 0.4); L.yaw *= k; L.pitch *= k; }
   if (S.mode === 'space') {
@@ -2618,22 +2920,26 @@ function render() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, post.hdr.fb); gl.viewport(0, 0, post.w, post.h);
   gl.depthMask(true); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   const lookQ = qmul(qaxis([0, 1, 0], S.look.yaw), qaxis([1, 0, 0], S.look.pitch));
+  const warp = S.warpT < 0 ? 0 : S.warpT < 1 ? Math.pow(smooth(0, 1, S.warpT), 1.5) : 1 - smooth(1, 2.3, S.warpT);
+  view.fov = 1.05 + warp * 0.55; view.pxScale = post.h / 2 / Math.tan(view.fov / 2);
   let exposure = 1;
   if (S.mode === 'surface' && surf) {
-    const cq = qmul(surfCamQ(surf), lookQ); setView(cq);
-    renderSurface(surf, S.t, cq);
+    const c = surfaceCamera(surf, lookQ); setView(c.q);
+    renderSurface(surf, S.t, c.q, c.pos);
     exposure = lerp(2.4, 0.9, smooth(-0.2, 0.1, surf.sun[1]));
   } else {
-    setView(qmul(S.q, lookQ));
+    const cq = qmul(S.q, lookQ);
+    setView(cq);
     if (S.mode === 'space') renderSpace(S.pos, { dim: 1, hide: 0, nebula: true });
     else { renderSpace(S.star.p, { dim: 1, hide: 1e-3, nebula: true }); renderSystemBodies(S.sys, S.pos, S.t, {}); }
+    if (S.tp && S.started) renderShipSpace(cq);
   }
-  postProcess(exposure, S.fade, S.fadeCol, S.t);
+  postProcess(exposure, S.fade, S.fadeCol, S.t, warp);
 }
 
 // ---- picking
-function pickAt(mx, my) {
-  let best = null, bd = 34 * post.h / 1080 + 6;
+function pickAt(mx, my, rad) {
+  let best = null, bd = rad || 34 * post.h / 1080 + 6;
   const test = (rel, obj, bonus) => { const p = project(rel); if (!p) return; const d = Math.hypot(p[0] - mx, p[1] - my) - bonus; if (d < bd) { bd = d; best = obj; } };
   if (S.mode === 'space') {
     for (const g of galList) { const rel = vsub(g.center, S.pos), d = vlen(rel); if (d > g.R * 1.2) test(rel, { type: 'galaxy', o: g }, Math.min(g.R / d * view.pxScale * 0.6, 60)); }
@@ -2648,11 +2954,22 @@ function pickAt(mx, my) {
   return best;
 }
 function travelTo(t) {
-  S.auto = true; S.queue = []; S.goal = null; syncButtons();
-  if (t.type === 'galaxy') { S.queue = galaxyGoals(t.o); toast('Travelling to ' + t.o.title); }
-  else if (t.type === 'nebula') { S.queue = nebulaGoals(t.o); toast('Travelling to ' + t.o.title); }
-  else if (t.type === 'star') { S.queue = [starGoal(t.o)]; toast('Travelling to ' + starName(t.o)); }
-  else if (t.type === 'planet') { S.queue = planetGoals(t.o, t.o.landable); toast('Travelling to ' + t.o.name); }
+  S.auto = true; S.queue = []; S.goal = null; S.sel = t; syncButtons();
+  const q = [], jump = needJump(t) && jumpDest(t);
+  if (jump) q.push(goJump(t));
+  if (t.type === 'galaxy') q.push(...galaxyGoals(t.o, true));
+  else if (t.type === 'nebula') q.push(...nebulaGoals(t.o, true));
+  else if (t.type === 'star') { if (!jump) q.push(starGoal(t.o)); }
+  else if (t.type === 'planet') q.push(...planetGoals(t.o, t.o.landable, true));
+  S.queue = q;
+  toast((jump ? 'Jumping to ' : 'Travelling to ') + selName(t));
+}
+function spaceJump() {
+  if (S.mode === 'surface') { heroJump(); return; }
+  let t = jumpDest(S.sel) ? S.sel : null;
+  if (!t) { const c = pickAt(post.w / 2, post.h / 2, 140 * post.h / 1080); if (c && jumpDest(c)) t = c; }
+  if (!t) { toast('Click a star, planet or galaxy — then Space to jump'); return; }
+  S.sel = t; S.queue = []; S.goal = goJump(t, { manual: !S.auto }); S.auto = true; syncButtons();
 }
 function nextDestination() {
   if (S.mode === 'surface') { S.auto = true; syncButtons(); startAscend(); return; }
@@ -2669,7 +2986,7 @@ canvas.addEventListener('pointermove', e => {
   if (!drag) { hoverAt(e.clientX, e.clientY); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
   const k = 0.0035;
-  if (S.mode === 'surface' && surf && surf.phase === 'walk') { surf.yaw -= dx * k; surf.pitch = clamp(surf.pitch - dy * k, -1.3, 1.3); }
+  if (S.mode === 'surface' && surf && (surf.phase === 'walk' || (!S.auto && surf.phase === 'cruise'))) { surf.yaw -= dx * k; surf.pitch = clamp(surf.pitch - dy * k, -1.3, 1.3); }
   else if (!S.auto && S.mode !== 'surface') S.q = qnorm(qmul(S.q, qmul(qaxis([0, 1, 0], -dx * k), qaxis([1, 0, 0], -dy * k))));
   else { S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0; }
 });
@@ -2684,21 +3001,24 @@ canvas.addEventListener('pointerup', e => {
 });
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  const f = e.deltaY > 0 ? 0.8 : 1.25;
-  if (S.auto) { S.autoMul = clamp(S.autoMul * f, 0.25, 4); toast('Autopilot pace ×' + S.autoMul.toFixed(2)); }
-  else { S.speedMul = clamp(S.speedMul * f, 1e-3, 1e6); toast('Speed ×' + fmtN(S.speedMul)); }
+  const f = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+  if (S.mode === 'surface' && surf && surf.phase === 'walk') S.walkDist = clamp(S.walkDist * f, 1.8, 14);
+  else S.camDist = clamp(S.camDist * f, 6, 90);
 }, { passive: false });
 function setAuto(v) {
   S.auto = v; syncButtons();
   if (v) { S.goal = null; if (S.mode !== 'surface') { S.queue = []; if (S.mode === 'system') planSystem(); } S.v = Math.max(Math.abs(S.v), 1e-9); toast('Autopilot engaged'); }
-  else toast('Manual flight · Space to resume autopilot');
+  else toast(surf && surf.phase === 'walk' ? 'On foot · W A S D walk · Shift run · Space jump · L fly' : 'Manual · W thrust · Shift boost · S brake · P autopilot');
 }
+function toggleView() { S.tp = !S.tp; $('bView').classList.toggle('on', S.tp); toast(S.tp ? 'Third-person view' : 'First-person view'); }
 window.addEventListener('keydown', e => {
-  if (e.repeat && !/^(Key[WASDQE]|Arrow)/.test(e.code)) return;
+  if (e.repeat && !/^(Key[WASDQEX]|Arrow|Shift)/.test(e.code)) return;
   keys[e.code] = true;
   if (!S.started) return;
   if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
-  if (e.code === 'Space') { e.preventDefault(); setAuto(!S.auto); }
+  if (e.code === 'Space') { e.preventDefault(); spaceJump(); }
+  if (e.code === 'KeyP') setAuto(!S.auto);
+  if (e.code === 'KeyV') toggleView();
   if (e.code === 'KeyN') nextDestination();
   if (e.code === 'KeyL') toggleLand();
   if (e.code === 'KeyT') toggleMarks();
@@ -2719,6 +3039,8 @@ $('bMusic').onclick = () => toggleMusic();
 $('bHelp').onclick = () => toggleHelp();
 $('bFull').onclick = () => toggleFull();
 $('bLand').onclick = () => toggleLand();
+$('bJump').onclick = () => spaceJump();
+$('bView').onclick = () => toggleView();
 $('bMarks').onclick = () => toggleMarks();
 function toggleMarks() { markOn = !markOn; $('bMarks').classList.toggle('on', markOn); toast(markOn ? 'Markers on' : 'Markers off'); }
 $('intro').addEventListener('click', () => {
@@ -2734,18 +3056,24 @@ let infoT = 0;
 function updateInfo(dt) {
   infoT -= dt; if (infoT > 0) return; infoT = 0.25;
   let sp = '', tgt = '';
+  const gp = g => g.kind === 'fly' ? g.target() : g.kind === 'orbit' ? g.center() : g.dest ? g.dest.pos : S.pos;
   if (S.mode === 'space') {
     sp = fmtSpeedLy(Math.abs(S.v));
-    if (S.auto && S.goal) { const t = S.goal.kind === 'fly' ? S.goal.target() : S.goal.center(); tgt = (S.goal.label || '') + ' · ' + fmtLy(vdist(t, S.pos)); }
+    if (S.auto && S.goal) tgt = (S.goal.label || '') + ' · ' + fmtLy(vdist(gp(S.goal), S.pos));
   } else if (S.mode === 'system') {
     sp = fmtSpeedSU(Math.abs(S.v));
-    if (S.auto && S.goal) { const t = S.goal.kind === 'fly' ? S.goal.target() : S.goal.center(); tgt = (S.goal.label || '') + ' · ' + fmtSU(vdist(t, S.pos)); }
+    if (S.auto && S.goal) tgt = (S.goal.label || '') + ' · ' + fmtSU(vdist(gp(S.goal), S.pos));
   } else if (surf) {
     const agl = Math.round(surf.y - surf.ground);
     sp = surf.phase === 'walk' ? 'on foot · ' + (surf.speed * 3.6).toFixed(1) + ' km/h' : Math.round(surf.speed * 3.6) + ' km/h · ' + agl + ' m';
     tgt = surf.planet.name;
   }
-  $('info').innerHTML = (tgt ? tgt.replace(/</g, '') + '<br>' : '') + sp + '<br>' + (S.auto ? 'autopilot' : 'manual');
+  let hint = S.auto ? 'autopilot' : surf && surf.phase === 'walk' ? 'on foot · Space jump · L fly' : 'manual · W thrust · Shift boost';
+  if (!S.auto && S.sel && S.mode !== 'surface' && jumpDest(S.sel)) {
+    const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
+    tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'Space to jump · ' + hint;
+  }
+  $('info').innerHTML = (tgt ? tgt.replace(/</g, '') + '<br>' : '') + sp + '<br>' + hint;
   const bl = $('bLand'), onSurf = S.mode === 'surface' && surf;
   bl.style.display = onSurf ? '' : 'none';
   if (onSurf) bl.textContent = surf.phase === 'walk' ? 'FLY' : 'LAND';
@@ -2782,7 +3110,8 @@ function refreshSpaceMarks() {
     for (const s of starLv[1].stars) { const d = vdist(s.p, S.pos); if (d < 200) c.push([d * 0.15, s]); }
     c.sort((a, b) => a[0] - b[0]);
     for (const [, s] of c.slice(0, 7)) out.push({ star: s });
-  } else for (const g of galList) if (g.dist > g.R * 1.6 && g.dist < UC * 2.2) out.push({ gal: g });
+    if (S.sel && S.sel.type === 'star' && !out.some(m => m.star === S.sel.o)) out.push({ star: S.sel.o });
+  } else for (const g of galList) if (g.dist > g.R * 4 && g.dist < UC * 2.2) out.push({ gal: g });
   spaceMarks = out;
 }
 function updateMarkers(dt) {
@@ -2793,13 +3122,13 @@ function updateMarkers(dt) {
     const x = p[0] * sc, y = p[1] * sc; if (x < -60 || y < -60 || x > innerWidth + 60 || y > innerHeight + 60) return;
     const el = markEl(n++), size = Math.max(rpx * sc * 2 + 12, 14);
     el.style.display = ''; el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-    el.className = 'mk' + (live ? ' live' : '');
+    el.className = 'mk' + (live ? ' live' : '') + (S.sel && S.sel.o === t.o ? ' sel' : '');
     const r = el.firstChild; r.style.width = r.style.height = size + 'px';
     el.lastChild.style.left = (size / 2 + 7) + 'px';
     const html = title + '<small>' + sub + '</small>'; if (el._h !== html) { el.lastChild.innerHTML = html; el._h = html; }
     el._t = t;
   };
-  if (markOn && S.started && !document.body.classList.contains('hideui')) {
+  if (markOn && S.started && S.warpT < 0 && !document.body.classList.contains('hideui')) {
     if (S.mode === 'system') {
       for (const p of S.sys.planets) {
         const rel = vsub(p.pos, S.pos), d = vlen(rel), rpx = p.R / d * view.pxScale;
