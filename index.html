@@ -23,8 +23,10 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #bar button{background:rgba(10,14,28,.35);border:1px solid rgba(255,255,255,.18);color:#dfe7ff;border-radius:20px;padding:7px 13px;font-size:12px;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(6px);transition:background .3s,border-color .3s}
 #bar button:hover{background:rgba(60,80,140,.4)}
 #bar button.on{border-color:rgba(150,200,255,.75);box-shadow:0 0 12px rgba(120,170,255,.35)}
-#help{position:fixed;top:64px;right:18px;width:300px;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
-#help b{display:inline-block;min-width:92px;color:#a9c4ff;font-weight:500}
+#help{position:fixed;top:64px;right:18px;width:350px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
+#help b{color:#a9c4ff;font-weight:500}
+#help div:not(.s){padding-left:118px;text-indent:-118px}
+#help div:not(.s)>b:first-child{display:inline-block;width:118px;text-indent:0;vertical-align:top}
 #toast{position:fixed;left:50%;top:14%;transform:translateX(-50%);font-weight:300;letter-spacing:.3em;font-size:14px;opacity:0;pointer-events:none;text-transform:uppercase;text-shadow:0 0 12px #000;white-space:nowrap}
 #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:18px;background:#000}
 #marks{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
@@ -45,6 +47,13 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #syslist .p:hover{opacity:1;background:rgba(80,110,180,.28)}
 #syslist .p i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:0}
 #syslist .p.live{color:#b8ffd4}#syslist .p span{opacity:.55;margin-left:4px}
+#preview{position:fixed;left:24px;top:22px;font-size:12px;letter-spacing:.06em;line-height:1.9;z-index:4;opacity:0;transition:opacity .35s;text-shadow:0 0 8px #000;pointer-events:none;background:rgba(8,12,24,.45);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;backdrop-filter:blur(4px)}
+#preview .h{font-size:13px;letter-spacing:.22em;text-transform:uppercase;opacity:.9}
+#preview .d{font-size:11px;opacity:.55;margin-bottom:4px}
+#preview .p{opacity:.8}#preview .p.live{color:#b8ffd4}
+#preview .p i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:0}
+#pause{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-weight:200;letter-spacing:.6em;font-size:clamp(22px,3vw,40px);background:rgba(0,0,0,.35);z-index:8;pointer-events:none;text-shadow:0 0 24px rgba(140,180,255,.6)}
+#help .s{margin-top:8px;font-size:11px;letter-spacing:.2em;opacity:.55;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -61,32 +70,41 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 <div id="marks" class="ui"></div>
 <div id="tip" class="ui"></div>
 <div id="syslist" class="ui"></div>
+<div id="preview" class="ui"></div>
+<div id="pause">PAUSED</div>
 <div id="bar" class="ui">
   <button id="bLand" title="Land / take off (L)" style="display:none">LAND</button>
-  <button id="bAuto" class="on" title="Autopilot (P)">AUTOPILOT</button>
-  <button id="bJump" title="Hyperspace jump to selection (Space)">JUMP</button>
-  <button id="bNext" title="Next destination (N)">NEXT</button>
+  <button id="bBuggy" title="Moon buggy (B)" style="display:none">BUGGY</button>
+  <button id="bCenter" title="Center the view (C)">CENTER</button>
   <button id="bView" class="on" title="Third / first person (V)">VIEW</button>
   <button id="bMarks" class="on" title="Markers (T)">MARKERS</button>
   <button id="bMusic" class="on" title="Music (M)">MUSIC</button>
+  <button id="bPause" title="Pause (P)">PAUSE</button>
   <button id="bHelp" title="Controls (?)">?</button>
   <button id="bFull" title="Fullscreen (F)">&#x26F6;</button>
 </div>
 <div id="help" class="ui">
-  <div><b>Drag</b>steer (manual) / look around</div>
-  <div><b>Click</b>select &amp; travel to a galaxy, star or planet</div>
-  <div><b>Space</b>hyperspace jump to selection &middot; <i>on foot:</i> jump</div>
-  <div><b>&#9670; green</b>worlds you can land on</div>
-  <div><b>W</b>thrust &middot; <b style="min-width:0">Shift</b> boost</div>
-  <div><b>S / X</b>brake / full stop</div>
-  <div><b>A / D</b>turn &middot; <b style="min-width:0">&uarr; &darr;</b> pitch</div>
-  <div><b>Q / E</b>roll &middot; <i>on planets:</i> down / up</div>
-  <div><b>L</b>land &amp; walk / take off</div>
-  <div><b>V</b>third / first person &middot; <b style="min-width:0">Wheel</b> zoom</div>
-  <div><b>P</b>autopilot on / off</div>
-  <div><b>N</b>next destination / leave planet</div>
-  <div><b>T</b>markers on / off</div>
-  <div><b>H</b>hide interface</div>
+  <div class="s">Travel</div>
+  <div><b>Click</b>a galaxy, star, planet or the sun to travel there</div>
+  <div><b>Hover</b>a star to preview its planets</div>
+  <div><b>Space</b>hyperspace jump to your selection</div>
+  <div><b>Every world</b>can be entered: living, rocky, volcanic, gas giants, even the star itself</div>
+  <div class="s">Flying</div>
+  <div><b>W</b>thrust &middot; <b style="min-width:0">Shift</b> boost &middot; <b style="min-width:0">S / X</b> brake / stop</div>
+  <div><b>A / D</b>turn &middot; <b style="min-width:0">&uarr; &darr;</b> pitch &middot; <b style="min-width:0">Q / E</b> roll, near ground down / up</div>
+  <div><b>Left drag</b>steer the ship</div>
+  <div><b>L</b>land / take off</div>
+  <div class="s">On the ground</div>
+  <div><b>W / S</b>walk &middot; <b style="min-width:0">Shift</b> run &middot; <b style="min-width:0">A / D</b> turn</div>
+  <div><b>Space</b>jump &middot; meet villagers, creatures and city crowds</div>
+  <div><b>B</b>moon buggy: W gas &middot; S brake / reverse &middot; Shift boost</div>
+  <div class="s">View</div>
+  <div><b>Drag / Right drag</b>look around</div>
+  <div><b>C</b>center the view &middot; <b style="min-width:0">V</b> first / third person</div>
+  <div><b>Wheel</b>camera distance</div>
+  <div class="s">Other</div>
+  <div><b>P</b>pause &middot; <b style="min-width:0">O</b> autopilot drift</div>
+  <div><b>T</b>markers &middot; <b style="min-width:0">H</b> hide interface</div>
   <div><b>M</b>music &middot; <b style="min-width:0">F</b> fullscreen</div>
 </div>
 <div id="err"></div>
@@ -2033,6 +2051,44 @@ function modelMesh(geo) {
   return { vao: vao([{ buf: b, loc: 0, size: 3, stride: 32, offset: 0 }, { buf: b, loc: 1, size: 3, stride: 32, offset: 12 }, { buf: b, loc: 2, size: 2, stride: 32, offset: 24 }]), n: geo.length / 8 };
 }
 const shipMesh = modelMesh(shipGeo()), heroMesh = modelMesh(heroGeo());
+// moon buggy (front is -z): body, and one wheel mesh drawn four times
+function buggyGeo() {
+  const B = meshBuilder(9090);
+  const quad = (a, b, c, d, part) => { const n = vnorm(vcross(vsub(b, a), vsub(c, a))); B.tri(a, b, c, n, n, n, part, 0, 0, 0); B.tri(a, c, d, n, n, n, part, 0, 0, 0); };
+  const box = (x0, y0, z0, x1, y1, z1, part) => {
+    const v = (x, y, z) => [x ? x1 : x0, y ? y1 : y0, z ? z1 : z0];
+    quad(v(0, 0, 1), v(1, 0, 1), v(1, 1, 1), v(0, 1, 1), part); quad(v(1, 0, 0), v(0, 0, 0), v(0, 1, 0), v(1, 1, 0), part);
+    quad(v(1, 0, 1), v(1, 0, 0), v(1, 1, 0), v(1, 1, 1), part); quad(v(0, 0, 0), v(0, 0, 1), v(0, 1, 1), v(0, 1, 0), part);
+    quad(v(0, 1, 1), v(1, 1, 1), v(1, 1, 0), v(0, 1, 0), part); quad(v(0, 0, 0), v(1, 0, 0), v(1, 0, 1), v(0, 0, 1), part);
+  };
+  box(-0.8, 0.42, -1.55, 0.8, 0.62, 1.45, 1);
+  B.blob([0, 0.78, -0.1], [0.82, 0.24, 1.35], 0, 0, 0, 2);
+  B.blob([0, 0.72, -1.38], [0.7, 0.2, 0.32], 0, 0, 0, 1);
+  for (const sx of [-1, 1]) for (const z of [-1.05, 1.05]) B.blob([sx * 0.95, 0.88, z], [0.3, 0.12, 0.55], 0, 0, 0, 1);
+  B.blob([0, 1.02, 0.42], [0.42, 0.14, 0.38], 1, 0, 0, 1);
+  B.blob([0, 1.35, 0.78], [0.4, 0.35, 0.1], 1, 0, 0, 1);
+  const cage = [[-0.72, 0.85, 1.0], [-0.6, 1.95, 0.95], [0.6, 1.95, 0.95], [0.72, 0.85, 1.0]];
+  for (let i = 0; i < 3; i++) B.tube(cage[i], cage[i + 1], 0.05, 0.05, 6, 4, 0, 0);
+  for (const sx of [-1, 1]) { B.tube([sx * 0.6, 1.95, 0.95], [sx * 0.65, 1.35, -0.55], 0.045, 0.045, 6, 4, 0, 0); B.tube([sx * 0.65, 1.35, -0.55], [sx * 0.75, 0.85, -0.95], 0.045, 0.045, 6, 4, 0, 0); }
+  B.tube([-0.65, 1.35, -0.55], [0.65, 1.35, -0.55], 0.04, 0.04, 6, 4, 0, 0);
+  quad([-0.6, 1.33, -0.57], [0.6, 1.33, -0.57], [0.68, 0.9, -0.92], [-0.68, 0.9, -0.92], 2);
+  box(-0.7, 1.0, 1.05, 0.7, 1.08, 1.5, 2);
+  B.tube([0.62, 1.0, 1.35], [0.75, 2.7, 1.5], 0.025, 0.015, 5, 4, 0, 0); B.blob([0.75, 2.72, 1.5], [0.07, 0.07, 0.07], 3, 0, 0, 1);
+  for (const sx of [-0.5, 0.5]) B.blob([sx, 0.8, -1.66], [0.13, 0.11, 0.06], 3, 0, 0, 1);
+  for (const sx of [-0.6, 0.6]) B.blob([sx, 0.72, 1.48], [0.1, 0.06, 0.04], 4, 0, 0, 0);
+  return new Float32Array(B.v);
+}
+function wheelGeo() {
+  const B = meshBuilder(4242), R = 0.46, W = 0.17;
+  B.tube([-W, 0, 0], [W, 0, 0], R, R, 18, 1, 0, 0);
+  for (const sx of [-1, 1]) B.blob([sx * W, 0, 0], [0.04, R * 0.62, R * 0.62], 4, 0, 0, 1);
+  for (let k = 0; k < 12; k++) { const a = k / 12 * TAU, c = Math.cos(a), s = Math.sin(a); B.blob([0, c * R, s * R], [W * 1.05, 0.05, 0.08], 1, 0, 0, 0); }
+  for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; B.tube([W * 1.02, 0, 0], [W * 1.02, Math.cos(a) * R * 0.55, Math.sin(a) * R * 0.55], 0.03, 0.03, 4, 0, 0, 0); }
+  return new Float32Array(B.v);
+}
+const buggyMesh = modelMesh(buggyGeo()), wheelMesh = modelMesh(wheelGeo());
+const BUGGY_COLS = [[0.92, 0.58, 0.16], [0.11, 0.12, 0.14], [0.05, 0.08, 0.12], [1.0, 0.92, 0.7], [0.78, 0.8, 0.84]];
+const BUGGY_WHEELS = [[-0.98, 0.46, -1.05, 1], [0.98, 0.46, -1.05, 1], [-0.98, 0.46, 1.05, 0], [0.98, 0.46, 1.05, 0]];
 const SHIP_COLS = [[0.78, 0.8, 0.84], [0.16, 0.18, 0.22], [0.03, 0.05, 0.08], [0.45, 0.75, 1.0], [0.95, 0.42, 0.12]];
 const HERO_COLS = [[0.88, 0.88, 0.86], [0.28, 0.3, 0.34], [0.35, 0.25, 0.08], [1.0, 0.85, 0.55], [0.95, 0.42, 0.12]];
 const MODEL_VS = `layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM;
@@ -2639,7 +2695,7 @@ let animFrame = 0;
 function simAnimals(s, dt) {
   const P = s.P, E = s.eco, lists = E.creatures.map(() => []);
   const low = s.y - s.ground, walking = s.phase === 'walk';
-  const fleeR = walking ? 6 : low < 25 ? 20 : 0, rt = [Math.cos(s.yaw), -Math.sin(s.yaw)], fr = ++animFrame;
+  const fleeR = walking ? (s.driving ? 16 : 6) : low < 25 ? 20 : 0, rt = [Math.cos(s.yaw), -Math.sin(s.yaw)], fr = ++animFrame;
   s.titans.length = 0;
   const groups = [];
   for (const t of s.atiles.values()) groups.push(t.a);
@@ -3784,6 +3840,15 @@ const Music = {
     E.rbf = C.createBiquadFilter(); E.rbf.type = 'lowpass'; E.rbf.frequency.value = 700;
     E.rbg = C.createGain(); E.rbg.gain.value = 0; rb.connect(E.rbf); E.rbf.connect(E.rbg); E.rbg.connect(this.sfx); rb.start();
     E.rainNext = 0; this.nb = nb;
+    E.bf = C.createBiquadFilter(); E.bf.type = 'lowpass'; E.bf.frequency.value = 300; E.bf.Q.value = 4;
+    E.bg = C.createGain(); E.bg.gain.value = 0; E.bf.connect(E.bg); E.bg.connect(this.sfx);
+    E.b1 = C.createOscillator(); E.b1.type = 'square'; E.b1.frequency.value = 40; E.b1.connect(E.bf); E.b1.start();
+    E.b2 = C.createOscillator(); E.b2.type = 'sawtooth'; E.b2.frequency.value = 60; const bg2 = C.createGain(); bg2.gain.value = 0.5; E.b2.connect(bg2); bg2.connect(E.bf); E.b2.start();
+    E.bl = C.createOscillator(); E.bl.frequency.value = 9; E.blg = C.createGain(); E.blg.gain.value = 3; E.bl.connect(E.blg); E.blg.connect(E.b1.frequency); E.bl.start();
+    const tn = C.createBufferSource(); tn.buffer = nb; tn.loop = true; tn.playbackRate.value = 1.3;
+    E.tf = C.createBiquadFilter(); E.tf.type = 'bandpass'; E.tf.frequency.value = 380; E.tf.Q.value = 0.6;
+    E.tg = C.createGain(); E.tg.gain.value = 0; tn.connect(E.tf); E.tf.connect(E.tg); E.tg.connect(this.sfx); tn.start();
+    E.bugNext = 0;
     this.nextChord = C.currentTime + 0.3; this.nextBell = C.currentTime + 4;
     setInterval(() => this.tick(), 200);
   },
@@ -3852,6 +3917,15 @@ const Music = {
     if (kind === 'snow') { for (let i = 1; i < 4; i++) { const s2 = C.createBufferSource(), g3 = C.createGain(), t2 = t + i * 0.018 + Math.random() * 0.01; s2.buffer = this.white; g3.gain.setValueAtTime(0, t2); g3.gain.linearRampToValueAtTime(v * 0.6, t2 + 0.003); g3.gain.exponentialRampToValueAtTime(0.0005, t2 + 0.03); s2.connect(f); s2.start(t2, Math.random() * 0.8); s2.stop(t2 + 0.05); } }
     if (kind === 'rock' || kind === 'thud' || kind === 'boom') { const o = C.createOscillator(), og = C.createGain(), L = kind === 'boom' ? 1.5 : 0.15; o.frequency.setValueAtTime(kind === 'boom' ? 55 : kind === 'thud' ? 90 : 160, t); o.frequency.exponentialRampToValueAtTime(kind === 'boom' ? 24 : 45, t + L * 0.8); og.gain.setValueAtTime(v * (kind === 'boom' ? 0.9 : 0.5), t); og.gain.exponentialRampToValueAtTime(0.0005, t + L); o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + L + 0.05); }
     src.start(t, Math.random() * 0.8); src.stop(t + K[3] + 0.05);
+  },
+  // moon buggy: level 0..1 (0 = off), rpm 0..1, rough 0..1 (tyres on terrain)
+  buggy(level, rpm, rough) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, E = this.eng; if (level > 0 && t < E.bugNext) return; E.bugNext = t + 0.06;
+    const f = 34 + rpm * 85 + level * 6;
+    E.b1.frequency.setTargetAtTime(f, t, 0.08); E.b2.frequency.setTargetAtTime(f * 1.51, t, 0.08); E.bl.frequency.setTargetAtTime(6 + rpm * 14, t, 0.1);
+    E.bf.frequency.setTargetAtTime(180 + rpm * 700 + level * 500, t, 0.08);
+    E.bg.gain.setTargetAtTime(level * 0.075, t, level ? 0.1 : 0.3); E.tg.gain.setTargetAtTime(rough * 0.45, t, 0.15);
   },
   rainLevel(l) {
     if (!this.ctx) return;
@@ -4134,7 +4208,7 @@ function exitSurface() {
   const s = surf, p = s.planet;
   S.pos = vadd(p.pos, vmul(s.entryDir, p.R * 1.06));
   S.q = qlook(s.entryDir, S.sys.up); S.v = p.R * 0.05; S.mode = 'system'; S.goal = null; S.landCD = 8;
-  freeSurface(s); surf = null; Music.rainLevel(0);
+  freeSurface(s); surf = null; Music.rainLevel(0); Music.buggy(0, 0, 0);
   if (S.auto && !S.queue.length) {
     const others = S.sys.planets.filter(o => o.landable && o !== p);
     if (others.length && Math.random() < 0.3) S.queue = planetGoals(pick(Math.random, others), true);
@@ -4353,13 +4427,15 @@ function manualSurfFlight(s, dt) {
   Music.mood('surface', 0.05 + clamp(s.speed / 600, 0, 0.3));
 }
 function walkStep(s, dt) {
+  if (s.driving) { driveStep(s, dt); return; }
   const P = s.P, k = keys, manual = !S.auto;
   let fin = 0, side = 0;
   const run = k.ShiftLeft || k.ShiftRight;
   if (manual) {
     fin = ((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0);
-    side = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
-    if (k.ArrowLeft) s.yaw += dt * 1.3; if (k.ArrowRight) s.yaw -= dt * 1.3;
+    side = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
+    const turn = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
+    s.turnV = lerp(s.turnV || 0, turn * (run ? 2.2 : 1.8), 1 - Math.exp(-dt * 8)); s.yaw += s.turnV * dt;
   } else {
     s.wT -= dt;
     if (s.wT < 0) { s.wState = s.wState === 'walk' ? 'stand' : 'walk'; s.wT = s.wState === 'walk' ? 8 + Math.random() * 14 : 3 + Math.random() * 5; }
@@ -4377,7 +4453,7 @@ function walkStep(s, dt) {
     else if (!manual) { s.yaw += dt * 1.6; s.walkV *= 0.9; }
   }
   const mv = Math.hypot(vx, vz), g = terrH(P, s.x, s.z, 3);
-  if (mv > 0.2) { let da = Math.atan2(-vx, -vz) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 8)); }
+  if (mv > 0.2) { let da = (s.walkV < -0.2 ? s.yaw : Math.atan2(-vx, -vz)) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 8)); }
   if (s.air) { s.vyJ -= 9.8 * dt; s.footY += s.vyJ * dt; if (s.footY <= g) { s.footY = g; s.air = false; s.vyJ = 0; Music.step(groundKind(s), 1.6); } }
   else s.footY = lerp(s.footY, g, 1 - Math.exp(-dt * 20));
   const ph0 = s.walkPhase, cad = mv * 3.4 / (1 + mv * 0.22);
@@ -4388,7 +4464,71 @@ function walkStep(s, dt) {
   s.roll = lerp(s.roll, 0, 1 - Math.exp(-dt * 3));
   if (!manual && !drag) s.pitch = lerp(s.pitch, (S.tp ? -0.18 : -0.06) + Math.sin(s.t * 0.13) * 0.06, 1 - Math.exp(-dt * 0.5));
 }
-function heroJump() { if (surf && surf.phase === 'walk' && !surf.air) { surf.air = true; surf.vyJ = 4.6; } }
+function heroJump() { if (surf && surf.phase === 'walk' && !surf.air && !surf.driving) { surf.air = true; surf.vyJ = 4.6; } }
+const bugQ = b => qmul(qmul(qaxis([0, 1, 0], b.yaw), qaxis([1, 0, 0], b.pitch)), qaxis([0, 0, 1], b.roll));
+function bugOrient(s, b) {
+  const c = Math.cos(b.yaw), sn = Math.sin(b.yaw), P = s.P;
+  const h = BUGGY_WHEELS.map(([lx, , lz]) => Math.max(terrH(P, b.x + c * lx + sn * lz, b.z - sn * lx + c * lz, 3), P.sea - 0.2));
+  const front = (h[0] + h[1]) / 2, rear = (h[2] + h[3]) / 2, left = (h[0] + h[2]) / 2, right = (h[1] + h[3]) / 2;
+  b.wh = h;
+  return { gy: (front + rear) / 2, pitch: Math.atan2(front - rear, 2.1), roll: Math.atan2(right - left, 1.96) };
+}
+function toggleBuggy() {
+  const s = surf;
+  if (!s || s.phase !== 'walk') { toast('Land first, then press B for the moon buggy'); return; }
+  const P = s.P; S.auto = false;
+  if (s.driving) {
+    const b = s.bug, rx = Math.cos(b.yaw), rz = -Math.sin(b.yaw);
+    let hx = b.x + rx * 2.2, hz = b.z + rz * 2.2;
+    if (terrH(P, hx, hz, 3) < P.sea + 0.3) { hx = b.x - rx * 2.2; hz = b.z - rz * 2.2; }
+    s.driving = false; s.x = hx; s.z = hz; s.footY = terrH(P, hx, hz, 3); s.y = s.footY + 1.7; s.yaw = s.heroYaw = b.yaw; s.walkV = s.sideV = 0; s.air = false; b.v = 0;
+    Music.buggy(0, 0, 0); toast('Out of the buggy \u00b7 B to drive again');
+    return;
+  }
+  if (!s.bug || Math.hypot(s.bug.x - s.x, s.bug.z - s.z) > 25) {
+    let x = s.x - Math.sin(s.yaw) * 4, z = s.z - Math.cos(s.yaw) * 4;
+    if (terrH(P, x, z, 3) < P.sea + 0.3 || cityTop(s, x, z) > -1e9) { x = s.x; z = s.z; }
+    s.bug = { x, z, y: terrH(P, x, z, 3) + 4, yaw: s.yaw, v: 0, vy: 0, air: true, steer: 0, pitch: 0, roll: 0, spin: 0, wh: [0, 0, 0, 0] };
+  }
+  s.driving = true; s.walkV = 0; s.pitch = 0;
+  toast('Moon buggy \u00b7 W gas \u00b7 S brake / reverse \u00b7 A D steer \u00b7 Shift boost \u00b7 B step out');
+}
+function driveStep(s, dt) {
+  const P = s.P, k = keys, b = s.bug, boost = k.ShiftLeft || k.ShiftRight, vmax = boost ? 38 : 24;
+  const thr = (k.KeyW || k.ArrowUp) ? 1 : 0, brk = (k.KeyS || k.ArrowDown) ? 1 : 0, steerIn = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
+  if (!b.air) {
+    if (thr) b.v += (b.v < 0 ? 14 : (boost ? 9 : 6) * Math.max(1 - b.v / vmax, -0.5) + 0.4) * dt;
+    if (brk) b.v -= (b.v > 0.5 ? 11 : 4) * dt;
+    b.v = Math.max(b.v, -8);
+    b.v -= (b.v * 0.035 + Math.sign(b.v) * 0.4) * dt * (thr || brk ? 0.4 : 1);
+    if (!thr && !brk && Math.abs(b.v) < 0.3) b.v = 0;
+    b.v -= 9.8 * Math.sin(b.pitch) * dt * 0.55;
+  }
+  b.steer = lerp(b.steer, steerIn * 0.5 / (1 + Math.abs(b.v) * 0.06), 1 - Math.exp(-dt * 5));
+  if (!b.air) b.yaw += b.v * Math.tan(b.steer) / 2.1 * dt;
+  const nx = b.x - Math.sin(b.yaw) * b.v * dt, nz = b.z - Math.cos(b.yaw) * b.v * dt, nh = terrH(P, nx, nz, 3);
+  if (nh < P.sea + 0.2 || cityTop(s, nx, nz) > nh + 0.5) { if (Math.abs(b.v) > 5) Music.step('thud', Math.min(Math.abs(b.v) / 18, 1.3)); b.v *= -0.25; }
+  else { b.x = nx; b.z = nz; }
+  const o = bugOrient(s, b);
+  if (b.air) {
+    b.vy -= 9.8 * dt; b.y += b.vy * dt;
+    if (b.y <= o.gy) { if (b.vy < -3) Music.step('thud', Math.min(-b.vy / 8, 1.4)); b.y = o.gy; b.air = false; b.vy = 0; }
+  } else {
+    const vyT = (o.gy - b.y) / Math.max(dt, 1e-3);
+    if (Math.abs(b.v) > 6 && vyT < b.vy - 9.8 * dt * 1.3) { b.air = true; b.y += b.vy * dt; }
+    else { b.vy = lerp(b.vy, vyT, 0.5); b.y = o.gy; }
+  }
+  const kk = 1 - Math.exp(-dt * (b.air ? 1 : 10));
+  b.pitch = lerp(b.pitch, b.air ? b.pitch * 0.98 : o.pitch, kk); b.roll = lerp(b.roll, b.air ? 0 : o.roll, kk);
+  b.spin += b.v * dt / 0.46;
+  let dy = b.yaw - s.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); s.yaw += dy * (1 - Math.exp(-dt * 4));
+  s.x = b.x; s.z = b.z; s.footY = b.y + 0.45; s.y = b.y + 1.9; s.heroYaw = b.yaw; s.speed = Math.abs(b.v);
+  s.ground = Math.max(terrH(P, s.x, s.z, 3), P.sea); s.vy = 0; s.yawRate = 0; s.roll = lerp(s.roll, 0, 1 - Math.exp(-dt * 3));
+  // engine through gears, plus tyre rumble
+  const av = Math.abs(b.v), gs = [0, 6, 12, 19, 27, 40];
+  let g = 0; while (g < 4 && av > gs[g + 1]) g++;
+  Music.buggy(0.55 + 0.45 * thr, clamp((av - gs[g]) / (gs[g + 1] - gs[g]), 0, 1) * 0.8 + g * 0.05, b.air ? 0 : Math.min(av / 22, 1));
+}
 function groundKind(s) {
   const P = s.P, t = s.planet.type, h = s.footY;
   if (h > P.snowLine - 20 || t === 'ice') return 'snow';
@@ -4409,7 +4549,7 @@ function boardShip(s) {
   if (Math.hypot(s.x - s.park.x, s.z - s.park.z) > 12) S.fade = 0.9;
   s.x = s.park.x; s.z = s.park.z; s.y = s.park.y; s.yaw = s.park.yaw; s.pitch = 0; s.park = null;
 }
-function startTakeoff() { if (!surf || surf.phase !== 'walk') return; boardShip(surf); surf.phase = 'takeoff'; surf.pt = 0; surf.vy = 2; surf.speed = 0; toast('Taking off'); }
+function startTakeoff() { if (!surf || surf.phase !== 'walk') return; if (surf.driving) { surf.driving = false; Music.buggy(0, 0, 0); } boardShip(surf); surf.phase = 'takeoff'; surf.pt = 0; surf.vy = 2; surf.speed = 0; toast('Taking off'); }
 function toggleLand() {
   if (!surf) return;
   if (surf.phase === 'walk') startTakeoff();
@@ -4420,6 +4560,14 @@ const surfCamQ = s => qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitc
 function surfaceCamera(s, lookQ) {
   const P = s.P;
   if (s.phase === 'walk') {
+    if (s.driving) {
+      const b = s.bug, bq = bugQ(b);
+      if (!S.tp) { const q = qmul(qmul(bq, qaxis([1, 0, 0], s.pitch)), lookQ); return { q, pos: vadd([b.x, b.y, b.z], qrot(bq, [0, 1.75, 0.35])) }; }
+      const q = qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], -0.2 + s.pitch * 0.5)), lookQ);
+      const pos = vadd([b.x, b.y + 1.2, b.z], qrot(q, [0, 1.3, 4.5 + S.walkDist * 0.9]));
+      pos[1] = Math.max(pos[1], terrH(P, pos[0], pos[2], 3) + 0.6);
+      return { q, pos };
+    }
     const q = qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch)), lookQ);
     if (!S.tp) return { q, pos: [s.x, s.y, s.z] };
     const pos = vadd([s.x, s.footY + 1.55, s.z], qrot(q, [0.45, 0.3, S.walkDist]));
@@ -4434,10 +4582,19 @@ function surfaceCamera(s, lookQ) {
 }
 // third-person models visible on the surface (positions in world metres)
 function surfaceModels(s) {
-  const out = [];
+  const out = [], night = 1 - smooth(-0.2, 0.05, s.sun[1]);
+  if (s.bug && Math.hypot(s.bug.x - s.x, s.bug.z - s.z) < 2500) {
+    const b = s.bug, bq = bugQ(b), bp = [b.x, b.y, b.z];
+    out.push({ mesh: buggyMesh, w: bp, q: bq, cols: BUGGY_COLS, glow: (0.4 + 2.6 * night) * (s.driving ? 1 : 0.35) });
+    BUGGY_WHEELS.forEach(([lx, ly, lz, front], i) => {
+      const sus = clamp((b.wh[i] || b.y) - b.y - (lz < 0 ? 1.05 : -1.05) * Math.sin(b.pitch) - lx * Math.sin(b.roll), -0.22, 0.22) * (b.air ? 0 : 1) - (b.air ? 0.12 : 0);
+      out.push({ mesh: wheelMesh, w: vadd(bp, qrot(bq, [lx, ly + sus, lz])), q: qmul(qmul(bq, qaxis([0, 1, 0], front ? b.steer : 0)), qaxis([1, 0, 0], -b.spin)), cols: BUGGY_COLS, glow: 0 });
+    });
+    if (s.driving && S.tp) out.push({ mesh: heroMesh, w: vadd(bp, qrot(bq, [0, 0.42, 0.42])), q: bq, cols: HERO_COLS, glow: 0.6 + 2 * night, phase: 0, walk: 0, air: 0 });
+  }
   if (s.phase === 'walk') {
     if (s.park) out.push({ mesh: shipMesh, w: [s.park.x, s.park.y, s.park.z], q: qaxis([0, 1, 0], s.park.yaw), cols: SHIP_COLS, glow: 0.15 });
-    if (S.tp) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * (1 - smooth(-0.2, 0.05, s.sun[1])), phase: s.walkPhase, walk: clamp(s.speed / 3.5, 0, 1.5), air: s.air ? 1 : 0 });
+    if (S.tp && !s.driving) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * night, phase: s.walkPhase, walk: clamp(s.speed / 3.5, 0, 1.5), air: s.air ? 1 : 0 });
   } else if (S.tp) out.push({ mesh: shipMesh, w: [s.x, s.y, s.z], q: surfCamQ(s), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
   return out;
 }
@@ -4562,7 +4719,7 @@ canvas.addEventListener('pointermove', e => {
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
   const k = 0.0035;
   if (drag.look) { S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0; return; }
-  if (S.mode === 'surface' && surf && (surf.phase === 'walk' || (!S.auto && surf.phase === 'cruise'))) { surf.yaw -= dx * k; surf.pitch = clamp(surf.pitch - dy * k, -1.3, 1.3); }
+  if (S.mode === 'surface' && surf && !S.auto && surf.phase === 'cruise') { surf.yaw -= dx * k; surf.pitch = clamp(surf.pitch - dy * k, -1.3, 1.3); }
   else if (!S.auto && S.mode !== 'surface') S.q = qnorm(qmul(S.q, qmul(qaxis([0, 1, 0], -dx * k), qaxis([1, 0, 0], -dy * k))));
   else { S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0; }
 });
@@ -4584,18 +4741,30 @@ canvas.addEventListener('wheel', e => {
 function setAuto(v) {
   S.auto = v; syncButtons();
   if (v) { S.goal = null; if (S.mode !== 'surface') { S.queue = []; if (S.mode === 'system') planSystem(); } S.v = Math.max(Math.abs(S.v), 1e-9); toast('Autopilot engaged'); }
-  else toast(surf && surf.phase === 'walk' ? 'On foot · W A S D walk · Shift run · Space jump · L fly' : 'Manual · W thrust · Shift boost · S brake · P autopilot');
+  else toast(surf && surf.phase === 'walk' ? 'On foot · W S walk · A D turn · Shift run · Space jump · B buggy · L fly' : 'Manual · W thrust · Shift boost · S brake · O autopilot');
+}
+function togglePause() {
+  S.paused = !S.paused; $('pause').style.display = S.paused ? 'flex' : 'none'; $('bPause').classList.toggle('on', S.paused);
+  if (Music.ctx && S.paused) { Music.eng.next = Music.eng.rainNext = 0; Music.engine(0, 0, 0); Music.rainLevel(0); Music.buggy(0, 0, 0); }
+}
+function centerView() {
+  S.look.yaw = S.look.pitch = 0; S.look.idle = 0;
+  if (surf && surf.phase === 'walk') surf.pitch = surf.driving ? 0 : -0.08;
+  toast('View centered');
 }
 function toggleView() { S.tp = !S.tp; $('bView').classList.toggle('on', S.tp); toast(S.tp ? 'Third-person view' : 'First-person view'); }
 window.addEventListener('keydown', e => {
   if (e.repeat && !/^(Key[WASDQEX]|Arrow|Shift)/.test(e.code)) return;
   keys[e.code] = true;
   if (!S.started) return;
+  if (e.code === 'KeyP') { togglePause(); return; }
+  if (S.paused && !/^(KeyH|KeyM|KeyF|Slash)$/.test(e.code)) return;
   if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
   if (e.code === 'Space') { e.preventDefault(); spaceJump(); }
-  if (e.code === 'KeyP') setAuto(!S.auto);
+  if (e.code === 'KeyO') setAuto(!S.auto);
+  if (e.code === 'KeyC') centerView();
+  if (e.code === 'KeyB') toggleBuggy();
   if (e.code === 'KeyV') toggleView();
-  if (e.code === 'KeyN') nextDestination();
   if (e.code === 'KeyL') toggleLand();
   if (e.code === 'KeyT') toggleMarks();
   if (e.code === 'KeyH') document.body.classList.toggle('hideui');
@@ -4605,17 +4774,17 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-function syncButtons() { $('bAuto').classList.toggle('on', S.auto); $('bMusic').classList.toggle('on', Music.on); }
+function syncButtons() { $('bMusic').classList.toggle('on', Music.on); }
 function toggleMusic() { Music.toggle(); syncButtons(); toast(Music.on ? 'Music on' : 'Music off'); }
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
-$('bAuto').onclick = () => setAuto(!S.auto);
-$('bNext').onclick = () => nextDestination();
+$('bCenter').onclick = () => centerView();
+$('bPause').onclick = () => { if (S.started) togglePause(); };
+$('bBuggy').onclick = () => toggleBuggy();
 $('bMusic').onclick = () => toggleMusic();
 $('bHelp').onclick = () => toggleHelp();
 $('bFull').onclick = () => toggleFull();
 $('bLand').onclick = () => toggleLand();
-$('bJump').onclick = () => spaceJump();
 $('bView').onclick = () => toggleView();
 $('bMarks').onclick = () => toggleMarks();
 function toggleMarks() { markOn = !markOn; $('bMarks').classList.toggle('on', markOn); toast(markOn ? 'Markers on' : 'Markers off'); }
@@ -4641,10 +4810,10 @@ function updateInfo(dt) {
     if (S.auto && S.goal) tgt = (S.goal.label || '') + ' · ' + fmtSU(vdist(gp(S.goal), S.pos));
   } else if (surf) {
     const agl = Math.round(surf.y - surf.ground);
-    sp = surf.phase === 'walk' ? 'on foot · ' + (surf.speed * 3.6).toFixed(1) + ' km/h' : Math.round(surf.speed * 3.6) + ' km/h · ' + agl + ' m';
+    sp = surf.driving ? 'moon buggy \u00b7 ' + Math.round(surf.speed * 3.6) + ' km/h' : surf.phase === 'walk' ? 'on foot \u00b7 ' + (surf.speed * 3.6).toFixed(1) + ' km/h' : Math.round(surf.speed * 3.6) + ' km/h \u00b7 ' + agl + ' m';
     tgt = surf.planet.name;
   }
-  let hint = S.auto ? 'autopilot' : surf && surf.phase === 'walk' ? 'on foot · Space jump · L fly' : 'manual · W thrust · Shift boost';
+  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 S brake \u00b7 A D steer \u00b7 B step out' : surf && surf.phase === 'walk' ? 'on foot \u00b7 B buggy \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost';
   if (!S.auto && S.sel && S.mode !== 'surface' && jumpDest(S.sel)) {
     const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'sun' ? [0, 0, 0] : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
     tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'Space to jump · ' + hint;
@@ -4653,6 +4822,9 @@ function updateInfo(dt) {
   const bl = $('bLand'), onSurf = S.mode === 'surface' && surf;
   bl.style.display = onSurf ? '' : 'none';
   if (onSurf) bl.textContent = surf.phase === 'walk' ? 'FLY' : 'LAND';
+  const bb = $('bBuggy'), canDrive = onSurf && surf.phase === 'walk';
+  bb.style.display = canDrive ? '' : 'none';
+  if (canDrive) { bb.textContent = surf.driving ? 'STEP OUT' : 'BUGGY'; bb.classList.toggle('on', !!surf.driving); }
 }
 
 // ---- markers, system list & hover tips
@@ -4669,11 +4841,30 @@ function starInfo(s) {
   return i;
 }
 const starSummary = s => { const i = starInfo(s); return (i.n ? i.n + ' planet' + (i.n > 1 ? 's' : '') : 'no planets') + (i.live ? ' · ' + i.live + ' to land on' : ''); };
+// hover preview of a star's planets (from space, before travelling there)
+const sysPreviewCache = new Map();
+let previewStar = null;
+function showPreview(star) {
+  if (previewStar === star || S.mode !== 'space') return; previewStar = star;
+  let sys = sysPreviewCache.get(star.seed);
+  if (!sys) { sys = makeSystem(star); if (sysPreviewCache.size > 300) sysPreviewCache.clear(); sysPreviewCache.set(star.seed, sys); }
+  let h = '<div class="h">' + sys.name + ' System</div><div class="d">' + starDesc(star) + ' \u00b7 ' + fmtLy(vdist(star.p, S.pos)) + '</div>';
+  if (!sys.planets.length) h += '<div class="p">no planets \u00b7 just the star</div>';
+  sys.planets.forEach(p => {
+    const c = p.dotCol.map(v => Math.round(Math.sqrt(clamp(v, 0, 1)) * 255)).join(',');
+    h += '<div class="p' + (p.landable ? ' live' : '') + '"><i style="background:rgb(' + c + ')"></i>' + p.name.split(' ').pop() + ' \u00b7 ' + p.desc + (p.landable ? ' &#9670;' : '') + '</div>';
+  });
+  h += '<div class="d" style="margin-top:6px">click to travel there</div>';
+  const el = $('preview'); el.innerHTML = h; el.style.opacity = 1;
+}
+function hidePreview() { if (!previewStar) return; previewStar = null; $('preview').style.opacity = 0; }
 function markEl(i) {
   while (markPool.length <= i) {
     const d = document.createElement('div'); d.className = 'mk'; d.innerHTML = '<div class="r"></div><div class="l"></div>';
     d.addEventListener('pointerdown', e => e.stopPropagation());
     d.addEventListener('click', e => { e.stopPropagation(); if (d._t) travelTo(d._t); });
+    d.addEventListener('pointerenter', () => { if (d._t && d._t.type === 'star') showPreview(d._t.o); });
+    d.addEventListener('pointerleave', () => hidePreview());
     $('marks').appendChild(d); markPool.push(d);
   }
   return markPool[i];
@@ -4691,6 +4882,7 @@ function refreshSpaceMarks() {
   spaceMarks = out;
 }
 function updateMarkers(dt) {
+  if (previewStar && S.mode !== 'space') hidePreview();
   let n = 0;
   const sc = canvas.clientWidth / canvas.width;
   const put = (rel, rpx, t, title, sub, live) => {
@@ -4750,7 +4942,8 @@ function hoverAt(cx, cy) {
   const now = performance.now(); if (now - hoverT < 70) return; hoverT = now;
   const tip = $('tip');
   const sc = canvas.width / canvas.clientWidth, t = S.started && S.mode !== 'surface' ? pickAt(cx * sc, cy * sc) : null;
-  if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; return; }
+  if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; hidePreview(); return; }
+  if (t.type === 'star') showPreview(t.o); else hidePreview();
   let h = '';
   if (t.type === 'galaxy') h = '<b>' + t.o.title + '</b><br>' + t.o.desc + ' · ' + fmtLy(vdist(t.o.center, S.pos));
   else if (t.type === 'nebula') h = '<b>' + t.o.title + '</b><br>' + fmtN(t.o.R * 2) + ' light years across';
@@ -4793,7 +4986,7 @@ function frame() {
     else if (avg < 1 / 57 && S.resScale < 1) S.resScale = Math.min(1, S.resScale + 0.05);
   }
   resize();
-  update(dt);
+  if (!S.paused) update(dt);
   render();
   updateInfo(dt);
   updateMarkers(dt);
