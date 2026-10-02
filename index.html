@@ -924,6 +924,8 @@ function drawGlare(rel, L, col, gain) {
 const SU_LY = 9.4607e9, AU = 149597.87, RSUN = 695.7;
 const ENTER_LY = 0.012, EXIT_LY = 0.02;
 const LANDABLE = { terran: 1, ocean: 1, alien: 1, desert: 1, ice: 1 };
+const CIV_LABEL = ['nomad camps', 'villages', 'towns', 'cities', 'great cities'];
+const CIV_W = { terran: [1, 3, 3, 2.5, 1.2], ocean: [1, 3, 2, 1.5, 0.5], alien: [0.5, 2, 2.5, 3, 2], desert: [3, 2, 1.5, 1, 0.5], ice: [3, 2.5, 1, 0.4, 0.1] };
 const TYPE_ID = { terran: 0, ocean: 1, alien: 2, desert: 3, ice: 4, barren: 5, lava: 6, gas: 7, icegiant: 8 };
 const PLANET_DESC = { terran: 'temperate world', ocean: 'ocean world', alien: 'exotic living world', desert: 'desert world', ice: 'frozen world', barren: 'barren rock', lava: 'volcanic world', gas: 'gas giant', icegiant: 'ice giant' };
 const jit = (r, c, a) => c.map(v => clamp(v * (1 + (r() - 0.5) * a), 0, 1.5));
@@ -1062,7 +1064,11 @@ function makeSystem(star) {
     p.landable = !!LANDABLE[p.type];
     p.desc = PLANET_DESC[p.type];
     p.civ = mulberry(hashInts(p.seed, 31))() < ({ terran: 0.5, ocean: 0.35, alien: 0.55, desert: 0.35, ice: 0.25 }[p.type] || 0);
-    if (p.civ) p.desc += ' · inhabited';
+    if (p.civ) {
+      const cr = mulberry(hashInts(p.seed, 32)), w = CIV_W[p.type];
+      let v = cr() * w.reduce((a, b) => a + b, 0), lv = 0; while (lv < 4 && (v -= w[lv]) > 0) lv++;
+      p.civLv = lv; p.desc += ' · ' + CIV_LABEL[lv];
+    }
     p.flux = L / (p.a * p.a);
     p.starI = clamp(Math.pow(p.flux, 0.3), 0.35, 2.2) * 1.3;
     p.Ra = p.R * (p.landable ? 1.035 : p.type === 'gas' || p.type === 'icegiant' ? 1.02 : 1.0);
@@ -1125,7 +1131,7 @@ void main(){
       col=mix(col,uSnow,smoothstep(.22,.12,temp));
     }
     if(uType<=4){ float ice=smoothstep(.8,.88,lat+(h-.5)*.25); col=mix(col,uSnow,ice); spec*=1.-ice; }
-    if(uCiv>0.&&land>.004&&land<.2){ float c=smoothstep(.6,.75,fbmT(n*11.+uSeed*3.,3))*smoothstep(.45,.65,fbmT(n*1.7+uSeed.yzx,3)); emis+=vec3(1.,.66,.3)*c*.35*smoothstep(.05,-.2,NL); }
+    if(uCiv>0.&&land>.004&&land<.2){ float c=smoothstep(.66-.05*uCiv,.78,fbmT(n*11.+uSeed*3.,3))*smoothstep(.52-.05*uCiv,.68,fbmT(n*1.7+uSeed.yzx,3)); emis+=vec3(1.,.66,.3)*c*.25*uCiv*smoothstep(.05,-.2,NL); }
     float hw=max(land,0.)*uR*uRelief;
     vec3 dpx=dFdx(vW), dpy=dFdy(vW); float dhx=dFdx(hw), dhy=dFdy(hw);
     vec3 r1=cross(dpy,N), r2=cross(N,dpx); float det=dot(dpx,r1);
@@ -1343,7 +1349,7 @@ function renderSystemBodies(sys, cp, time, opt) {
       .set('uSeed', p.noiseSeed).set('uStarCol', st.light).set('uStarI', p.starI).set('uSea', pl.sea).set('uCloud', pl.cloud)
       .set('uTime', time).set('uBands', pl.bands).set('uRelief', pl.relief).set('uSpin', mat3FromQuat(qconj(tq))).set('uType', TYPE_ID[p.type])
       .set('uDeep', pl.deep).set('uShallow', pl.shallow).set('uSand', pl.sand).set('uGrass', pl.grass).set('uForest', pl.forest).set('uRock', pl.rock)
-      .set('uSnow', pl.snow).set('uAtmo', pl.atmo).set('uG1', pl.g1).set('uG2', pl.g2).set('uG3', pl.g3).set('uCiv', p.civ ? 1 : 0)
+      .set('uSnow', pl.snow).set('uAtmo', pl.atmo).set('uG1', pl.g1).set('uG2', pl.g2).set('uG3', pl.g3).set('uCiv', p.civ ? [0.3, 0.55, 0.9, 1.6, 2.6][p.civLv] : 0)
       .set('uRingIn', p.rings ? p.rings.in : 0).set('uRingOut', p.rings ? p.rings.out : 0).set('uRingN', p.rings ? p.rings.n : [0, 1, 0]);
     drawSphere(SPHERE_HI);
     if (p.rings) {
@@ -1545,7 +1551,7 @@ void main(){
   vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv;
   gl_Position=uVP*vec4(rel,1.);
 }`, NOISE_GLSL + TERR_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; out vec4 o;
-uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava; uniform vec4 uPat;
+uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3, uPave; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava; uniform vec4 uPat, uCity[8], uCityB[8];
 void main(){
   vec3 n=normalize(vN); vec2 p=vW.xz; float h=vW.y;
   vec3 rel=vW-uCam; float dist=length(rel);
@@ -1573,6 +1579,14 @@ void main(){
   if(uPat.y>0.) c=mix(c,uAlt,smoothstep(.62,.78,.5+.5*sin((p.x+p.y)*.7/uPat.w*6.+gn(p/(uPat.w*2.))*5.))*uPat.y);
   if(uPat.z>0.) c=mix(c,mix(uStrA,uStrB,.5+.5*sin(h/9.+gn(p/400.)*2.))*(.8+.4*v2),smoothstep(.25,.45,slope)*uPat.z);
   if(alt<0.) c=mix(uSand*.5,uSand*.25,smoothstep(0.,8.,-alt));
+  for(int i=0;i<8;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=p-C.xy; float dd=length(d); if(dd>C.z+60.||alt<.5) continue;
+    float cr=cos(C.w), sr=sin(C.w); vec2 l=vec2(cr*d.x+sr*d.y,-sr*d.x+cr*d.y);
+    float B=uCityB[i].x, W=uCityB[i].y; vec2 g=abs(l-B*floor(l/B+.5)); float sd=min(g.x,g.y);
+    float dash=step(sd,.2)*step(.5,fract((g.x<g.y?l.y:l.x)/7.));
+    vec3 pave=uPave*(.6+.25*v2), road=vec3(.06,.06,.065)*(.9+.2*v2);
+    vec3 cc=sd<W*.5-2.2?mix(road,vec3(.85,.78,.45),dash*.8):sd<W*.5?pave*1.25:pave;
+    c=mix(c,cc,smoothstep(C.z+60.,C.z,dd)*(1.-smoothstep(.12,.22,slope)));
+  }
   c*=micro;
   float dif=max(dot(n,uSun),0.)*shadowAt(vW,.00008);
   vec3 col=c*(sunLight()*dif+ambient()*(.7+.3*n.y));
@@ -1869,13 +1883,14 @@ void main(){ vec3 n; vec3 w=animalWorld(n); vW=w; vN=n; vL=aP; vPart=aM.x; vVar=
   NOISE_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; in vec3 vL; in float vPart; in float vVar; out vec4 o;
 uniform vec3 uCam, uCol1, uCol2, uCol3; uniform float uSpots, uGlowA, uStripes;
 void main(){ vec3 n=normalize(vN); if(dot(n,vW-uCam)>0.) n=-n;
-  vec3 c=vPart<.5?uCol1:vPart<1.5?uCol2:uCol3;
+  vec3 c=vPart<.5?uCol1:vPart<1.5?uCol2:vPart<3.5?uCol3:vPart<4.5?vec3(.92,.9,.86):vPart<5.5?vec3(.025,.02,.02):mix(uCol2,vec3(1.,.35,.38),.45);
   if(uSpots>0.&&vPart<.5) c=mix(c,uCol2,smoothstep(.55,.6,texture(uNoise,vL*.9+vec3(uSpots)).r));
   if(uStripes>0.&&vPart<.5) c=mix(c,uCol3*.8,smoothstep(.45,.55,abs(fract(vL.z*uStripes+sin(vL.y*4.)*.3)-.5)*2.));
   c*=vPart<1.5?vVar:1.;
   float sh=shadowAt(vW,.0002);
   vec3 col=c*(sunLight()*max(dot(n,uSun),0.)*sh+ambient()*(.6+.4*n.y));
-  if(vPart>1.5) col+=uCol3*uGlowA*(1.-dayF())*1.5;
+  if(vPart>3.5&&vPart<4.5) col+=sunLight()*pow(max(dot(reflect(normalize(vW-uCam),n),uSun),0.),40.)*.6;
+  if(vPart>1.5&&vPart<3.5) col+=uCol3*uGlowA*(1.-dayF())*1.5;
   vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.); }`);
 const P_shAnimal = program(ANIMAL_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=animalWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
 const P_floater = program(`layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM; layout(location=3) in vec4 aI; layout(location=4) in vec4 aJ;
@@ -2119,6 +2134,33 @@ function herdFor(r, size) {
   let v = r() * tw; for (const x of opts) { v -= x[1]; if (v <= 0) return x[0]; }
   return opts[0][0];
 }
+// expressive faces on the front (+z) of an ellipsoid head. parts: 4 white, 5 dark, 6 blush, 1 skin
+function addFace(B, r, hc, R3, alien, aux) {
+  const [rx, ry, rz] = R3, s = Math.min(rx, ry);
+  const at = (x, y, inset) => vadd(hc, [x, y, rz * Math.sqrt(Math.max(1 - (x / rx) ** 2 - (y / ry) ** 2, 0.03)) - inset]);
+  const nEyes = alien ? pick(r, [1, 2, 2, 3]) : r() < 0.12 ? 1 : 2;
+  const er = s * (nEyes === 1 ? 0.4 : 0.24 + r() * 0.1) * (alien ? 1.1 : 1), ey = ry * (0.1 + r() * 0.12), gap = rx * (0.4 + r() * 0.08);
+  const xs = nEyes === 1 ? [0] : nEyes === 2 ? [-gap, gap] : [-gap * 1.15, 0, gap * 1.15];
+  const look = [(r() - 0.5) * 0.4, (r() - 0.5) * 0.2], brows = r() < 0.55, tilt = (r() - 0.5) * 0.5, lid = r() < 0.25;
+  xs.forEach((x, i) => {
+    const y = ey + (nEyes === 3 && i === 1 ? er * 1.15 : 0), c = at(x, y, er * 0.3);
+    B.blob(c, [er, er * (0.95 + r() * 0.25), er * 0.55], 4, aux, 0, 1);
+    const pr = er * (0.5 + r() * 0.18), pc = vadd(c, [look[0] * er, look[1] * er, er * 0.42]);
+    B.blob(pc, [pr, pr * 1.08, pr * 0.5], 5, aux, 0, 1);
+    B.blob(vadd(pc, [pr * 0.35, pr * 0.4, pr * 0.32]), [pr * 0.3, pr * 0.3, pr * 0.2], 4, aux, 0, 0);
+    if (lid) B.blob(vadd(c, [0, er * 0.45, er * 0.12]), [er * 1.05, er * 0.5, er * 0.5], 1, aux, 0, 1);
+    if (brows) { const sx = x < 0 ? -1 : x > 0 ? 1 : 0; B.tube(at(x - er * 0.9, y + er * (1.35 + tilt * sx), -er * 0.05), at(x + er * 0.9, y + er * (1.35 - tilt * sx), -er * 0.05), er * 0.12, er * 0.12, 4, 5, aux, aux); }
+  });
+  const nz = r();
+  if (nz < 0.45) B.blob(at(0, -ry * 0.12, s * 0.04), [s * 0.12, s * 0.1, s * 0.12], 6, aux, 0, 1);
+  else if (nz < 0.65) B.cone(at(0, -ry * 0.08, s * 0.08), [0, -0.25, 1], s * (0.25 + r() * 0.45), s * 0.1, 6, 6, aux, aux);
+  const my = -ry * (0.38 + r() * 0.12), m = r(), w = rx * (0.22 + r() * 0.2);
+  if (m < 0.55) { const curve = ry * (0.05 + r() * 0.1); for (let k = 0; k <= 6; k++) { const t = k / 6 - 0.5; B.blob(at(t * 2 * w, my + curve * 4 * t * t, s * 0.02), [s * 0.075, s * 0.075, s * 0.06], 5, aux, 0, 0); } }
+  else if (m < 0.8) B.blob(at(0, my, s * 0.03), [s * 0.1, s * 0.13, s * 0.08], 5, aux, 0, 1);
+  else B.tube(at(-w, my, s * 0.02), at(w, my, s * 0.02), s * 0.035, s * 0.035, 4, 5, aux, aux);
+  if (r() < 0.5) for (const sx of [-1, 1]) B.blob(at(sx * rx * 0.58, my + ry * 0.16, s * 0.03), [s * 0.14, s * 0.09, s * 0.06], 6, aux, 0, 1);
+  if (!alien && r() < 0.6) for (const sx of [-1, 1]) B.blob(vadd(hc, [sx * rx * 0.97, 0, 0]), [s * 0.12, s * 0.2, s * 0.12], 1, aux, 0, 1);
+}
 function makeCreature(r, o) {
   const kind = o.kind || 'quad', alien = !!o.alien, woolly = !!o.woolly, titan = !!o.titan;
   const B = meshBuilder(Math.floor(r() * 1e9));
@@ -2177,7 +2219,8 @@ function makeCreature(r, o) {
     const ny = H + th, hc = [0, ny + hs * 0.95, hs * 0.1];
     B.tube([0, ny - 0.03, 0], [0, ny + hs * 0.3, 0], tw * 0.12, tw * 0.1, 5, 1, 7, 7);
     B.blob(hc, [hs * 0.8, hs, hs * 0.85], 1, 7, 0.05, 1);
-    if (alien) { for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * hs * 0.35, hs * 0.15, hs * 0.72]), [hs * 0.16, hs * 0.16, hs * 0.1], 2, 7, 0, 0); if (r() < 0.6) { const tip = vadd(hc, [sx * hs * 0.5, hs * 1.6, 0]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.8, 0]), tip, hs * 0.05, hs * 0.04, 4, 1, 7, 7); B.blob(tip, [hs * 0.12, hs * 0.12, hs * 0.12], 3, 7, 0, 0); } } }
+    addFace(B, r, hc, [hs * 0.8, hs, hs * 0.85], alien, 7);
+    if (alien) { for (const sx of [-1, 1]) { if (r() < 0.6) { const tip = vadd(hc, [sx * hs * 0.5, hs * 1.6, 0]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.8, 0]), tip, hs * 0.05, hs * 0.04, 4, 1, 7, 7); B.blob(tip, [hs * 0.12, hs * 0.12, hs * 0.12], 3, 7, 0, 0); } } }
     if (r() < 0.5) B.cone(vadd(hc, [0, hs * 0.7, 0]), [0, 1, r() * 0.3], hs * (0.9 + r() * 1.5), hs * (0.8 + r() * 0.3), 8, 0, 7, 7);
     Object.assign(C, { hipY: H, neckY: ny, neckZ: 0, grazeA: 0.35, walk: 1.1, run: 3, stride: H * 1.2, beh: 'village', shy: 0, w: 0, herd: [1, 1], height: ny + hs * 2, rad: 0.4 });
     C.scale = o.weird ? 0.6 + r() * 1.2 : 0.9 + r() * 0.25; size = C.height;
@@ -2449,6 +2492,7 @@ function genPlantTile(s, tx, tz) {
   return out;
 }
 function genGrassTile(s, tx, tz) {
+  if (inCity(s, (tx + 0.5) * GT, (tz + 0.5) * GT, 5)) return [[], []];
   const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 3)), g = [], f = [], N = 13, sp = GT / N, M = N + 1;
   const hl = new Float64Array(M * M);
   for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) hl[j * M + i] = terrH(P, tx * GT + i * sp, tz * GT + j * sp, 3);
@@ -2537,6 +2581,7 @@ function simAnimals(s, dt) {
   for (const t of s.atiles.values()) groups.push(t.a);
   for (const t of s.ttiles.values()) groups.push(t.a);
   for (const t of s.vtiles.values()) if (t.a.people) groups.push(t.a.people);
+  for (const t of s.ctiles.values()) if (t.a.agents.length) groups.push(t.a.agents);
   const turnTo = (a, tx, tz, rate, d) => { let da = Math.atan2(tx - a.x, tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da)); a.head += clamp(da, -rate * d, rate * d); return da; };
   for (const g of groups) for (const a of g) {
     const C = E.creatures[a.si], beh = C.beh, H = a.H;
@@ -2568,6 +2613,11 @@ function simAnimals(s, dt) {
     a.acc = (a.acc || 0) + dt;
     if (dC > 160 && beh !== 'titan' && ((a.id + fr) & 3)) { lists[a.si].push(a.x, a.y, a.z, a.scale, C.side ? a.head - Math.PI / 2 : a.head, a.phase, a.graze, a.walk); continue; }
     const adt = Math.min(a.acc, 0.25); a.acc = 0;
+    if (a.city) {
+      gridStep(s, a, C, adt, dC, walking);
+      lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, Math.min(a.walk, 1.6));
+      continue;
+    }
     if (beh === 'fly') {
       a.t -= adt;
       const roam = 60 * Math.sqrt(C.scale);
@@ -2827,7 +2877,46 @@ function civGeo(kind, seed) {
   }
   return { geo: new Float32Array(B.v), rad, slope };
 }
-function makeCulture(P, type, r, E) {
+// strange vehicles, each with a little driver (parts: 0 paint, 1 skin, 3 lights, 4/5 white/dark)
+function makeVehicle(r, kind, cul) {
+  const B = meshBuilder((r() * 1e9) | 0);
+  const C = { kind: 'vehicle', hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, wave: 0, waveK: 1, squash: 0, hop: 0, roll: 0, pitch: 0, scale: 1, beh: 'drive', shy: 0, w: 0, herd: [1, 1], height: 2, rad: 2.2, stride: 3, walk: 10, run: 10, hover: 0 };
+  const driver = (p, hs) => { B.blob(vadd(p, [0, -hs * 1.4, -hs * 0.1]), [hs * 0.9, hs * 0.9, hs * 0.7], 5, 0, 0, 1); B.blob(p, [hs * 0.85, hs, hs * 0.9], 1, 0, 0.03, 1); addFace(B, r, p, [hs * 0.85, hs, hs * 0.9], cul.alien, 0); if (r() < 0.4) B.cone(vadd(p, [0, hs * 0.75, 0]), [0, 1, 0], hs * 1.2, hs * 0.8, 8, 0, 0, 0); };
+  if (kind === 'cart') {
+    const L = 1.6 + r() * 0.8, wr = 0.38 + r() * 0.3, three = r() < 0.3;
+    B.blob([0, wr + 0.35, 0], [1.0, 0.42, L], 0, 0, 0.04, 1);
+    B.blob([0, wr + 0.65, -L * 0.5], [0.85, 0.38, L * 0.4], 0, 0, 0.04, 1);
+    const wheels = three ? [[0, L * 0.75], [-1.05, -L * 0.65], [1.05, -L * 0.65]] : [[-1.05, L * 0.62], [1.05, L * 0.62], [-1.05, -L * 0.62], [1.05, -L * 0.62]];
+    for (const [x, z] of wheels) { const big = z < 0 && r() < 0.3 ? 1.5 : 1; B.blob([x, wr * big, z], [0.22, wr * big, wr * big], 5, 0, 0, 1); B.blob([x * 1.08, wr * big, z], [0.08, wr * 0.4, wr * 0.4], 4, 0, 0, 0); }
+    driver([0, wr + 1.5, 0.05], 0.3);
+    for (const sx of [-0.6, 0.6]) B.blob([sx, wr + 0.45, L * 0.98], [0.16, 0.12, 0.08], 3, 0, 0, 0);
+    Object.assign(C, { walk: 9 + r() * 6, height: wr + 2, rad: L });
+  } else if (kind === 'bubble') {
+    B.blob([0, 1.1, 0], [1.1, 0.75, 1.4], 0, 0, 0.05, 2);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; B.blob([Math.cos(a) * 0.95, 0.5, Math.sin(a) * 1.2], [0.14, 0.08, 0.14], 3, 0, 0, 0); }
+    driver([0, 2.15, 0.25], 0.32);
+    B.tube([0.5, 1.7, -0.6], [0.7, 3, -0.9], 0.03, 0.02, 4, 5, 0, 0); B.blob([0.7, 3, -0.9], [0.1, 0.1, 0.1], 3, 0, 0, 0);
+    Object.assign(C, { walk: 7 + r() * 5, hover: 0.4, height: 2.6, rad: 1.4 });
+  } else if (kind === 'walker') {
+    B.blob([0, 2.5, 0], [1.2, 0.8, 2.6], 0, 0, 0.06, 1);
+    let li = 1;
+    for (const z of [-1.6, 0, 1.6]) for (const sx of [-1, 1]) { B.tube([sx * 0.9, 2.1, z], [sx * 1.15, 1.1, z], 0.14, 0.11, 5, 5, li, li); B.tube([sx * 1.15, 1.1, z], [sx * 1.4, 0.03, z], 0.11, 0.08, 5, 5, li, li); li++; }
+    driver([0, 3.55, 1.7], 0.3);
+    for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) { const hs = 0.26 + r() * 0.06; B.blob([(r() - 0.5) * 1, 3.35 + hs, 0.6 - k * 0.8], [hs * 0.85, hs, hs * 0.9], 1, 0, 0, 1); addFace(B, r, [(k % 2 ? 0.3 : -0.3), 3.35 + hs, 0.6 - k * 0.8], [hs * 0.85, hs, hs * 0.9], cul.alien, 0); }
+    for (const sx of [-0.5, 0.5]) B.blob([sx, 2.6, 2.55], [0.18, 0.18, 0.1], 3, 0, 0, 0);
+    Object.assign(C, { hipY: 2.1, walk: 2.8 + r(), stride: 1.4, height: 4, rad: 2.6 });
+  } else {
+    B.blob([0, 0, 0], [2.6, 0.45, 2.6], 0, 0, 0.02, 2);
+    B.blob([0, -0.3, 0], [1.2, 0.3, 1.2], 4, 0, 0, 1);
+    for (let k = 0; k < 14; k++) { const a = k / 14 * TAU; B.blob([Math.cos(a) * 2.45, 0.05, Math.sin(a) * 2.45], [0.16, 0.12, 0.16], 3, 0, 0, 0); }
+    driver([0, 1.05, 0.2], 0.34);
+    Object.assign(C, { walk: 16 + r() * 10, fly: [18, 75], height: 1.2, rad: 2.6 });
+  }
+  const paint = cul.alien || r() < 0.5 ? hsv(r(), 0.55 + r() * 0.35, 0.55 + r() * 0.35) : pick(r, [[0.7, 0.12, 0.1], [0.12, 0.25, 0.55], [0.85, 0.82, 0.75], [0.12, 0.12, 0.13], [0.9, 0.65, 0.1], [0.2, 0.45, 0.3]]);
+  C.size = C.height; C.visR = C.fly ? 1600 : 520;
+  return Object.assign(C, { mesh: instMesh(new Float32Array(B.v)), c1: paint, c2: cul.skin, c3: cul.glowC, spots: 0, stripes: r() < 0.3 ? 1.2 : 0, glow: 1, voice: makeVoice(r, 4, ['buzz']) });
+}
+function makeCulture(P, type, r, E, lv) {
   const alien = type === 'alien', weird = alien || r() < 0.3;
   const vivid = (s, v) => hsv(r(), s * (0.6 + r() * 0.4), v * (0.7 + r() * 0.3));
   const WALLS = {
@@ -2841,25 +2930,44 @@ function makeCulture(P, type, r, E) {
   const glowC = alien ? hsv(r(), 0.6, 1) : weird && r() < 0.4 ? hsv(r(), 0.5, 1) : [1, 0.68, 0.32];
   const kinds = [];
   const addK = (kind, o) => { const g = civGeo(kind, (r() * 1e9) | 0); kinds.push(Object.assign({ kind, m: instMesh(g.geo), rad: g.rad, slope: g.slope, roof: [0.4, 0.3, 0.2], trim: [0.45, 0.4, 0.36], glowC, glowI: 1.2 }, o)); return kinds.length - 1; };
-  const pool = (CIV_KINDS[type] || CIV_KINDS.terran).slice().sort(() => r() - 0.5);
+  const pool = (lv === 0 ? ['tent', 'tent', 'dome'] : CIV_KINDS[type] || CIV_KINDS.terran).slice().sort(() => r() - 0.5);
   const houses = pool.slice(0, 2 + (r() < 0.5 ? 1 : 0)).map((k, i) => ({ k: addK(k, { roof: alien || weird && r() < 0.4 ? vivid(0.7, 0.6) : jit(r, pick(r, ROOFS), 0.1) }), w: i ? 0.45 : 1 }));
-  const centre = addK(pick(r, ['fire', 'totem', 'obelisk', 'stones']), { roof: vivid(0.6, 0.6), trim: [0.6, 0.58, 0.55], glowI: 1.6 });
-  const lampK = addK('lamp', { trim: [0.3, 0.28, 0.26], glowI: 1.5 });
-  const fields = type === 'terran' || type === 'ocean' ? r() < 0.75 : type === 'alien' ? r() < 0.55 : type === 'desert' ? r() < 0.4 : false;
+  const centre = addK(lv === 0 ? 'fire' : pick(r, ['fire', 'totem', 'obelisk', 'stones']), { roof: vivid(0.6, 0.6), trim: [0.6, 0.58, 0.55], glowI: 1.6 });
+  const lampK = lv > 0 ? addK('lamp', { trim: [0.3, 0.28, 0.26], glowI: 1.5 }) : -1;
+  const fields = lv === 0 ? false : type === 'terran' || type === 'ocean' ? r() < 0.75 : type === 'alien' ? r() < 0.55 : type === 'desert' ? r() < 0.4 : false;
   const cropK = fields ? addK('crop', { glowI: 0 }) : -1;
   const cropCols = alien ? [vivid(0.8, 0.8), vivid(0.8, 0.8)] : [jit(r, [0.35, 0.5, 0.15], 0.15), jit(r, [0.75, 0.62, 0.25], 0.1), jit(r, [0.25, 0.42, 0.12], 0.15)];
   const hw = houses.reduce((a, h) => a + h.w, 0);
   const cul = {
-    kinds, houses, centre, lampK, cropK, walls, cropCols, weird, folk: makeName(r),
-    den: 0.35 + r() * 0.35, lone: Math.floor(r() * 4), layout: pick(r, ['ring', 'cluster', 'line', 'spiral', 'cluster']),
+    kinds, houses, centre, lampK, cropK, walls, cropCols, weird, folk: makeName(r), lv, alien, glowC,
+    den: lv === 0 ? 0.2 + r() * 0.15 : 0.35 + r() * 0.35, lone: lv === 0 ? 0 : Math.floor(r() * 4), layout: lv === 0 ? pick(r, ['ring', 'cluster']) : pick(r, ['ring', 'cluster', 'line', 'spiral', 'cluster']),
     pickHouse: rr => { let v = rr() * hw; for (const h of houses) { v -= h.w; if (v <= 0) return h.k; } return houses[0].k; },
     scale: rr => weird ? 0.6 + rr() * 1.6 : 0.85 + rr() * 0.35,
-    people: []
+    people: [], vehicles: [], cityDen: [0, 0, 0.3, 0.45, 0.55][lv]
   };
   const skin = alien ? vivid(0.6, 0.8) : jit(r, pick(r, [[0.85, 0.65, 0.5], [0.55, 0.38, 0.25], [0.7, 0.5, 0.35], [0.4, 0.28, 0.2]]), 0.08);
-  for (let i = 0; i < 2; i++) {
-    E.creatures.push(makeCreature(r, { kind: 'biped', villager: true, alien, weird, cloth: alien || weird ? vivid(0.7, 0.75) : jit(r, pick(r, [[0.55, 0.2, 0.15], [0.2, 0.3, 0.5], [0.35, 0.45, 0.25], [0.6, 0.5, 0.3], [0.45, 0.3, 0.5]]), 0.1), skin: alien && i ? vivid(0.6, 0.8) : skin, glow: glowC }));
+  cul.skin = skin;
+  for (let i = 0; i < 3; i++) {
+    E.creatures.push(makeCreature(r, { kind: 'biped', villager: true, alien, weird, cloth: alien || weird ? vivid(0.7, 0.75) : jit(r, pick(r, [[0.55, 0.2, 0.15], [0.2, 0.3, 0.5], [0.35, 0.45, 0.25], [0.6, 0.5, 0.3], [0.45, 0.3, 0.5], [0.15, 0.15, 0.18], [0.8, 0.78, 0.7]]), 0.1), skin: alien && i ? vivid(0.6, 0.8) : jit(r, skin, 0.06), glow: glowC }));
     cul.people.push(E.creatures.length - 1);
+  }
+  // city style
+  const CW = {
+    terran: [[0.62, 0.6, 0.58], [0.55, 0.38, 0.3], [0.75, 0.72, 0.66], [0.35, 0.42, 0.5], [0.82, 0.8, 0.75]], ocean: [[0.85, 0.85, 0.82], [0.4, 0.55, 0.62], [0.7, 0.66, 0.6]],
+    desert: [[0.8, 0.66, 0.48], [0.88, 0.8, 0.65], [0.65, 0.5, 0.36]], ice: [[0.88, 0.92, 0.96], [0.6, 0.7, 0.82], [0.75, 0.78, 0.8]]
+  };
+  const neon = alien || (lv === 4 && r() < 0.5);
+  cul.city = {
+    walls: alien || weird && r() < 0.4 ? [vivid(0.6, 0.8), vivid(0.5, 0.85), vivid(0.4, 0.9), [0.8, 0.8, 0.82]] : CW[type] || CW.terran,
+    low: alien ? [0.2, 0.35, 0.45, 0] : type === 'desert' ? [0.6, 0.05, 0.35, 0] : type === 'ice' ? [0.2, 0.2, 0.6, 0] : [0.85, 0.1, 0.05, 0],
+    tall: alien ? [0.25, 0.6, 0, 0.15] : type === 'ice' ? [0.3, 0.7, 0, 0] : [0.65, 0.35, 0, 0],
+    cap: alien || type === 'ice' ? 3 : r() < 0.5 ? 3 : 2, capP: alien ? 0.6 : 0.3, neon,
+    win: neon ? hsv(r(), 0.55, 1) : alien ? glowC : type === 'ice' ? [0.85, 0.92, 1] : [1, 0.72, 0.38]
+  };
+  cul.pave = alien ? hsv(r(), 0.35, 0.35) : type === 'desert' ? [0.6, 0.5, 0.38] : type === 'ice' ? [0.7, 0.74, 0.8] : [0.42, 0.41, 0.4];
+  if (lv >= 2) {
+    for (const k of pick(r, [['cart', 'bubble'], ['cart', 'walker'], ['bubble', 'walker'], ['cart', 'cart']])) { E.creatures.push(makeVehicle(r, k, cul)); cul.vehicles.push(E.creatures.length - 1); }
+    if (lv === 4 || alien && lv === 3) { E.creatures.push(makeVehicle(r, 'saucer', cul)); cul.vehicles.push(E.creatures.length - 1); }
   }
   return cul;
 }
@@ -2873,6 +2981,7 @@ function villageSite(s, vx, vz) {
   const okH = h => h > P.sea + 3 && h < P.snowLine + (ice ? 3000 : -30);
   const place = (k, x, z, rot, sc) => {
     const K = cul.kinds[k], rad = K.rad * sc;
+    if (inCity(s, x, z, 60)) return null;
     if (v.b.some(b => Math.hypot(b.x - x, b.z - z) < b.rad + rad + 1.5)) return null;
     if (v.f.some(f => Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) + rad + 2)) return null;
     const [h, sl] = flat(x, z, Math.max(rad, 2)); if (!okH(h) || sl > K.slope) return null;
@@ -2892,9 +3001,9 @@ function villageSite(s, vx, vz) {
   };
   if (r() < cul.den) {
     let cx = 0, cz = 0, ok = false;
-    for (let t = 0; t < 8 && !ok; t++) { cx = (vx + 0.2 + r() * 0.6) * VT; cz = (vz + 0.2 + r() * 0.6) * VT; const [h, sl] = flat(cx, cz, 25); ok = okH(h) && sl < 0.2; }
+    for (let t = 0; t < 8 && !ok; t++) { cx = (vx + 0.2 + r() * 0.6) * VT; cz = (vz + 0.2 + r() * 0.6) * VT; const [h, sl] = flat(cx, cz, 25); ok = okH(h) && sl < 0.2 && !inCity(s, cx, cz, 250); }
     if (ok) {
-      const hamlet = r() < 0.4, n = hamlet ? 3 + Math.floor(r() * 4) : 8 + Math.floor(r() * 16), R0 = 12 + n * 1.1;
+      const hamlet = cul.lv === 0 || r() < 0.4, n = hamlet ? 3 + Math.floor(r() * (cul.lv === 0 ? 6 : 4)) : 8 + Math.floor(r() * 16), R0 = 12 + n * 1.1;
       v.cx = cx; v.cz = cz; v.name = makeName(r); v.hamlet = hamlet;
       place(cul.centre, cx, cz, r() * TAU, 1);
       const dir = r() * TAU, lay = cul.layout;
@@ -2912,7 +3021,7 @@ function villageSite(s, vx, vz) {
       }
       v.n = placed;
       v.R = v.b.reduce((m, b) => Math.max(m, Math.hypot(b.x - cx, b.z - cz) + b.rad), 10);
-      for (let i = 0, nl = 2 + Math.floor(r() * 6); i < nl; i++) { const a = r() * TAU, d = 5 + r() * v.R * 0.9; place(cul.lampK, cx + Math.cos(a) * d, cz + Math.sin(a) * d, 0, 1); }
+      for (let i = 0, nl = cul.lampK < 0 ? 0 : 2 + Math.floor(r() * 6); i < nl; i++) { const a = r() * TAU, d = 5 + r() * v.R * 0.9; place(cul.lampK, cx + Math.cos(a) * d, cz + Math.sin(a) * d, 0, 1); }
       for (let i = 0, nf = hamlet ? 1 : 1 + Math.floor(r() * 3); i < nf; i++) field(cx, cz, v.R);
       const np = Math.round(placed * (hamlet ? 1.3 : 1.5)) + 2;
       for (let i = 0; i < np; i++) v.people.push({ x: cx + gauss(r) * v.R * 0.4, z: cz + gauss(r) * v.R * 0.4, hx: cx, hz: cz, roam: v.R * 0.6 });
@@ -2930,6 +3039,7 @@ function villageSite(s, vx, vz) {
 }
 function civBlock(s, x, z) {
   if (!s.civ) return false;
+  if (inCity(s, x, z, 30)) return true;
   const v = villageSite(s, Math.floor(x / VT), Math.floor(z / VT));
   for (const b of v.b) if (Math.abs(b.x - x) < b.rad + 3 && Math.abs(b.z - z) < b.rad + 3) return true;
   for (const f of v.f) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot), sn = Math.sin(f.rot); if (Math.abs(c * dx + sn * dz) < f.hx + 2 && Math.abs(-sn * dx + c * dz) < f.hz + 2) return true; }
@@ -2947,6 +3057,218 @@ function genVillageTile(s, tx, tz) {
   out.site = v;
   return out;
 }
+
+// ---- towns, cities and great cities: street grids, towers, lamps, pedestrians and traffic
+const CT = 6000, CITY_R = 16000;
+function cityCore(s, cx, cz) {
+  const key = cx + ',' + cz; if (s.ccache.has(key)) return s.ccache.get(key);
+  let c = null; const cul = s.civ;
+  if (cul && cul.lv >= 2) {
+    const P = s.P, r = mulberry(hashInts(cx, cz, P.seed | 0, 999)), ice = s.planet.type === 'ice';
+    if (r() < cul.cityDen) for (let t = 0; t < 10 && !c; t++) {
+      const x = (cx + 0.3 + r() * 0.4) * CT, z = (cz + 0.3 + r() * 0.4) * CT, h = terrH(P, x, z, 1);
+      if (h < P.sea + 6 || h > P.snowLine + (ice ? 3000 : -50)) continue;
+      if ([[220, 0], [-220, 0], [0, 220], [0, -220]].some(([dx, dz]) => Math.abs(terrH(P, x + dx, z + dz, 1) - h) > 30)) continue;
+      const lv = cul.lv, R = lv === 2 ? 200 + r() * 260 : lv === 3 ? 420 + r() * 600 : r() < 0.6 ? 1000 + r() * 1100 : 450 + r() * 600;
+      c = { key, x, z, R, B: 55 + r() * 30, SW: 11 + r() * 4, rot: r() * Math.PI / 2, name: makeName(r), seed: (r() * 1e9) | 0, Hc: R < 500 ? 12 + R * 0.03 : R < 1000 ? 50 + R * 0.12 : 140 + R * 0.14 };
+    }
+  }
+  s.ccache.set(key, c); return c;
+}
+function inCity(s, x, z, m) {
+  if (!s.civ || s.civ.lv < 2) return null;
+  const cx = Math.floor(x / CT), cz = Math.floor(z / CT);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const c = cityCore(s, cx + i, cz + j); if (c && Math.hypot(x - c.x, z - c.z) < c.R + m) return c; }
+  return null;
+}
+function genCityTile(s, tx, tz) {
+  const c = cityCore(s, tx, tz), out = { inst: [[], [], [], []], lamps: [], agents: [], city: c };
+  if (!c) return out;
+  const P = s.P, cul = s.civ, E = s.eco, st = cul.city, r = mulberry(c.seed), B = c.B, n = Math.ceil(c.R / B) + 1, N = 2 * n + 1;
+  const co = Math.cos(c.rot), si = Math.sin(c.rot), W = (u, v) => [c.x + co * u - si * v, c.z + si * u + co * v];
+  const nh = new Float32Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const [x, z] = W((i - n) * B, (j - n) * B); nh[j * N + i] = terrH(P, x, z, 1); }
+  c.hAt = (u, v) => {
+    const fu = clamp(u / B + n, 0, N - 1.001), fv = clamp(v / B + n, 0, N - 1.001), i = Math.floor(fu), j = Math.floor(fv), a = fu - i, b = fv - j;
+    return lerp(lerp(nh[j * N + i], nh[j * N + i + 1], a), lerp(nh[(j + 1) * N + i], nh[(j + 1) * N + i + 1], a), b);
+  };
+  c.lots = new Map();
+  const pickW = w => { let v = r() * (w[0] + w[1] + w[2] + w[3]); for (let k = 0; k < 4; k++) { v -= w[k]; if (v <= 0) return k; } return 0; };
+  let pop = 0, nb = 0;
+  for (let j = -n; j < n; j++) for (let i = -n; i < n; i++) {
+    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = Math.hypot(bu, bv) / c.R;
+    if (f > 1 || r() < 0.04 + f * 0.08) continue;
+    const hs = [nh[(j + n) * N + i + n], nh[(j + n) * N + i + n + 1], nh[(j + n + 1) * N + i + n], nh[(j + n + 1) * N + i + n + 1]];
+    const hmin = Math.min(...hs), hmax = Math.max(...hs);
+    if (hmax - hmin > 30 || hmin < P.sea + 1.5) continue;
+    const inner = B - c.SW, m = c.SW / 2, sub = f < 0.25 ? 1 : r() < 0.5 ? 2 : 4;
+    const lots = sub === 1 ? [[0, 0, 1, 1]] : sub === 2 ? [[0, 0, 0.5, 1], [0.5, 0, 1, 1]] : [[0, 0, 0.5, 0.5], [0.5, 0, 1, 0.5], [0, 0.5, 0.5, 1], [0.5, 0.5, 1, 1]];
+    const list = [];
+    for (const [a0, b0, a1, b1] of lots) {
+      const u0 = i * B + m + a0 * inner + (a0 > 0 ? 1.5 : 0), u1 = i * B + m + a1 * inner - (a1 < 1 ? 1.5 : 0);
+      const v0 = j * B + m + b0 * inner + (b0 > 0 ? 1.5 : 0), v1 = j * B + m + b1 * inner - (b1 < 1 ? 1.5 : 0);
+      const lw = u1 - u0, ld = v1 - v0; if (lw < 6 || ld < 6) continue;
+      let h = Math.max(c.Hc * Math.exp(-((f * 2.2) ** 2)) * (0.25 + r() ** 2 * 1.5), 4 + r() * 6);
+      const floors = Math.max(1, Math.round(h / 3.4)); h = floors * 3.4;
+      const kind = pickW(h > 45 ? st.tall : st.low), cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, [x, z] = W(cu, cv), y = hmin - 2;
+      const round = kind > 0, sw = round ? Math.min(lw, ld) * (0.8 + r() * 0.2) : lw * (0.75 + r() * 0.25), sd = round ? sw : ld * (0.75 + r() * 0.25);
+      const hh = kind === 2 ? Math.min(h, sw * 0.9) : h, col = jit(r, pick(r, st.walls), 0.08);
+      out.inst[kind].push(x, y, z, c.rot, sw, hh + 2, sd, r(), col[0], col[1], col[2], st.neon ? 1 : 0);
+      let top = y + hh + 2;
+      if (kind < 2 && h > 30 && r() < st.capP) { const ch = sw * (0.4 + r() * 0.9); out.inst[st.cap].push(x, top, z, c.rot, sw * 0.7, ch, sd * 0.7, r(), col[0] * 0.8, col[1] * 0.8, col[2] * 0.8, 0); top += ch; }
+      if (h > 60) out.lamps.push(x, top + 1.5, z, 2.4, 1, 0.12, 0.08, 1);
+      list.push({ u0: cu - sw / 2, u1: cu + sw / 2, v0: cv - sd / 2, v1: cv + sd / 2, top });
+      pop += floors * sw * sd / 25; nb++;
+    }
+    if (list.length) c.lots.set(i + ',' + j, list);
+  }
+  c.pop = pop; c.nb = nb;
+  // street lamps along both sides of every street
+  const lc = cul.glowC, off = c.SW / 2 - 1;
+  for (let k = -n; k <= n; k++) for (let t = -c.R; t <= c.R; t += 38) for (const sd of [-off, off]) for (const ax of [0, 1]) {
+    const u = ax ? t : k * B + sd, v = ax ? k * B + sd : t;
+    if (Math.hypot(u, v) > c.R) continue;
+    const [x, z] = W(u, v), y = c.hAt(u, v) + 6;
+    if (y < P.sea + 7) continue;
+    out.lamps.push(x, y, z, 1.1, lc[0], lc[1], lc[2], 0);
+  }
+  // pedestrians and traffic on the street grid
+  const lines = []; for (let k = -n; k <= n; k++) if (Math.abs(k * B) < c.R * 0.9) lines.push(k * B);
+  const spawn = (si, lane, alt) => {
+    const C = E.creatures[si], ax = r() < 0.5 ? 1 : 0, line = pick(r, lines), lim = Math.sqrt(Math.max(c.R * c.R * 0.8 - line * line, 0));
+    const t = (r() * 2 - 1) * lim, dir = ax ? (r() < 0.5 ? 1 : 3) : (r() < 0.5 ? 0 : 2), sg = dir < 2 ? 1 : -1;
+    const a = { si, id: (r() * 1e9) | 0, city: c, u: ax ? line : t, v: ax ? t : line, dir, lane: lane * (C.beh === 'drive' ? 1 : 0.8 + r() * 0.4), alt, x: 0, z: 0, y: 0, head: 0, phase: r() * TAU, graze: 0, walk: 0, spd: 0, spd0: C.walk * (0.8 + r() * 0.4), state: 'walk', t: 0, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 20, cm: 6, wait: 0 };
+    a.next = sg > 0 ? (Math.floor(t / B) + 1) * B : (Math.ceil(t / B) - 1) * B;
+    const [x, z] = W(a.u, a.v); a.x = x; a.z = z; a.y = c.hAt(a.u, a.v) + alt;
+    out.agents.push(a);
+  };
+  const big = c.R / 1000, np = Math.round(120 * big * big * (cul.lv === 4 ? 2.2 : 1.4) + 60), nv = Math.round(np * 0.22);
+  for (let k = 0; k < np; k++) spawn(pick(r, cul.people), off - 0.4, 0);
+  const ground = cul.vehicles.filter(si => !E.creatures[si].fly), air = cul.vehicles.filter(si => E.creatures[si].fly);
+  if (ground.length) for (let k = 0; k < nv; k++) spawn(pick(r, ground), 2.4, 0);
+  if (air.length) for (let k = 0; k < nv * 0.4; k++) { const si = pick(r, air), fl = E.creatures[si].fly; spawn(si, 0, lerp(fl[0], fl[1], r())); }
+  return out;
+}
+function gridStep(s, a, C, dt, dC, walking) {
+  const c = a.city, B = c.B, P = s.P, drive = C.beh === 'drive';
+  let want = a.spd0;
+  if (a.wait > 0) { a.wait -= dt; want = 0; }
+  const meet = walking && dC < (drive ? 12 : 7) && !a.alt;
+  if (meet) want = 0;
+  a.spd = lerp(a.spd, want, 1 - Math.exp(-dt * (drive ? 1.5 : 3)));
+  const sg = a.dir < 2 ? 1 : -1, ax = a.dir & 1;
+  let p = (ax ? a.v : a.u) + sg * a.spd * dt;
+  if ((p - a.next) * sg >= 0) {
+    if (ax) a.v = a.next; else a.u = a.next;
+    const opts = [a.dir, (a.dir + 1) % 4, (a.dir + 3) % 4], du = [B, 0, -B, 0], dv = [0, B, 0, -B];
+    let nd = Math.random() < 0.6 ? a.dir : opts[Math.random() < 0.5 ? 1 : 2];
+    const okD = d => Math.hypot(a.u + du[d], a.v + dv[d]) < c.R * 0.92;
+    if (!okD(nd)) nd = opts.find(okD) ?? (a.dir + 2) % 4;
+    a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B);
+    if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
+  } else if (ax) a.v = p; else a.u = p;
+  const du = [1, 0, -1, 0][a.dir], dv = [0, 1, 0, -1][a.dir], lu = a.u + dv * a.lane, lv = a.v - du * a.lane;
+  const co = Math.cos(c.rot), si = Math.sin(c.rot);
+  a.x = c.x + co * lu - si * lv; a.z = c.z + si * lu + co * lv;
+  const g = dC < 150 ? terrH(P, a.x, a.z, 3) : c.hAt(lu, lv);
+  a.y = a.alt ? lerp(a.y, g + a.alt, 1 - Math.exp(-dt)) : g + (C.hover ? C.hover + Math.sin(s.t * 2 + a.id) * 0.1 : 0);
+  let hd = meet && !drive ? Math.atan2(s.x - a.x, s.z - a.z) : Math.atan2(co * du - si * dv, si * du + co * dv);
+  let dh = hd - a.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); a.head += dh * (1 - Math.exp(-dt * 6));
+  a.phase += dt * a.spd / (C.stride * a.scale) * Math.PI;
+  a.walk = a.spd / Math.max(C.walk * a.scale, 0.01);
+}
+// highest roof under (x, z), or -Infinity on streets and open ground
+function cityTop(s, x, z) {
+  for (const c of s.cityList) {
+    const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz > c.R * c.R) continue;
+    const co = Math.cos(c.rot), si = Math.sin(c.rot), u = co * dx + si * dz, v = -si * dx + co * dz;
+    const lots = c.lots && c.lots.get(Math.floor(u / c.B) + ',' + Math.floor(v / c.B));
+    if (lots) for (const l of lots) if (u > l.u0 && u < l.u1 && v > l.v0 && v < l.v1) return l.top;
+  }
+  return -Infinity;
+}
+function cityMesh(build) {
+  const v = [], tri = (a, b, c, na, nb, nc) => v.push(...a, ...na, ...b, ...nb, ...c, ...nc);
+  build(tri);
+  const vb = buffer(new Float32Array(v)), ib = gl.createBuffer();
+  const va = vao([{ buf: vb, loc: 0, size: 3, stride: 24, offset: 0 }, { buf: vb, loc: 1, size: 3, stride: 24, offset: 12 },
+  { buf: ib, loc: 2, size: 4, stride: 48, offset: 0, divisor: 1 }, { buf: ib, loc: 3, size: 4, stride: 48, offset: 16, divisor: 1 }, { buf: ib, loc: 4, size: 4, stride: 48, offset: 32, divisor: 1 }]);
+  return { vao: va, ib, verts: v.length / 6, n: 0 };
+}
+const cityMeshes = [
+  cityMesh(tri => {
+    const q = (a, b, c, d, n) => { tri(a, b, c, n, n, n); tri(a, c, d, n, n, n); };
+    q([-0.5, 0, 0.5], [0.5, 0, 0.5], [0.5, 1, 0.5], [-0.5, 1, 0.5], [0, 0, 1]); q([0.5, 0, -0.5], [-0.5, 0, -0.5], [-0.5, 1, -0.5], [0.5, 1, -0.5], [0, 0, -1]);
+    q([0.5, 0, 0.5], [0.5, 0, -0.5], [0.5, 1, -0.5], [0.5, 1, 0.5], [1, 0, 0]); q([-0.5, 0, -0.5], [-0.5, 0, 0.5], [-0.5, 1, 0.5], [-0.5, 1, -0.5], [-1, 0, 0]);
+    q([-0.5, 1, 0.5], [0.5, 1, 0.5], [0.5, 1, -0.5], [-0.5, 1, -0.5], [0, 1, 0]);
+  }),
+  cityMesh(tri => {
+    const S = 20; for (let k = 0; k < S; k++) {
+      const a0 = k / S * TAU, a1 = (k + 1) / S * TAU, p = (a, y) => [Math.cos(a) * 0.5, y, Math.sin(a) * 0.5], nn = a => [Math.cos(a), 0, Math.sin(a)];
+      tri(p(a0, 0), p(a1, 0), p(a1, 1), nn(a0), nn(a1), nn(a1)); tri(p(a0, 0), p(a1, 1), p(a0, 1), nn(a0), nn(a1), nn(a0));
+      tri([0, 1, 0], p(a1, 1), p(a0, 1), [0, 1, 0], [0, 1, 0], [0, 1, 0]);
+    }
+  }),
+  cityMesh(tri => {
+    const S = 20, T = 8, p = (a, e) => [Math.cos(e) * Math.cos(a) * 0.5, Math.sin(e), Math.cos(e) * Math.sin(a) * 0.5], nn = (a, e) => [2 * Math.cos(e) * Math.cos(a), Math.sin(e), 2 * Math.cos(e) * Math.sin(a)];
+    for (let k = 0; k < S; k++) for (let j = 0; j < T; j++) {
+      const a0 = k / S * TAU, a1 = (k + 1) / S * TAU, e0 = j / T * Math.PI / 2, e1 = (j + 1) / T * Math.PI / 2;
+      tri(p(a0, e0), p(a1, e1), p(a1, e0), nn(a0, e0), nn(a1, e1), nn(a1, e0)); tri(p(a0, e0), p(a0, e1), p(a1, e1), nn(a0, e0), nn(a0, e1), nn(a1, e1));
+    }
+  }),
+  cityMesh(tri => {
+    const S = 14; for (let k = 0; k < S; k++) { const a0 = k / S * TAU, a1 = (k + 1) / S * TAU, nn = a => [2 * Math.cos(a), 1, 2 * Math.sin(a)]; tri([Math.cos(a0) * 0.5, 0, Math.sin(a0) * 0.5], [Math.cos(a1) * 0.5, 0, Math.sin(a1) * 0.5], [0, 1, 0], nn(a0), nn(a1), nn((a0 + a1) / 2)); }
+  })
+];
+const CITY_VS = `layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec4 aI; layout(location=3) in vec4 aJ; layout(location=4) in vec4 aK;
+vec3 cityWorld(out vec3 n){ vec3 lp=aP*aJ.xyz; float c=cos(aI.w), s=sin(aI.w); vec3 m=normalize(aN/aJ.xyz); n=vec3(c*m.x-s*m.z,m.y,s*m.x+c*m.z); return aI.xyz+vec3(c*lp.x-s*lp.z,lp.y,s*lp.x+c*lp.z); }`;
+const P_city = program(CITY_VS + `uniform mat4 uVP; uniform vec3 uCam; uniform float uCurv; out vec3 vW; out vec3 vN; out vec3 vL; out vec3 vLN; out vec3 vCol; out vec4 vX;
+void main(){ vec3 n; vec3 w=cityWorld(n); vW=w; vN=n; vL=aP*aJ.xyz; vLN=normalize(aN/aJ.xyz); vCol=aK.rgb; vX=vec4(aJ.xyz,aJ.w+aK.w*10.);
+  vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv; gl_Position=uVP*vec4(rel,1.); }`,
+  SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; in vec3 vL; in vec3 vLN; in vec3 vCol; in vec4 vX; out vec4 o; uniform vec3 uCam, uWin; uniform float uKind;
+float hh(vec3 p){ return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453); }
+void main(){ vec3 n=normalize(vN); vec3 rel=vW-uCam; float dist=length(rel), night=1.-dayF();
+  vec3 base=vCol; float seed=fract(vX.w), neon=step(9.,vX.w);
+  float vert=1.-smoothstep(.4,.7,abs(vLN.y));
+  if(vLN.y>.7) base*=.6;
+  float u=uKind<.5?(abs(vLN.x)>.5?vL.z:vL.x):atan(vL.z,vL.x)*.5*vX.x;
+  float fy=vL.y-2., H=vX.y-2.;
+  vec2 g=vec2(fract(u/2.8),fract(fy/3.4)), id=vec2(floor(u/2.8),floor(fy/3.4));
+  float wm=uKind<2.5?step(.2,g.x)*step(g.x,.8)*step(.25,g.y)*step(g.y,.8)*step(1.,fy)*step(fy,H-1.)*vert:0.;
+  float h=hh(vec3(id,seed*91.)), lit=step(h,mix(.05,.6,night))*wm;
+  float dif=max(dot(n,uSun),0.)*shadowAt(vW,.0003);
+  vec3 col=base*(sunLight()*dif+ambient()*(.55+.45*n.y));
+  vec3 glass=vec3(.035,.045,.06)*(sunLight()*.25+ambient()*1.4)+sunLight()*pow(max(dot(reflect(rel/dist,n),uSun),0.),30.)*.4;
+  col=mix(col,glass,wm*.9);
+  vec3 wc=mix(uWin,vec3(.85,.9,1.),step(.75,fract(h*7.))*.6);
+  col+=lit*wc*(.7+.6*fract(h*13.))*(.12+1.5*night);
+  col+=neon*uWin*step(.94,fract(fy/27.2))*vert*(.3+1.5*night);
+  if(uKind>2.5) col+=uWin*smoothstep(.85,1.,vL.y/vX.y)*(.4+2.*night);
+  o=vec4(fogApply(col,rel,dist),1.); }`);
+const P_shCity = program(CITY_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=cityWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
+const P_lamp = program(`layout(location=0) in vec2 aC; layout(location=1) in vec4 aI; layout(location=2) in vec4 aJ;
+uniform mat4 uVP; uniform vec3 uCam; uniform float uCurv, uPx, uTime, uNight; uniform vec2 uVpx; out vec2 vUV; out vec3 vC;
+void main(){ vec3 rel=aI.xyz-uCam; float d=length(rel); rel.y-=dot(rel.xz,rel.xz)*uCurv;
+  float blink=aJ.w>.5?step(.55,fract(uTime*.6+aI.x*.0137)):1.;
+  float real=aI.w/d*uPx, px=max(real,1.6);
+  vC=aJ.rgb*uNight*blink*pow(min(real/px,1.),.6)*max(.25,1.)*smoothstep(32000.,12000.,d)*(aJ.w>.5?3.:1.6);
+  vUV=aC; vec4 cp=uVP*vec4(rel,1.); cp.xy+=aC*px*2./uVpx*cp.w; gl_Position=cp; }`,
+  `in vec2 vUV; in vec3 vC; out vec4 o; void main(){ float r=dot(vUV,vUV); if(r>1.) discard; o=vec4(vC*exp(-r*3.5),1.); }`);
+const lampBuf = gl.createBuffer();
+const lampVAO = vao([{ buf: quadBuf, loc: 0, size: 2 }, { buf: lampBuf, loc: 1, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: lampBuf, loc: 2, size: 4, stride: 32, offset: 16, divisor: 1 }]);
+let lampN = 0;
+function rebuildCity(s) {
+  const parts = [[], [], [], []], lamps = [];
+  s.cityList = [];
+  for (const t of s.ctiles.values()) { const a = t.a; if (!a.city) continue; s.cityList.push(a.city); for (let k = 0; k < 4; k++) parts[k].push(a.inst[k]); lamps.push(a.lamps); }
+  const flat = arrs => { let n = 0; for (const x of arrs) n += x.length; const o = new Float32Array(n); let p = 0; for (const x of arrs) { o.set(x, p); p += x.length; } return o; };
+  cityMeshes.forEach((M, k) => { const d = flat(parts[k]); gl.bindBuffer(gl.ARRAY_BUFFER, M.ib); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); M.n = d.length / 12; });
+  const L = flat(lamps); gl.bindBuffer(gl.ARRAY_BUFFER, lampBuf); gl.bufferData(gl.ARRAY_BUFFER, L, gl.DYNAMIC_DRAW); lampN = L.length / 8;
+  const near = s.cityList.slice().sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z)).slice(0, 8);
+  s.cityU.fill(0); s.cityB.fill(0);
+  near.forEach((c, i) => { s.cityU.set([c.x, c.z, c.R, c.rot], i * 4); s.cityB.set([c.B, c.SW, 0, 0], i * 4); });
+}
+function drawCity(p) { cityMeshes.forEach((M, k) => { if (!M.n) return; p.set('uKind', k); gl.bindVertexArray(M.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, M.verts, M.n); }); }
 
 // surface state
 let surf = null, surfVisits = 0;
@@ -2978,16 +3300,18 @@ function makeSurface(planet, sys, entryDir) {
     gtiles: new Map(), gdirty: false, grebuildT: 0, atiles: new Map(), floaters: [], ground: g0,
     pt: 0, cruiseDur: 55 + r() * 35, walkDur: 70 + r() * 50, walked: false, walkV: 0, sideV: 0, bob: 0, wT: 3, wState: 'stand',
     ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null,
-    ttiles: new Map(), vtiles: new Map(), vcache: new Map(), vdirty: false, vrebuildT: 0, titans: [], seenV: new Set(), civ: null
+    ttiles: new Map(), vtiles: new Map(), vcache: new Map(), vdirty: false, vrebuildT: 0, titans: [], seenV: new Set(), civ: null,
+    ctiles: new Map(), ccache: new Map(), cityList: [], cityU: new Float32Array(32), cityB: new Float32Array(32), cdirty: false
   };
   s.cloudCov = (P.sCloud ?? P.cloud) * 0.9; s.home = [sx, sz]; if (P.gas) s.walked = true;
   s.eco = makeEcology(P, planet.type, mulberry(hashInts(planet.seed, 4242)));
-  if (planet.civ) s.civ = makeCulture(P, planet.type, mulberry(hashInts(planet.seed, 6262)), s.eco);
+  if (planet.civ) s.civ = makeCulture(P, planet.type, mulberry(hashInts(planet.seed, 6262)), s.eco, planet.civLv || 0);
   if (s.eco.floater) for (let i = 0; i < 7; i++) s.floaters.push({ x: sx, y: g0, z: sz, head: 0, ph: i * 1.7, sc: 10, t: -1 });
   return s;
 }
 function freeSurface(s) {
-  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear();
+  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear(); s.ctiles.clear(); s.ccache.clear();
+  cityMeshes.forEach(M => M.n = 0); lampN = 0;
   if (s.civ) s.civ.kinds.forEach(K => freeInstMesh(K.m));
   freeEcology(s.eco); grassMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
 }
@@ -3036,7 +3360,17 @@ function updateSurfaceWorld(s, dt) {
       const v = t.a.site;
       if (!v.n || s.seenV.has(v.key) || Math.hypot(v.cx - s.x, v.cz - s.z) > v.R + 150 || s.y - s.ground > 500) continue;
       s.seenV.add(v.key);
-      showLoc(v.name, (v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' folk \u00b7 ' + v.n + ' dwellings');
+      showLoc(v.name, (s.civ.lv === 0 ? 'a nomad camp' : v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' folk \u00b7 ' + v.n + (s.civ.lv === 0 ? ' tents' : ' dwellings'));
+    }
+    if (s.civ.lv >= 2) {
+      if (tileSet(s.ctiles, CT, CITY_R, s.x, s.z, 1, (tx, tz) => genCityTile(s, tx, tz))) s.cdirty = true;
+      if (s.cdirty) { s.cdirty = false; rebuildCity(s); }
+      for (const c of s.cityList) {
+        if (s.seenV.has(c.key) || Math.hypot(c.x - s.x, c.z - s.z) > c.R + 300 || s.y - s.ground > 2500) continue;
+        s.seenV.add(c.key);
+        const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = c.pop > 1e6 ? (c.pop / 1e6).toFixed(1) + ' million' : Math.round(c.pop / 1000) * 1000 + '';
+        showLoc(c.name, kind + ' of the ' + s.civ.folk + ' folk \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
+      }
     }
   }
   simAnimals(s, dt);
@@ -3114,6 +3448,7 @@ function renderShadowMap(s, time, chunks, fwd, cam, models) {
   const pp = P_shPlant.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', TREE_R);
   for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); }
   if (s.civ) { pp.set('uFadeR', VIL_R).set('uSway', 0); for (const K of s.civ.kinds) drawInst(K.m); }
+  if (s.cityList.length) drawCity(P_shCity.use().set('uLVP', shadow.lvp).set('uShO', shadow.o));
   const ap = P_shAnimal.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', ANIM_R);
   for (const C of s.eco.creatures) { ap.set('uFadeR', C.visR).set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash).set('uRoll', C.roll).set('uPitch', C.pitch); drawInst(C.mesh); }
   const mp = P_shModel.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam);
@@ -3147,7 +3482,8 @@ function renderSurface(s, time, camQ, cam) {
     .set('uGrass', P.grass).set('uGrass2', P.grass2).set('uForest', P.forest).set('uSand', P.sand).set('uRock', P.rock).set('uSnow', P.snow)
     .set('uSea', P.sea).set('uSnowLine', P.snowLine).set('uTreeLine', P.treeLine).set('uTreeDen', P.treeDen)
     .set('uPat', P.pat || [0, 0, 0, 60]).set('uAlt', P.alt || [0, 0, 0]).set('uStrA', P.strA || [0, 0, 0]).set('uStrB', P.strB || [0, 0, 0])
-    .set('uGas', P.gas || 0).set('uG1', P.g1).set('uG2', P.g2).set('uG3', P.g3).set('uLava', P.lava || 0);
+    .set('uGas', P.gas || 0).set('uG1', P.g1).set('uG2', P.g2).set('uG3', P.g3).set('uLava', P.lava || 0)
+    .set('uCity', s.cityU).set('uCityB', s.cityB).set('uPave', s.civ ? s.civ.pave : [0.4, 0.4, 0.4]);
   gl.bindVertexArray(terrMesh.vao);
   for (const c of chunks) {
     tp.set('uChunk', c).set('uDet', chunkDet(c[2]));
@@ -3163,6 +3499,8 @@ function renderSurface(s, time, camQ, cam) {
     for (const K of s.civ.kinds) { pp.set('uTrunk', K.roof).set('uRockC', K.trim).set('uGlowI', K.glowI).set('uGlowC', K.kind === 'crop' ? [0, 0, 0] : K.glowC); drawInst(K.m); }
     pp.set('uGlowC', [0, 0, 0]);
   }
+  if (s.cityList.length) drawCity(shadowUniforms(surfaceSkyUniforms(P_city.use(), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uWin', s.civ.city.win));
+  pp.use();
   if (farMesh.n) {
     surfaceSkyUniforms(P_far.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uNear', TREE_R * 0.82).set('uFar', FAR_R);
     gl.bindVertexArray(farMesh.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, farMesh.n);
@@ -3196,6 +3534,11 @@ function renderSurface(s, time, camQ, cam) {
     gl.bindVertexArray(waterMesh.vao); gl.drawElements(gl.TRIANGLES, waterMesh.count, gl.UNSIGNED_INT, 0);
   }
   // translucent sky creatures
+  if (lampN && day < 0.9) {
+    glState({ depth: true, blend: 'add' });
+    P_lamp.use().set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1 - day).set('uVpx', [post.w, post.h]);
+    gl.bindVertexArray(lampVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, lampN);
+  }
   if (floaterMesh.n && E.floater) {
     glState({ depth: true, blend: 'premult' });
     surfaceSkyUniforms(P_floater.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time).set('uFlCol', E.floater.col);
@@ -3708,16 +4051,17 @@ function surfStep(dt) {
   const ang = s.t * TAU / 720;
   s.sun = qrot(qaxis(s.axis, -ang), s.sun0);
   s.spaceQ = qmul(s.Q0, qaxis(s.axis, ang));
-  const H = (x, z) => { let m = Math.max(terrH(P, x, z, 2), P.sea); for (const t of s.titans) if (Math.hypot(x - t.x, z - t.z) < t.r) m = Math.max(m, t.top); return m; };
+  const H = (x, z) => { let m = Math.max(terrH(P, x, z, 2), P.sea, cityTop(s, x, z)); for (const t of s.titans) if (Math.hypot(x - t.x, z - t.z) < t.r) m = Math.max(m, t.top); return m; };
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   const g0 = terrH(P, s.x, s.z, 3);
   s.ground = Math.max(g0, P.sea);
   if (s.phase === 'walk') { walkStep(s, dt); Music.mood('surface', 0.03); return; }
+  s.ground = Math.max(s.ground, cityTop(s, s.x, s.z));
   if (s.phase !== 'ascend') S.fade = Math.max(0, S.fade - dt * (s.phase === 'descend' ? 0.3 : 1.2));
   if (!S.auto && s.phase === 'descend') { s.phase = 'cruise'; s.pt = 0; }
   if (!S.auto && s.phase === 'cruise') { manualSurfFlight(s, dt); return; }
   const landOK = g0 > P.sea + 0.8 && Math.hypot(terrH(P, s.x + 3, s.z, 1) - terrH(P, s.x - 3, s.z, 1), terrH(P, s.x, s.z + 3, 1) - terrH(P, s.x, s.z - 3, 1)) / 6 < 0.35
-    && (!S.auto || s.pt > 40 || forestM(P, s.x, s.z) * P.treeDen < 0.35);
+    && (!S.auto || s.pt > 40 || forestM(P, s.x, s.z) * P.treeDen < 0.35) && cityTop(s, s.x, s.z) === -Infinity;
   if (!S.auto && s.phase === 'landing' && landOK) {
     const k = keys;
     const yt = ((k.KeyA || k.ArrowLeft) ? 0.35 : 0) - ((k.KeyD || k.ArrowRight) ? 0.35 : 0);
@@ -3729,7 +4073,8 @@ function surfStep(dt) {
     if (hc > s.y + 40) tgt += (hl < hr ? 1 : -1) * 0.12;
     if (s.civ && S.auto && s.phase === 'cruise') {
       let best = null, bd = 4000;
-      for (const t of s.vtiles.values()) { const v = t.a.site; if (!v.n || s.seenV.has(v.key)) continue; const d = Math.hypot(v.cx - s.x, v.cz - s.z); if (d < bd) { bd = d; best = v; } }
+      for (const t of s.vtiles.values()) { const v = t.a.site; if (!v.n || s.seenV.has(v.key)) continue; const d = Math.hypot(v.cx - s.x, v.cz - s.z); if (d < bd) { bd = d; best = { cx: v.cx, cz: v.cz }; } }
+      for (const c of s.cityList) { if (s.seenV.has(c.key)) continue; const d = Math.hypot(c.x - s.x, c.z - s.z) - c.R; if (d < bd + 3000) { bd = d; best = { cx: c.x, cz: c.z }; } }
       if (best) { let da = Math.atan2(-(best.cx - s.x), -(best.cz - s.z)) - s.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); tgt += clamp(da, -1, 1) * 0.12; }
     }
     if (s.phase === 'landing' && landOK) tgt = 0;
@@ -3824,7 +4169,7 @@ function walkStep(s, dt) {
   const nx = s.x + vx * dt, nz = s.z + vz * dt, step = Math.hypot(nx - s.x, nz - s.z), g0 = terrH(P, s.x, s.z, 3);
   if (step > 1e-6) {
     const nh = terrH(P, nx, nz, 3);
-    if (nh > P.sea + 0.3 && ((nh - g0) / step < 1.1 || s.air)) { s.x = nx; s.z = nz; }
+    if (nh > P.sea + 0.3 && ((nh - g0) / step < 1.1 || s.air) && cityTop(s, nx, nz) < nh + 0.5) { s.x = nx; s.z = nz; }
     else if (!manual) { s.yaw += dt * 1.6; s.walkV *= 0.9; }
   }
   const mv = Math.hypot(vx, vz), g = terrH(P, s.x, s.z, 3);
