@@ -1061,6 +1061,8 @@ function makeSystem(star) {
     p.noiseSeed = [pr() * 10, pr() * 10, pr() * 10];
     p.landable = !!LANDABLE[p.type];
     p.desc = PLANET_DESC[p.type];
+    p.civ = mulberry(hashInts(p.seed, 31))() < ({ terran: 0.5, ocean: 0.35, alien: 0.55, desert: 0.35, ice: 0.25 }[p.type] || 0);
+    if (p.civ) p.desc += ' · inhabited';
     p.flux = L / (p.a * p.a);
     p.starI = clamp(Math.pow(p.flux, 0.3), 0.35, 2.2) * 1.3;
     p.Ra = p.R * (p.landable ? 1.035 : p.type === 'gas' || p.type === 'icegiant' ? 1.02 : 1.0);
@@ -1079,7 +1081,7 @@ const planetSpinQ = (p, t) => qmul(p.tilt, qaxis([0, 1, 0], t * p.spin));
 const PLANET_VS = `layout(location=0) in vec3 aP; uniform mat4 uVP; uniform vec3 uC; uniform float uR; out vec3 vN; out vec3 vW;
 void main(){ vN=aP; vW=uC+aP*uR; gl_Position=uVP*vec4(vW,1.); }`;
 const P_planet = program(PLANET_VS, NOISE_GLSL + `in vec3 vN; in vec3 vW; out vec4 o;
-uniform vec3 uC, uL, uSeed, uStarCol; uniform float uR, uSea, uCloud, uTime, uStarI, uBands, uRingIn, uRingOut, uRelief;
+uniform vec3 uC, uL, uSeed, uStarCol; uniform float uR, uSea, uCloud, uTime, uStarI, uBands, uRingIn, uRingOut, uRelief, uCiv;
 uniform mat3 uSpin; uniform int uType;
 uniform vec3 uDeep,uShallow,uSand,uGrass,uForest,uRock,uSnow,uAtmo,uG1,uG2,uG3,uRingN;
 void main(){
@@ -1123,6 +1125,7 @@ void main(){
       col=mix(col,uSnow,smoothstep(.22,.12,temp));
     }
     if(uType<=4){ float ice=smoothstep(.8,.88,lat+(h-.5)*.25); col=mix(col,uSnow,ice); spec*=1.-ice; }
+    if(uCiv>0.&&land>.004&&land<.2){ float c=smoothstep(.6,.75,fbmT(n*11.+uSeed*3.,3))*smoothstep(.45,.65,fbmT(n*1.7+uSeed.yzx,3)); emis+=vec3(1.,.66,.3)*c*.35*smoothstep(.05,-.2,NL); }
     float hw=max(land,0.)*uR*uRelief;
     vec3 dpx=dFdx(vW), dpy=dFdy(vW); float dhx=dFdx(hw), dhy=dFdy(hw);
     vec3 r1=cross(dpy,N), r2=cross(N,dpx); float det=dot(dpx,r1);
@@ -1183,12 +1186,13 @@ void main(){
   float lit=.3+.7*abs(dot(uRingN,uL));
   o=vec4(uCol*(.65+.7*b)*lit*sh*uStarCol*uStarI*a,a);
 }`);
-const P_sun = program(PLANET_VS, NOISE_GLSL + `in vec3 vN; in vec3 vW; out vec4 o; uniform vec3 uCol, uSeed; uniform float uTime, uI;
+const P_sun = program(PLANET_VS, NOISE_GLSL + `in vec3 vN; in vec3 vW; out vec4 o; uniform vec3 uCol, uSeed; uniform float uTime, uI, uNear;
 void main(){ vec3 N=normalize(vN); vec3 V=normalize(-vW); float mu=max(dot(N,V),0.);
  float g=fbmT(N*1.1+uSeed+vec3(uTime*.004),5), g2=fbmT(N*6.+uSeed-vec3(uTime*.01),3);
  float spots=smoothstep(.68,.76,fbmTG(N*.8+uSeed,4));
  float limb=.35+.65*pow(mu,.5);
  vec3 c=uCol*(.65+.7*g+.3*g2)*(1.-spots*.6)*limb*uI;
+ if(uNear>0.){ float g3=fbmT(N*45.+uSeed+vec3(uTime*.02,0.,uTime*.013),3), g4=fbmT(N*160.+uSeed-vec3(uTime*.05),2); c*=mix(1.,(.3+1.4*g3)*(.7+.6*g4),uNear)*(1.-uNear*.72); c=mix(c,c*c/max(max(c.r,c.g),.01),uNear*.5); vec3 sc=uCol/max(max(uCol.r,uCol.g),uCol.b); c*=mix(vec3(1.),sc*sc*sc*vec3(1.,.85,.8),uNear*.85); }
  o=vec4(c,1.); }`);
 const P_corona = program(`layout(location=0) in vec2 aC; uniform mat4 uVP; uniform vec3 uC, uRight, uUp; uniform float uS; out vec2 vUV;
 void main(){ vUV=aC; gl_Position=uVP*vec4(uC+(aC.x*uRight+aC.y*uUp)*uS,1.); }`,
@@ -1199,21 +1203,90 @@ void main(){ float r=length(vUV)*uK; if(r<.98) discard;
   float g=exp(-(r-1.)*2.2)*.9+.35/(r*r)*(.5+s*1.2)+exp(-(r-1.)*.6)*.12*s;
   o=vec4(uCol*g*uI*smoothstep(uK,uK*.45,r),1.); }`);
 
-// inside a star: a glowing, churning plasma fog
-const P_plasma = program(FS_VS, NOISE_GLSL + `in vec2 vUV; out vec4 o; uniform mat3 uCamRot; uniform vec2 uTan; uniform vec3 uCol, uP; uniform float uDepth, uTime;
-void main(){ vec3 d=normalize(uCamRot*vec3((vUV.x*2.-1.)*uTan.x,(vUV.y*2.-1.)*uTan.y,-1.));
-  float acc=0.;
-  for(int i=1;i<=4;i++){ float t=float(i)*.35; vec3 q=uP*.15+d*t; acc+=fbmT(q*.6+vec3(0.,uTime*.012*float(i),0.),4)/float(i); }
-  float cell=fbmT(d*1.6+uP*.05+vec3(uTime*.004),5);
-  float n=acc*.55+cell*.45, dd=clamp(uDepth,0.,1.);
+// inside a star: raymarched plasma with convection plumes, filaments, a blazing core and rising bubbles (units of Rs)
+const P_starIn = program(FS_VS, NOISE_GLSL + `in vec2 vUV; out vec4 o;
+uniform mat3 uCamRot; uniform vec2 uTan; uniform vec3 uCol, uP; uniform float uTime; uniform vec4 uBub[8];
+void main(){
+  vec3 d=normalize(uCamRot*vec3((vUV.x*2.-1.)*uTan.x,(vUV.y*2.-1.)*uTan.y,-1.));
   vec3 sc=uCol/max(max(uCol.r,uCol.g),max(uCol.b,1e-3));
-  vec3 sat=clamp(mix(vec3(dot(sc,vec3(.333))),sc,2.4),0.,1.);
-  vec3 hot=mix(sat*vec3(1.,.75,.6),sat,dd);
-  float k=smoothstep(.32,.72,n);
-  vec3 col=hot*(.02+1.0*k*k*k)*(.5+.45*dd);
-  col+=mix(sat,vec3(1.),.4)*pow(max(n-.55,0.)*3.,3.)*.9;
-  float a=smoothstep(0.,.04,dd);
-  o=vec4(col*a,a); }`);
+  vec3 sat=clamp(mix(vec3(dot(sc,vec3(.333))),sc,2.2),0.,1.);
+  float b=dot(uP,d), c=dot(uP,uP)-1., tEx=-b+sqrt(max(b*b-c,0.));
+  float T=1., t=0.; vec3 col=vec3(0.);
+  float jit=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);
+  for(int i=0;i<44;i++){
+    float dt=.004+t*.08;
+    if(t>tEx||T<.02) break;
+    vec3 x=uP+d*(t+dt*jit*.35); float r=length(x);
+    float a=uTime*(.01+.02*(1.-r)), ca=cos(a), sa=sin(a);
+    vec3 q=vec3(ca*x.x-sa*x.z,x.y,sa*x.x+ca*x.z), dir=q/max(r,1e-3);
+    float conv=smoothstep(.45,.8,r);
+    float plume=fbmT(dir*4.+vec3(r*1.5-uTime*.025),3);
+    float body=fbmT(q*1.7+vec3(0.,uTime*.008,0.),3);
+    float n=mix(body,plume,conv);
+    float smoke=fbmT(q*2.3+vec3(5.2,-uTime*.006,1.7),3);
+    float rg=clamp(1.-abs(fbmT(q*3.3-vec3(uTime*.005),2)-.5)*9.,0.,1.), fil=rg*rg*rg*smoothstep(.45,.6,body);
+    float core=exp(-r*r*45.), k=smoothstep(.5,.68,n), dk=smoothstep(.46,.6,smoke)*(1.-k);
+    float warm=clamp((sc.r-sc.b)*2.5+.35,0.,1.);
+    vec3 pA=mix(vec3(.02,.05,.45),vec3(.4,.02,.005),warm), pB=mix(vec3(.08,.3,1.),vec3(1.,.16,.015),warm), pC=mix(vec3(.5,.78,1.),vec3(1.,.45,.08),warm);
+    vec3 tint=k<.5?mix(pA,pB,k*2.):mix(pB,pC,(k-.5)*2.);
+    tint=mix(tint,vec3(1.),clamp(core*2.,0.,1.));
+    vec3 em=tint*(.03+2.6*k*k)+pC*fil*2.*(.3+k)+mix(pC,vec3(1.,.97,.92),.7)*core*6.;
+    for(int j=0;j<8;j++){ vec3 dv=x-uBub[j].xyz; float w=uBub[j].w; em+=mix(sat,vec3(1.,.85,.6),.5)*w*exp(-dot(dv,dv)*(320./(.25+w)))*6.; }
+    float dens=.25+3.*k+7.*dk+3.*core, ex=exp(-dens*dt*5.);
+    col+=T*em*(1.-ex)/dens*2.2;
+    T*=ex; t+=dt;
+  }
+  o=vec4(col,1.-T);
+}`);
+function starBubbles(sys, cp, time) {
+  const out = new Float32Array(32), c = vmul(cp, 1 / sys.Rs), cache = sys.bub || (sys.bub = new Map());
+  for (let k = 0; k < 8; k++) {
+    const per = 12 + k * 3.3, u = time / per + k * 0.37, cyc = Math.floor(u), f = u - cyc, key = k * 1e6 + cyc;
+    let d = cache.get(key);
+    if (!d) { const r = mulberry(hashInts(k, cyc, sys.star.seed)); d = vnorm(vadd(vlen(c) > 0.05 ? vnorm(c) : randDir(r), vmul(randDir(r), 0.25 + r() * 0.2))); cache.set(key, d); if (cache.size > 64) cache.delete(cache.keys().next().value); }
+    const rr = lerp(0.12, 1.05, f);
+    out.set([d[0] * rr, d[1] * rr, d[2] * rr, Math.sin(Math.PI * f) * (0.6 + 0.1 * (k % 5))], k * 4);
+  }
+  return out;
+}
+// prominences: magnetic loops of plasma arching off the surface; some erupt and drift away
+const P_prom = program(`layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM;
+uniform mat4 uVP; uniform vec3 uC; uniform float uR, uTime; out vec3 vN; out vec3 vW; out float vT; out float vF; out float vId;
+void main(){
+  float id=aM.x, h=fract(sin(id*12.9898+3.1)*43758.5453);
+  vec3 p=aP; float r=length(p); vec3 d=p/r;
+  float erupt=step(.7,h), g=fract(uTime/(40.+h*50.)+h*7.);
+  float lift=erupt>.5?1.+g*g*6.:1.+.15*sin(uTime*.12+id);
+  p=d*(1.+(r-1.)*lift);
+  vF=erupt>.5?(1.-g)*smoothstep(0.,.06,g):1.;
+  vec3 w=uC+p*uR; vW=w; vN=aN; vT=aM.y; vId=id;
+  gl_Position=uVP*vec4(w,1.); }`,
+  NOISE_GLSL + `in vec3 vN; in vec3 vW; in float vT; in float vF; in float vId; out vec4 o; uniform vec3 uCol; uniform float uTime;
+void main(){ vec3 V=normalize(-vW); float f=abs(dot(normalize(vN),V));
+  float flow=texture(uNoise,vec3(vT*4.-uTime*.03,vId*.173,.5)).r*.7+texture(uNoise,vec3(vT*11.+uTime*.05,vId*.31,.2)).g*.3;
+  float k=(.35+.65*smoothstep(.2,.8,flow))*(.3+.7*f);
+  o=vec4(uCol*k*vF*1.1,1.); }`);
+function promMesh(sys) {
+  if (sys.prom) return sys.prom;
+  const r = mulberry(hashInts(sys.star.seed, 4321)), B = meshBuilder(11), n = 9 + Math.floor(r() * 9);
+  for (let i = 0; i < n; i++) {
+    const a = randDir(r), tg = vnorm(vcross(a, randDir(r))), span = 0.04 + r() * 0.18, h = 0.04 + r() * 0.3, w = 0.003 + r() * 0.008;
+    const a1 = vnorm(vadd(a, vmul(tg, span))), a2 = vnorm(vsub(a, vmul(tg, span)));
+    for (let st = 0, ns = 1 + Math.floor(r() * 3); st < ns; st++) {
+      const jt = vmul(randDir(r), span * 0.2), hh = h * (0.8 + r() * 0.4);
+      let prev = null;
+      for (let j = 0; j <= 28; j++) {
+        const t = j / 28, p = vmul(vnorm(vadd(vlerp(a1, a2, t), vmul(jt, Math.sin(Math.PI * t)))), 1 + Math.sin(Math.PI * t) * hh);
+        if (prev) B.tube(prev, p, w, w, 6, i, (j - 1) / 28, t);
+        prev = p;
+      }
+    }
+  }
+  const vb = buffer(new Float32Array(B.v));
+  sys.prom = { vb, n: B.v.length / 8, vao: vao([{ buf: vb, loc: 0, size: 3, stride: 32, offset: 0 }, { buf: vb, loc: 1, size: 3, stride: 32, offset: 12 }, { buf: vb, loc: 2, size: 2, stride: 32, offset: 24 }]) };
+  return sys.prom;
+}
+function freeSysGL(sys) { if (sys && sys.prom) { gl.deleteBuffer(sys.prom.vb); gl.deleteVertexArray(sys.prom.vao); sys.prom = null; } }
 function renderSystemBodies(sys, cp, time, opt) {
   const st = sys.star;
   const starRel = vmul(cp, -1), dStar = vlen(starRel);
@@ -1221,10 +1294,15 @@ function renderSystemBodies(sys, cp, time, opt) {
   if (!inside) drawGlare(vmul(starRel, 1 / SU_LY), st.L, st.col, 320);
   if (inside) {
     const tanY = Math.tan(view.fov / 2);
-    glState({ blend: 'premult' });
-    P_plasma.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).set('uCamRot', mat3FromQuat(view.q)).set('uTan', [tanY * view.aspect, tanY])
-      .set('uCol', st.col).set('uP', vmul(cp, 3 / Rs)).set('uDepth', 1 - dStar / Rs).set('uTime', time);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.neb.fb); gl.viewport(0, 0, post.neb.w, post.neb.h);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    glState({});
+    P_starIn.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).set('uCamRot', mat3FromQuat(view.q)).set('uTan', [tanY * view.aspect, tanY])
+      .set('uCol', st.col).set('uP', vmul(cp, 1 / Rs)).set('uTime', time).set('uBub', starBubbles(sys, cp, time));
     fsDraw();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.hdr.fb); gl.viewport(0, 0, post.w, post.h);
+    glState({ blend: 'premult' });
+    P_copy.use().tex('uT', post.neb.tex); fsDraw();
     return;
   }
   if (Rs / dStar * view.pxScale > 0.25) {
@@ -1234,10 +1312,18 @@ function renderSystemBodies(sys, cp, time, opt) {
     P_corona.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).set('uVP', vp).set('uC', starRel).set('uRight', right).set('uUp', up).set('uS', Rs * 7)
       .set('uK', 7).set('uCol', st.col).set('uI', 0.6).set('uSeed', [st.seed % 7, 1, 2]).set('uTime', time);
     gl.bindVertexArray(singleVAO); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    glState({ cull: 'back' });
+    gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
+    glState({ depth: true, write: true, cull: 'back' });
     P_sun.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).set('uVP', vp).set('uC', starRel).set('uR', Rs).set('uCol', st.col).set('uI', 1.5)
-      .set('uSeed', [(st.seed % 13) * 0.3, 0.2, 0.7]).set('uTime', time);
+      .set('uSeed', [(st.seed % 13) * 0.3, 0.2, 0.7]).set('uTime', time).set('uNear', 1 - smooth(1.3, 6, dStar / Rs));
     drawSphere(SPHERE_HI);
+    if (Rs / dStar * view.pxScale > 12) {
+      const pm = promMesh(sys), sc = st.col.map(v => v / Math.max(...st.col));
+      glState({ depth: true, blend: 'add' });
+      P_prom.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).set('uVP', vp).set('uC', starRel).set('uR', Rs).set('uTime', time)
+        .set('uCol', [sc[0] * 1.1 + 0.15, sc[1] * 0.55 + 0.08, sc[2] * 0.45 + 0.06]);
+      gl.bindVertexArray(pm.vao); gl.drawArrays(gl.TRIANGLES, 0, pm.n);
+    }
   }
   const list = sys.planets.map(p => { const rel = vsub(p.pos, cp); return { p, rel, d: vlen(rel) }; }).sort((a, b) => b.d - a.d);
   for (const { p, rel, d } of list) {
@@ -1257,7 +1343,7 @@ function renderSystemBodies(sys, cp, time, opt) {
       .set('uSeed', p.noiseSeed).set('uStarCol', st.light).set('uStarI', p.starI).set('uSea', pl.sea).set('uCloud', pl.cloud)
       .set('uTime', time).set('uBands', pl.bands).set('uRelief', pl.relief).set('uSpin', mat3FromQuat(qconj(tq))).set('uType', TYPE_ID[p.type])
       .set('uDeep', pl.deep).set('uShallow', pl.shallow).set('uSand', pl.sand).set('uGrass', pl.grass).set('uForest', pl.forest).set('uRock', pl.rock)
-      .set('uSnow', pl.snow).set('uAtmo', pl.atmo).set('uG1', pl.g1).set('uG2', pl.g2).set('uG3', pl.g3)
+      .set('uSnow', pl.snow).set('uAtmo', pl.atmo).set('uG1', pl.g1).set('uG2', pl.g2).set('uG3', pl.g3).set('uCiv', p.civ ? 1 : 0)
       .set('uRingIn', p.rings ? p.rings.in : 0).set('uRingOut', p.rings ? p.rings.out : 0).set('uRingN', p.rings ? p.rings.n : [0, 1, 0]);
     drawSphere(SPHERE_HI);
     if (p.rings) {
@@ -1742,10 +1828,10 @@ vec3 plantWorld(out vec3 n){
   return aI.xyz+vec3(cr*p.x-sr*p.z,p.y,sr*p.x+cr*p.z)*s;
 }`;
 const P_plant = program(PLANT_VS + `
-uniform mat4 uVP; uniform float uCurv, uGlowI; uniform vec3 uTrunk, uRockC;
+uniform mat4 uVP; uniform float uCurv, uGlowI; uniform vec3 uTrunk, uRockC, uGlowC;
 out vec3 vW; out vec3 vN; out vec3 vC; out float vAO; out float vE;
 void main(){ vec3 n; vec3 w=plantWorld(n); vW=w; vN=n; vAO=aM.y;
-  vC=aM.x<.5?uTrunk:(aM.x>1.5&&aM.x<2.5)?uRockC*aJ.yzw:aJ.yzw;
+  vC=aM.x<.5?uTrunk:(aM.x>1.5&&aM.x<2.5)?uRockC*aJ.yzw:(aM.x>2.5&&dot(uGlowC,vec3(1.))>0.)?uGlowC:aJ.yzw;
   vE=aM.x>2.5?uGlowI*(.75+.25*sin(uTime*1.3+aI.x*.31+aI.z*.17)):0.;
   vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv; gl_Position=uVP*vec4(rel,1.); }`,
   SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; in vec3 vC; in float vAO; in float vE; out vec4 o; uniform vec3 uCam; uniform float uBias, uTwoSide;
@@ -1758,7 +1844,7 @@ void main(){ vec3 rel=vW-uCam; float dist=length(rel);
   o=vec4(fogApply(col,rel,dist),1.); }`);
 const P_shPlant = program(PLANT_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=plantWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
 const ANIMAL_VS = `layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM; layout(location=3) in vec4 aI; layout(location=4) in vec4 aJ;
-uniform vec3 uCam; uniform float uTime, uFadeR, uHipY, uNeckY, uNeckZ, uGrazeA, uWave, uWaveK, uSquash;
+uniform vec3 uCam; uniform float uTime, uFadeR, uHipY, uNeckY, uNeckZ, uGrazeA, uWave, uWaveK, uSquash, uRoll, uPitch;
 const float LP[7]=float[7](0.,0.,3.14159,3.14159,0.,0.,3.14159);
 vec3 animalWorld(out vec3 n){
   vec3 p=aP, nn=aN; int li=int(aM.y+.5); float walk=min(aJ.w,1.6), ph=aJ.y;
@@ -1766,9 +1852,11 @@ vec3 animalWorld(out vec3 n){
   if(li==7){ float g=aJ.z*uGrazeA+sin(ph*2.)*.04*walk; vec2 q=p.yz-vec2(uNeckY,uNeckZ); float c=cos(g), s=sin(g);
     p.yz=vec2(uNeckY,uNeckZ)+vec2(q.x*c-q.y*s,q.x*s+q.y*c); nn.yz=vec2(nn.y*c-nn.z*s,nn.y*s+nn.z*c); }
   if(li==8) p.x+=sin(uTime*2.5+aI.x)*.15*max(uHipY+.4-p.y,0.);
-  if(li==9){ float w=sin(p.z*uWaveK+ph)*uWave*(.35+.65*min(walk,1.)); p.x+=w; nn.x-=cos(p.z*uWaveK+ph)*uWave*uWaveK*.5; }
+  if(li==9){ float u=uPitch>1.5?p.y:p.z, w=sin(u*uWaveK+ph)*uWave*(.35+.65*min(walk,1.)); if(uPitch>.5&&uPitch<1.5) p.y+=w; else { p.x+=w; nn.x-=cos(u*uWaveK+ph)*uWave*uWaveK*.5; } }
   if(li==10){ float f=sin(ph); p.y+=abs(p.x)*f*1.1; nn.x-=sign(p.x)*f*.6; }
   if(uSquash>0.){ float q=cos(ph)*uSquash*min(walk+.15,1.); p.y*=1.-q; p.xz*=1.+q*.5; }
+  if(uRoll>0.){ vec2 q=p.yz-vec2(uRoll,0.); float c=cos(ph), s=sin(ph); p.yz=vec2(uRoll,0.)+vec2(q.x*c-q.y*s,q.x*s+q.y*c); nn.yz=vec2(nn.y*c-nn.z*s,nn.y*s+nn.z*c); }
+  if(uPitch>.5&&uPitch<1.5){ float c=cos(aJ.z), s=sin(aJ.z); p.yz=vec2(p.y*c-p.z*s,p.y*s+p.z*c); nn.yz=vec2(nn.y*c-nn.z*s,nn.y*s+nn.z*c); }
   p.y+=abs(sin(ph))*.035*walk*uHipY;
   float s=aI.w*smoothstep(uFadeR,uFadeR*.85,length(aI.xz-uCam.xz));
   float ch=cos(aJ.x), sh=sin(aJ.x);
@@ -1998,7 +2086,7 @@ function genFarTile(s, tx, tz) {
     const fm = forestM(P, x, z) * P.treeDen;
     if (u > 0.15 + fm * 0.85) continue;
     const h = terrH(P, x, z, 1), alt = h - P.sea;
-    if (alt < 0.6) continue;
+    if (alt < 0.6 || (s.civ && civBlock(s, x, z))) continue;
     const Z = { forest: fm * (1 - smooth(P.treeLine - 60, P.treeLine + 40, h)), meadow: 1 - fm, beach: 1 - smooth(5, 9, alt), rocky: 0.1,
       high: smooth(P.coniferLine - 60, P.coniferLine + 60, h) * Math.max(fm, 0.12) * (1 - smooth(P.treeLine, P.treeLine + 80, h)), any: 1 };
     let tot = 0;
@@ -2012,20 +2100,29 @@ function genFarTile(s, tx, tz) {
 }
 
 // ---- per-planet ecology: plant species, creatures, sky life
-function makeVoice(r, size) {
-  const f0 = clamp(1400 / (1 + size * 1.2) * (0.5 + r() * 1.1), 70, 2600);
-  const kind = pick(r, ['chirp', 'moo', 'warble', 'hoot', 'buzz', 'trill']);
+function makeVoice(r, size, kinds) {
+  const f0 = clamp(1400 / (1 + size * 1.2) * (0.5 + r() * 1.1), size > 20 ? 32 : 70, 2600);
+  const kind = pick(r, kinds || (size > 20 ? ['moo', 'hoot'] : ['chirp', 'moo', 'warble', 'hoot', 'buzz', 'trill']));
   return {
     kind, f0, f1: f0 * (kind === 'chirp' ? 1.6 + r() : kind === 'moo' ? 0.75 : kind === 'hoot' ? 0.92 : 0.6 + r() * 0.9),
-    dur: kind === 'chirp' || kind === 'trill' ? 0.12 + r() * 0.2 : 0.35 + r() * 0.8, reps: kind === 'chirp' || kind === 'trill' ? 1 + Math.floor(r() * 4) : 1 + Math.floor(r() * 1.6),
+    dur: (kind === 'chirp' || kind === 'trill' ? 0.12 + r() * 0.2 : 0.35 + r() * 0.8) * (size > 20 ? 3 : 1), reps: kind === 'chirp' || kind === 'trill' ? 1 + Math.floor(r() * 4) : 1 + Math.floor(r() * 1.6),
     wave: kind === 'buzz' ? 'sawtooth' : kind === 'moo' ? 'triangle' : 'sine', fm: kind === 'buzz' || kind === 'warble' ? 0.3 + r() * 0.6 : 0, fmR: 0.5 + r() * 2.5,
     vib: kind === 'warble' || kind === 'trill' ? 8 + r() * 10 : 0, vol: 0.5 + r() * 0.4
   };
 }
+// typical group sizes, from loners to herds and swarms of a thousand
+function herdFor(r, size) {
+  const opts = size < 1.3 ? [[[3, 9], 3], [[10, 40], 3], [[40, 200], 2], [[150, 1000], 1.5]]
+    : size < 4 ? [[[1, 1], 1], [[2, 6], 3], [[5, 20], 3], [[20, 120], 1.5], [[100, 400], 0.6]]
+      : size < 12 ? [[[1, 1], 2], [[1, 4], 3], [[3, 10], 2]] : [[[1, 1], 3], [[1, 3], 1]];
+  let tw = 0; for (const x of opts) tw += x[1];
+  let v = r() * tw; for (const x of opts) { v -= x[1]; if (v <= 0) return x[0]; }
+  return opts[0][0];
+}
 function makeCreature(r, o) {
-  const kind = o.kind || 'quad', alien = !!o.alien, woolly = !!o.woolly;
+  const kind = o.kind || 'quad', alien = !!o.alien, woolly = !!o.woolly, titan = !!o.titan;
   const B = meshBuilder(Math.floor(r() * 1e9));
-  const C = { kind, hipY: 1, neckY: 1, neckZ: 0.5, grazeA: 1.25, wave: 0, waveK: 1, squash: 0, hop: 0, fly: null, herd: [4, 11], scale: 1, walk: 1, run: 5, stride: 1, flap: 0 };
+  const C = { kind, hipY: 1, neckY: 1, neckZ: 0.5, grazeA: 1.25, wave: 0, waveK: 1, squash: 0, hop: 0, roll: 0, pitch: 0, fly: null, herd: null, scale: 1, walk: 1, run: 5, stride: 1, flap: 0, beh: 'graze', shy: 1, w: 1, side: false, height: 1, rad: 1 };
   let size = 1;
   if (kind === 'quad' || kind === 'tripod' || kind === 'giant') {
     const tri = kind === 'tripod';
@@ -2055,11 +2152,123 @@ function makeCreature(r, o) {
     }
     B.tube([0, bodyY + bh * 0.1, -L * 0.48], [0, bodyY - bh * 0.3, -L * 0.56], bh * 0.07, bh * 0.03, 4, 1, 8, 8);
     if (alien && r() < 0.6) for (let k = 0; k < 4; k++) B.cone([0, bodyY + bh * 0.42, L * (0.25 - k * 0.16)], [0, 1, -0.25], bh * 0.35, bh * 0.07, 4, 2, 0, 0);
-    Object.assign(C, { hipY, neckY: sh[1], neckZ: sh[2], walk: 0.8 + L * 0.5, run: 4 + L * 2.5, stride: legL * 1.3 + 0.2 });
-    if (woolly) C.herd = [6, 14];
-    if (kind === 'giant') { C.scale = 4 + r() * 5; C.herd = [2, 5]; C.walk *= 0.5; C.run *= 0.5; }
-    else C.scale = alien ? 1 + r() * 1.3 : 1 + r() * 0.3;
-    size = (L + legL) * C.scale;
+    // a walking mountain: boulders and little forests ride on its back
+    if (titan) for (let k = 0, n = 14 + Math.floor(r() * 12); k < n; k++) {
+      const top = [(r() - 0.5) * bw * 0.7, bodyY + bh * (0.36 + r() * 0.08), L * (0.42 - r() * 0.84)];
+      if (r() < 0.6) B.cone(top, [top[0] * 0.4, 1, 0], bh * (0.2 + r() * 0.45), bh * (0.05 + r() * 0.04), 5, 1, 0, 0);
+      else B.blob(top, [bh * (0.08 + r() * 0.1), bh * 0.07, bh * (0.08 + r() * 0.1)], 0, 0, 0.5, 0);
+    }
+    Object.assign(C, { hipY, neckY: sh[1], neckZ: sh[2], walk: 0.8 + L * 0.5, run: 4 + L * 2.5, stride: legL * 1.3 + 0.2, height: bodyY + bh * 0.5, rad: L * 0.6 });
+    if (woolly) C.herd = [6, 40];
+    if (titan) { C.scale = 45 + r() * 150; C.walk *= 0.1; C.beh = 'titan'; C.shy = 0; C.w = 0; }
+    else if (kind === 'giant') { C.scale = 4 + r() * 5; C.walk *= 0.5; C.run *= 0.5; C.shy = 0.3; }
+    else { C.scale = alien ? 1 + r() * 1.3 : 1 + r() * 0.3; if (r() < 0.25) { C.beh = 'curious'; C.shy = 0; } }
+    size = L + legL;
+  } else if (kind === 'biped' && o.villager) {
+    const H = 0.8 + r() * 0.45, tw = H * 0.4, th = H * 0.75, hs = H * 0.27 * (alien ? 1 + r() * 0.6 : 0.9 + r() * 0.2);
+    for (const [sx, li] of [[-1, 1], [1, 2]]) {
+      B.tube([sx * tw * 0.25, H + 0.05, 0], [sx * tw * 0.27, 0.03, 0], tw * 0.13, tw * 0.1, 5, 1, li, li);
+      B.blob([sx * tw * 0.27, 0.04, tw * 0.08], [tw * 0.13, tw * 0.07, tw * 0.2], 0, li, 0, 0);
+    }
+    B.blob([0, H + th * 0.45, 0], [tw * 0.5, th * 0.56, tw * 0.33], 0, 0, 0.05);
+    if (r() < 0.55) B.cone([0, H + th * 0.25, 0], [0, -1, 0], H * 0.8, tw * (0.55 + r() * 0.2), 9, 0, 0, 0);
+    for (const sx of [-1, 1]) { const hand = [sx * tw * 0.66, H + th * 0.2, tw * 0.12]; B.tube([sx * tw * 0.48, H + th * 0.85, 0], hand, tw * 0.1, tw * 0.08, 5, 0, 0, 0); B.blob(hand, [tw * 0.09, tw * 0.09, tw * 0.09], 1, 0, 0, 0); }
+    if (r() < 0.65) B.blob([tw * 0.7, H + th * 0.05, tw * 0.18], [tw * 0.13, tw * 0.17, tw * 0.13], 3, 0, 0, 1);
+    const ny = H + th, hc = [0, ny + hs * 0.95, hs * 0.1];
+    B.tube([0, ny - 0.03, 0], [0, ny + hs * 0.3, 0], tw * 0.12, tw * 0.1, 5, 1, 7, 7);
+    B.blob(hc, [hs * 0.8, hs, hs * 0.85], 1, 7, 0.05, 1);
+    if (alien) { for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * hs * 0.35, hs * 0.15, hs * 0.72]), [hs * 0.16, hs * 0.16, hs * 0.1], 2, 7, 0, 0); if (r() < 0.6) { const tip = vadd(hc, [sx * hs * 0.5, hs * 1.6, 0]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.8, 0]), tip, hs * 0.05, hs * 0.04, 4, 1, 7, 7); B.blob(tip, [hs * 0.12, hs * 0.12, hs * 0.12], 3, 7, 0, 0); } } }
+    if (r() < 0.5) B.cone(vadd(hc, [0, hs * 0.7, 0]), [0, 1, r() * 0.3], hs * (0.9 + r() * 1.5), hs * (0.8 + r() * 0.3), 8, 0, 7, 7);
+    Object.assign(C, { hipY: H, neckY: ny, neckZ: 0, grazeA: 0.35, walk: 1.1, run: 3, stride: H * 1.2, beh: 'village', shy: 0, w: 0, herd: [1, 1], height: ny + hs * 2, rad: 0.4 });
+    C.scale = o.weird ? 0.6 + r() * 1.2 : 0.9 + r() * 0.25; size = C.height;
+  } else if (kind === 'biped') {
+    const H = 0.6 + r() * 1.8, legL = H, L = H * (0.7 + r() * 0.5), bh = L * 0.4, neck = L * (0.3 + r() * 0.9), na = 0.2 + r() * 0.7;
+    B.blob([0, legL + bh * 0.3, 0], [bh * 0.45, bh * 0.5, L * 0.5], 0, 0, 0.1);
+    for (const [sx, li] of [[-1, 1], [1, 2]]) {
+      const hip = [sx * bh * 0.22, legL + bh * 0.1, 0], knee = [sx * bh * 0.24, legL * 0.5, -L * 0.18], foot = [sx * bh * 0.24, 0.03, L * 0.04];
+      B.tube(hip, knee, L * 0.06, L * 0.04, 5, 1, li, li); B.tube(knee, foot, L * 0.04, L * 0.03, 5, 1, li, li);
+      for (const a of [-0.5, 0, 0.5]) B.cone(foot, [Math.sin(a), -0.05, Math.cos(a)], L * 0.16, L * 0.025, 3, 1, li, li);
+    }
+    const sh = [0, legL + bh * 0.5, L * 0.4], nt = vadd(sh, [0, Math.cos(na) * neck, Math.sin(na) * neck]);
+    B.tube(sh, nt, bh * 0.16, bh * 0.1, 6, 0, 7, 7);
+    const hc = vadd(nt, [0, bh * 0.05, bh * 0.1]);
+    B.blob(hc, [bh * 0.2, bh * 0.2, bh * 0.28], 1, 7, 0.05);
+    B.cone(vadd(hc, [0, 0, bh * 0.22]), [0, -0.15, 1], bh * (0.25 + r() * 0.5), bh * 0.07, 5, 2, 7, 7);
+    for (const sx of [-1, 1]) B.blob(vadd(hc, [sx * bh * 0.14, bh * 0.07, bh * 0.1]), [bh * 0.04, bh * 0.04, bh * 0.04], 2, 7, 0, 0);
+    if (alien || r() < 0.4) for (let k = 0; k < 3; k++) B.cone(vadd(hc, [0, bh * 0.15, -bh * 0.1]), [(k - 1) * 0.4, 1, -0.6], bh * (0.4 + r() * 0.4), bh * 0.04, 4, alien ? 3 : 1, 7, 7);
+    for (let k = 0, n = 3 + Math.floor(r() * 3); k < n; k++) { const a = (k / (n - 1 || 1) - 0.5) * 1.2; B.cone([0, legL + bh * 0.4, -L * 0.45], [Math.sin(a), 0.6 + r() * 0.5, -1], L * (0.3 + r() * 0.4), L * 0.05, 4, 1, 8, 8); }
+    Object.assign(C, { hipY: legL, neckY: sh[1], neckZ: sh[2], grazeA: 1.0, walk: 1 + H, run: 4 + H * 4, stride: legL * 1.4, shy: 1.3, height: nt[1], rad: L * 0.5 });
+    if (r() < 0.35) { C.beh = 'curious'; C.shy = 0; }
+    C.scale = 1 + r() * (alien ? 1 : 0.4); size = legL + bh + neck;
+  } else if (kind === 'crab') {
+    const L = 0.4 + r() * 1.2, bh = L * 0.35, by = L * 0.45;
+    B.blob([0, by, 0], [L * 0.5, bh * 0.5, L * 0.38], 0, 0, 0.12);
+    if (alien) for (let k = 0; k < 5; k++) B.cone([(r() - 0.5) * L * 0.5, by + bh * 0.4, (r() - 0.5) * L * 0.4], [r() - 0.5, 1, r() - 0.5], L * (0.15 + r() * 0.3), L * 0.04, 4, 3, 0, 0);
+    let li = 1;
+    for (const z of [-0.25, 0, 0.25]) for (const sx of [-1, 1]) {
+      const hip = [sx * L * 0.4, by, z * L], knee = [sx * L * 0.85, by + L * 0.35, z * L * 1.3], foot = [sx * L * 1.15, 0.02, z * L * 1.5];
+      B.tube(hip, knee, L * 0.05, L * 0.04, 4, 1, li, li); B.tube(knee, foot, L * 0.04, L * 0.02, 4, 1, li, li); li++;
+    }
+    for (const sx of [-1, 1]) {
+      const s0 = [sx * L * 0.3, by, L * 0.3], s1 = [sx * L * 0.45, by + L * 0.1, L * 0.62];
+      B.tube(s0, s1, L * 0.06, L * 0.05, 5, 1, 7, 7);
+      B.blob(vadd(s1, [0, L * 0.02, L * 0.12]), [L * 0.15, L * 0.1, L * 0.22], 0, 7, 0.1, 1);
+      const es = [sx * L * 0.12, by + L * 0.38, L * 0.32]; B.tube([sx * L * 0.1, by + bh * 0.3, L * 0.28], es, L * 0.025, L * 0.02, 4, 1, 7, 7); B.blob(es, [L * 0.05, L * 0.05, L * 0.05], 2, 7, 0, 0);
+    }
+    Object.assign(C, { hipY: by, neckY: by, neckZ: L * 0.3, grazeA: 0.6, walk: 0.6 + L, run: 3 + L * 3, stride: L, side: true, beach: true, shy: 1.5, height: by + bh, rad: L });
+    C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L;
+  } else if (kind === 'roller') {
+    const R = 0.35 + r() * 0.9;
+    B.blob([0, R, 0], [R, R, R], 0, 0, 0.1, 2);
+    for (let k = 0, n = 14 + Math.floor(r() * 14); k < n; k++) { const d = randDir(r); B.cone(vadd([0, R, 0], vmul(d, R * 0.9)), d, R * (0.3 + r() * 0.45), R * 0.1, 4, r() < 0.3 ? 3 : 1, 0, 0); }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, roll: R, walk: 1.5 + R * 2, run: 6 + R * 6, stride: Math.PI * R, shy: 1.2, height: R * 2, rad: R });
+    C.scale = 1 + r() * (alien ? 1.5 : 0.6); size = R * 2;
+  } else if (kind === 'stilt') {
+    const L = 0.6 + r() * 0.8, H = L * (3 + r() * 4), bR = L * 0.6;
+    B.blob([0, H, 0], [bR, bR * 0.7, bR], 0, 0, 0.15);
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * TAU + 0.3, c = Math.cos(a), s = Math.sin(a);
+      const hip = [c * bR * 0.6, H - bR * 0.3, s * bR * 0.6], knee = [c * H * 0.42, H * 1.12, s * H * 0.42], foot = [c * H * 0.6, 0.02, s * H * 0.6];
+      B.tube(hip, knee, L * 0.07, L * 0.05, 4, 1, k + 1, k + 1); B.tube(knee, foot, L * 0.05, L * 0.025, 4, 1, k + 1, k + 1);
+      B.blob(vadd([c * bR * 0.95, H, s * bR * 0.95], [0, 0, 0]), [bR * 0.12, bR * 0.12, bR * 0.12], 3, 0, 0, 0);
+    }
+    for (let k = 0; k < 6; k++) { const a = r() * TAU, d = r() * bR * 0.5; let prev = [Math.cos(a) * d, H - bR * 0.5, Math.sin(a) * d]; for (let i = 1; i <= 4; i++) { const p = vadd(prev, [0, -H * 0.1, 0]); B.tube(prev, p, L * 0.03, L * 0.02, 4, 1, 8, 8); prev = p; } }
+    Object.assign(C, { hipY: H, neckY: H, neckZ: 0, grazeA: 0, walk: 0.6 + H * 0.15, run: 2 + H * 0.5, stride: H * 0.5, shy: 0.4, herd: [1, 6], height: H + bR, rad: H * 0.6 });
+    if (titan) { C.scale = 25 + r() * 60; C.walk *= 0.12; C.beh = 'titan'; C.shy = 0; C.w = 0; } else C.scale = 1 + r() * (alien ? 1 : 0.4);
+    size = H;
+  } else if (kind === 'swimmer') {
+    const L = 10 + r() * 25, R = L * (0.1 + r() * 0.06);
+    B.blob([0, 0, 0], [R, R * 0.85, L * 0.38], 0, 0, 0.05, 2);
+    B.blob([0, -R * 0.25, L * 0.02], [R * 0.86, R * 0.6, L * 0.33], 1, 0, 0.05, 1);
+    let prev = [0, 0, -L * 0.3];
+    for (let i = 1; i <= 5; i++) { const t = i / 5, p = [0, R * 0.05 * t, -L * (0.3 + 0.25 * t)]; B.tube(prev, p, R * (0.55 - t * 0.4), R * (0.5 - t * 0.4), 7, 0, 9, 9); prev = p; }
+    const n = [0, 1, 0];
+    for (const sx of [-1, 1]) {
+      B.tri(prev, [sx * R * 1.5, 0, prev[2] - R * 0.9], [sx * R * 0.3, 0, prev[2] - R * 0.2], n, n, n, 0, 9, 9, 9);
+      B.tri([sx * R * 0.8, -R * 0.3, L * 0.12], [sx * R * 2.1, -R * 0.6, -L * 0.02], [sx * R * 0.8, -R * 0.3, -L * 0.04], n, n, n, 0, 0, 0, 0);
+      B.blob([sx * R * 0.7, R * 0.15, L * 0.28], [R * 0.1, R * 0.1, R * 0.1], 2, 0, 0, 0);
+    }
+    if (alien) for (let k = 0; k < 10; k++) { const z = L * (0.3 - k * 0.06); for (const sx of [-1, 1]) B.blob([sx * R * 0.8, R * 0.2, z], [R * 0.08, R * 0.08, R * 0.08], 3, 0, 0, 0); }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 1, wave: L * 0.035, waveK: TAU / L * 0.8, walk: 1 + L * 0.08, run: 3 + L * 0.2, stride: L * 0.5, beh: 'swim', shy: 0, herd: [1, 4], depth: R * 2.5, jumpH: R * 3, height: R, rad: L * 0.5 });
+    if (o.sky) { C.beh = 'fly'; C.fly = [40, 180]; C.scale = 2 + r() * 4; C.herd = [1, 5]; C.walk = 4 + L * 0.2; }
+    else C.scale = 1 + r() * (alien ? 1.2 : 0.6);
+    size = L;
+  } else if (kind === 'burrower') {
+    const L = 0.4 + r() * 0.8, R = L * 0.18;
+    let prev = [0, -L, 0];
+    for (let i = 1; i <= 6; i++) { const t = i / 6, p = [0, -L + t * L * 1.6, 0]; B.tube(prev, p, R, R * (1 - t * 0.1), 7, i % 2 ? 0 : 1, 9, 9); prev = p; }
+    const hc = vadd(prev, [0, R * 0.6, R * 0.3]);
+    B.blob(hc, [R * 1.2, R * 1.1, R * 1.3], 0, 9, 0.05, 1);
+    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * R * 0.6, R * 0.35, R * 0.9]), [R * 0.28, R * 0.28, R * 0.2], 2, 9, 0, 0); B.cone(vadd(hc, [sx * R * 0.6, R * 0.8, -R * 0.2]), [sx * 0.5, 1, -0.3], R * (1 + r() * 1.5), R * 0.25, 4, 1, 9, 9); }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 2, wave: R * 0.5, waveK: 2 / L, beh: 'burrow', shy: 0, walk: 0, run: 0, depth: L * 1.05, height: L * 0.8, rad: R });
+    C.herd = pick(r, [[3, 10], [8, 40], [30, 120]]); C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L;
+  } else if (kind === 'swarm') {
+    const L = 0.15 + r() * 0.35;
+    B.blob([0, 0, 0], [L * 0.16, L * 0.1, L * 0.35], 3, 0, 0.05, 0);
+    const n = [0, 1, 0];
+    for (const sx of [-1, 1]) { B.tri([sx * L * 0.08, 0, L * 0.15], [sx * L * 0.7, 0.02, -L * 0.05], [sx * L * 0.1, 0, -L * 0.2], n, n, n, 1, 10, 10, 10); }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, flap: 1, beh: 'swarm', shy: 0, walk: 3, run: 6, stride: 1, fly: o.high ? [25, 120] : [3, 25], height: L, rad: L });
+    C.herd = pick(r, [[40, 200], [150, 600], [300, 1000]]); C.scale = (1 + r()) * (o.high ? 4 : 1); size = L;
   } else if (kind === 'blob') {
     const L = 0.6 + r() * 1.2;
     B.blob([0, L * 0.5, 0], [L * 0.55, L * 0.5, L * 0.6], 0, 0, 0.15);
@@ -2069,8 +2278,9 @@ function makeCreature(r, o) {
       B.blob(top, [L * 0.1, L * 0.1, L * 0.1], 3, 7, 0, 1);
     }
     B.blob([0, L * 0.35, L * 0.55], [L * 0.25, L * 0.06, L * 0.08], 2, 0, 0, 1);
-    Object.assign(C, { hipY: 0.01, neckY: L * 0.85, neckZ: L * 0.25, grazeA: 0.5, squash: 0.16, hop: L * 0.7, walk: 1.2 + L, run: 3.5 + L * 2, stride: L * 1.6, herd: [4, 12] });
-    C.scale = 1 + r() * (alien ? 2 : 0.6); size = L * C.scale;
+    Object.assign(C, { hipY: 0.01, neckY: L * 0.85, neckZ: L * 0.25, grazeA: 0.5, squash: 0.16, hop: L * 0.7, walk: 1.2 + L, run: 3.5 + L * 2, stride: L * 1.6, height: L * 1.4, rad: L * 0.6 });
+    if (r() < 0.3) { C.beh = 'curious'; C.shy = 0; }
+    C.scale = 1 + r() * (alien ? 2 : 0.6); size = L;
   } else if (kind === 'serpent') {
     const L = 3 + r() * 7, rad = L * (0.035 + r() * 0.025), N = 14;
     let prev = [0, rad, L / 2];
@@ -2078,8 +2288,8 @@ function makeCreature(r, o) {
     B.blob([0, rad * 1.1, L / 2 + rad * 0.6], [rad * 1.2, rad, rad * 1.6], 1, 9, 0.05);
     for (const sx of [-1, 1]) B.blob([sx * rad * 0.7, rad * 1.7, L / 2 + rad * 1.2], [rad * 0.25, rad * 0.25, rad * 0.25], 2, 9, 0, 0);
     if (alien) for (let i = 2; i < N; i += 2) B.cone([0, rad * 1.7 * (1 - i / N * 0.5), L / 2 - i / N * L], [0, 1, -0.3], rad * 1.4, rad * 0.35, 4, 3, 9, 9);
-    Object.assign(C, { hipY: 0.01, neckY: rad, neckZ: L / 2, grazeA: 0, wave: L * 0.06, waveK: TAU * 1.5 / L, walk: 1 + L * 0.12, run: 3 + L * 0.4, stride: L * 0.6, herd: [1, 4] });
-    C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L * C.scale * 0.5;
+    Object.assign(C, { hipY: 0.01, neckY: rad, neckZ: L / 2, grazeA: 0, wave: L * 0.06, waveK: TAU * 1.5 / L, walk: 1 + L * 0.12, run: 3 + L * 0.4, stride: L * 0.6, herd: [1, 4], height: rad * 2, rad: L * 0.5 });
+    C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L * 0.5;
   } else if (kind === 'flyer') {
     const L = 0.8 + r() * 2.2;
     B.blob([0, 0, 0], [L * 0.15, L * 0.07, L * 0.38], 0, 0, 0.05);
@@ -2091,18 +2301,26 @@ function makeCreature(r, o) {
     }
     B.tube([0, 0, -L * 0.35], [0, 0, -L * 0.9], L * 0.03, L * 0.008, 4, 1, 0, 0);
     for (const sx of [-1, 1]) B.blob([sx * L * 0.08, L * 0.05, L * 0.3], [L * 0.03, L * 0.03, L * 0.03], 2, 0, 0, 0);
-    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, walk: 5 + L * 2, run: 9 + L * 3, stride: 1, herd: [5, 14], flap: 1, fly: o.high ? [20, 90] : [3, 22] });
-    C.scale = (1 + r() * (alien ? 2.5 : 1)) * (o.high ? 3 : 1); size = L * C.scale * 0.6;
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, walk: 5 + L * 2, run: 9 + L * 3, stride: 1, flap: 1, beh: 'fly', fly: o.high ? [20, 90] : [3, 22], height: L * 0.2, rad: L * 0.6 });
+    C.herd = pick(r, [[1, 3], [4, 14], [15, 60]]);
+    C.scale = (1 + r() * (alien ? 2.5 : 1)) * (o.high ? 3 : 1); size = L * 0.6;
   }
   let c1, c2;
-  const vivid = alien || kind === 'blob' || kind === 'serpent' || kind === 'tripod' || (kind === 'flyer' && r() < 0.5);
-  if (vivid) { const h = r(); c1 = hsv(h, 0.45 + r() * 0.45, 0.45 + r() * 0.45); c2 = hsv((h + 0.25 + r() * 0.5) % 1, 0.55 + r() * 0.4, 0.3 + r() * 0.5); }
+  const vivid = alien || kind === 'blob' || kind === 'serpent' || kind === 'tripod' || kind === 'roller' || kind === 'swarm' || (r() < 0.4 && kind !== 'biped');
+  if (o.villager) { c1 = o.cloth; c2 = o.skin; }
+  else if (titan) { c1 = jit(r, pick(r, [[0.35, 0.32, 0.28], [0.42, 0.34, 0.25], [0.3, 0.3, 0.33]]), 0.15); c2 = alien ? hsv(r(), 0.6, 0.45) : jit(r, [0.2, 0.32, 0.12], 0.2); }
+  else if (vivid) { const h = r(); c1 = hsv(h, 0.45 + r() * 0.45, 0.45 + r() * 0.45); c2 = hsv((h + 0.25 + r() * 0.5) % 1, 0.55 + r() * 0.4, 0.3 + r() * 0.5); }
   else if (woolly) { c1 = [0.82, 0.79, 0.72]; c2 = [0.1, 0.09, 0.08]; }
-  else { c1 = pick(r, [[0.45, 0.3, 0.18], [0.6, 0.45, 0.28], [0.35, 0.33, 0.3], [0.75, 0.6, 0.4], [0.25, 0.18, 0.12], [0.78, 0.76, 0.7]]); c2 = vmul(c1, 0.45 + r() * 0.4); }
+  else { c1 = pick(r, [[0.45, 0.3, 0.18], [0.6, 0.45, 0.28], [0.35, 0.33, 0.3], [0.75, 0.6, 0.4], [0.25, 0.18, 0.12], [0.78, 0.76, 0.7], [0.15, 0.15, 0.17]]); c2 = vmul(c1, 0.45 + r() * 0.4); }
+  if (!C.herd) C.herd = herdFor(r, size * C.scale);
+  if (C.herd[1] >= 150 && C.beh === 'graze') C.beh = 'flow';
+  C.size = size * C.scale;
+  C.visR = C.beh === 'titan' ? 9000 : clamp(140 + C.size * 70, C.beh === 'swarm' ? 260 : 160, ANIM_R);
+  if (C.beh === 'titan') C.w = 0;
   return Object.assign(C, {
-    mesh: instMesh(new Float32Array(B.v)), c1, c2, c3: vivid ? hsv(r(), 0.7, 1) : [0.05, 0.04, 0.035],
-    spots: !woolly && r() < (vivid ? 0.55 : 0.3) ? 1 + r() * 5 : 0, stripes: vivid && r() < 0.35 ? 2 + r() * 6 : 0,
-    glow: vivid ? 1 : 0, voice: makeVoice(r, size)
+    mesh: instMesh(new Float32Array(B.v)), c1, c2, c3: o.villager ? o.glow : vivid || titan ? hsv(r(), 0.7, 1) : [0.05, 0.04, 0.035],
+    spots: !woolly && !o.villager && r() < (vivid ? 0.55 : 0.3) ? 1 + r() * 5 : 0, stripes: (vivid || titan) && r() < 0.35 ? 2 + r() * 6 : 0,
+    glow: vivid || titan || o.villager ? 1 : 0, voice: makeVoice(r, C.size, o.villager ? ['warble', 'hoot', 'trill'] : kind === 'swarm' ? ['buzz', 'chirp', 'trill'] : null)
   });
 }
 const EXOTIC = {
@@ -2128,6 +2346,8 @@ function makeEcology(P, type, r) {
   const glowCols = [[0.2, 1, 0.85], [1, 0.3, 0.8], [0.6, 0.4, 1], [0.3, 0.75, 1], [1, 0.8, 0.3], [0.5, 1, 0.3]];
   const flowerSet = [[1, 1, 0.95], [1, 0.85, 0.2], [0.65, 0.4, 1], [1, 0.3, 0.3], [1, 0.55, 0.75], [0.4, 0.6, 1], [1, 0.6, 0.2]];
   const creatures = (n, kinds, alien, o) => { for (let i = 0; i < n; i++) E.creatures.push(makeCreature(r, Object.assign({ kind: pick(r, kinds), alien }, o || {}))); };
+  const titans = (p, alien) => { if (r() < p) E.creatures.push(makeCreature(r, { kind: pick(r, ['quad', 'quad', 'tripod', 'stilt']), titan: true, alien })); };
+  const ALL = ['quad', 'quad', 'biped', 'giant', 'flyer', 'flyer', 'blob', 'serpent', 'crab', 'roller', 'stilt', 'burrower', 'swarm', 'tripod'];
   const shuffled = a => a.slice().sort(() => r() - 0.5);
   if (type === 'terran' || type === 'ocean') {
     if (type === 'terran' || r() < 0.5) add('conifer', { zones: { high: 1, forest: 0.2 }, den: 0.9, scale: [13, 26], tints: tints(P.conifer) });
@@ -2140,7 +2360,9 @@ function makeEcology(P, type, r) {
     rock();
     E.flowerCols = [pick(r, flowerSet), pick(r, flowerSet), pick(r, flowerSet)];
     E.creatures.push(makeCreature(r, { kind: 'quad', woolly: r() < 0.45 }));
-    creatures(1 + Math.floor(r() * 2.5), ['quad', 'quad', 'giant', 'flyer', 'flyer', 'blob', 'serpent'], false);
+    creatures(3 + Math.floor(r() * 3.5), ALL.filter(k => k !== 'tripod'), false);
+    if (r() < (type === 'ocean' ? 0.9 : 0.5)) creatures(1, ['swimmer'], false);
+    titans(type === 'terran' ? 0.3 : 0.2, false);
     if (r() < (type === 'ocean' ? 0.3 : 0.2)) E.floater = { col: pick(r, glowCols), size: [8, 22] };
   } else if (type === 'alien') {
     const zl = [{ forest: 1 }, { meadow: 0.25, forest: 0.3 }, { rocky: 0.6, high: 0.6, any: 0.03 }, { meadow: 0.12, any: 0.02 }, { beach: 1, meadow: 0.05 }];
@@ -2150,7 +2372,9 @@ function makeEcology(P, type, r) {
     const gc = vivid(1), gc2 = vivid(1);
     E.grassDen = 0.85; E.flowerCols = [gc, gc2, [1, 1, 1]]; E.flowerGlow = 0.8; E.birdCol = vmul(hsv(r(), 0.7, 0.8), 0.6); E.herdP = 0.85;
     if (r() < 0.85) E.floater = { col: pick(r, glowCols), size: [8, 34] };
-    creatures(3 + Math.floor(r() * 3), ['quad', 'tripod', 'blob', 'serpent', 'flyer', 'giant'], true);
+    creatures(5 + Math.floor(r() * 4), ALL, true);
+    if (r() < 0.5) creatures(1, ['swimmer'], true);
+    titans(0.5, true);
   } else if (type === 'desert') {
     add('cactus', { zones: { meadow: 0.12, any: 0.03 }, den: 0.6, scale: [3, 9], tints: tints([0.25, 0.42, 0.18]), trunk: [0.3, 0.45, 0.2], sway: 0.003 });
     add('bush', { zones: { meadow: 0.25 }, den: 0.4, scale: [1, 2.5], tall: false });
@@ -2158,7 +2382,8 @@ function makeEcology(P, type, r) {
     if (r() < 0.45) add('crystal', { zones: { rocky: 0.25 }, den: 0.3, scale: [1.5, 5], tints: tints([1, 0.7, 0.35], 3, 0.15), glowI: 0.5, sway: 0, tall: false, slopeMax: 1.2 });
     if (r() < 0.35) exotic(pick(r, ['pillar', 'fan', 'giantshroom']), { meadow: 0.05, rocky: 0.1 }, 0.4);
     E.grassDen = 0.18; E.flowerCols = [[1, 0.85, 0.2], [1, 0.45, 0.2]]; E.motes = 1; E.herdP = 0.45;
-    creatures(1 + Math.floor(r() * 2), ['quad', 'serpent', 'blob'], r() < 0.3);
+    creatures(2 + Math.floor(r() * 3), ['quad', 'serpent', 'blob', 'crab', 'roller', 'burrower', 'biped', 'stilt', 'swarm'], r() < 0.3);
+    titans(0.25, r() < 0.3);
   } else if (type === 'ice') {
     add('conifer', { zones: { forest: 1, high: 0.4 }, den: 0.8, scale: [9, 20], tints: tints([0.1, 0.18, 0.16]) });
     rock();
@@ -2166,23 +2391,26 @@ function makeEcology(P, type, r) {
     if (r() < 0.35) exotic(pick(r, ['pillar', 'fan', 'crystal']), { rocky: 0.15, meadow: 0.04 }, 0.4, { tints: tints([0.6, 0.85, 1], 3, 0.2) });
     E.grassDen = 0.06; E.flowerCols = [[0.9, 0.95, 1]]; E.motes = 2; E.herdP = 0.45;
     E.creatures.push(makeCreature(r, { kind: 'quad', woolly: true }));
-    if (r() < 0.5) creatures(1, ['flyer', 'giant'], false);
+    creatures(1 + Math.floor(r() * 3), ['flyer', 'giant', 'biped', 'burrower', 'roller', 'quad', 'swarm'], false);
+    titans(0.2, false);
   } else if (type === 'barren') {
     rock([[1, 1, 1], [0.85, 0.85, 0.85], [1.1, 1.05, 1]]);
     if (r() < 0.55) add('crystal', { zones: { rocky: 0.4, any: 0.03 }, den: 0.5, scale: [2, 10], tints: tints(vivid(1), 3, 0.15), glowI: 1.1, sway: 0, tall: false, slopeMax: 1.2 });
     if (r() < 0.3) exotic('pillar', { any: 0.015 }, 1, { tints: tints(vivid(1), 3, 0.1) });
     E.grassDen = 0; E.motes = -1; E.birds = false; E.herdP = 0.3;
-    if (r() < 0.4) creatures(1, ['tripod', 'blob'], true);
+    if (r() < 0.5) creatures(1 + Math.floor(r() * 2), ['tripod', 'blob', 'roller', 'stilt', 'crab'], true);
   } else if (type === 'lava') {
     rock([[0.6, 0.55, 0.55], [0.4, 0.38, 0.38]]);
     if (r() < 0.6) add('crystal', { zones: { rocky: 0.4, any: 0.03 }, den: 0.5, scale: [2, 9], tints: tints([1, 0.45, 0.1], 3, 0.15), glowI: 1.4, sway: 0, tall: false, slopeMax: 1.2 });
     if (r() < 0.3) exotic('pillar', { any: 0.02 }, 1, { tints: [[0.15, 0.08, 0.06]], trunk: [0.05, 0.04, 0.04] });
     E.grassDen = 0; E.motes = 3; E.birds = false; E.herdP = 0.3;
-    if (r() < 0.4) creatures(1, ['serpent', 'tripod'], true);
+    if (r() < 0.5) creatures(1 + Math.floor(r() * 2), ['serpent', 'tripod', 'roller', 'crab'], true);
   } else if (type === 'gas' || type === 'icegiant') {
     E.grassDen = 0; E.motes = -1; E.birds = false; E.herdP = 0.6;
     E.floater = { col: pick(r, glowCols), size: [25, 90] };
-    creatures(1 + Math.floor(r() * 2), ['flyer'], true, { high: true });
+    creatures(2 + Math.floor(r() * 2), ['flyer'], true, { high: true });
+    creatures(1, ['swarm'], true, { high: true });
+    if (r() < 0.6) creatures(1, ['swimmer'], true, { sky: true });
   }
   for (const sp of E.plants) sp.m = instMesh(plantGeo(sp.kind, sp.seed));
   return E;
@@ -2198,6 +2426,7 @@ function genPlantTile(s, tx, tz) {
     const x = tx * TT + (i + r()) * step, z = tz * TT + (j + r()) * step, u = r(), u2 = r(), u3 = r(), u4 = r(), u5 = r(), u6 = r();
     const h1 = terrH(P, x, z, 1);
     if (h1 < P.sea + 0.3) continue;
+    if (s.civ && civBlock(s, x, z)) continue;
     const slope = Math.hypot(terrH(P, x + 2.5, z, 1) - h1, terrH(P, x, z + 2.5, 1) - h1) / 2.5;
     const fm = forestM(P, x, z) * P.treeDen, alt = h1 - P.sea;
     const Z = {
@@ -2240,74 +2469,197 @@ function genGrassTile(s, tx, tz) {
 }
 function genHerd(s, tx, tz) {
   const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 77));
-  if (!E.creatures.length) return [];
+  const pool = E.creatures.filter(c => c.w > 0); if (!pool.length) return [];
   const near = Math.hypot((tx + 0.5) * AT - s.home[0], (tz + 0.5) * AT - s.home[1]) < AT * 1.6;
   if (r() > (near ? 1 : E.herdP)) return [];
-  const si = Math.floor(r() * E.creatures.length), C = E.creatures[si];
-  let cx = 0, cz = 0, ok = false;
-  for (let t = 0; t < 6 && !ok; t++) {
-    cx = (tx + 0.1 + r() * 0.8) * AT; cz = (tz + 0.1 + r() * 0.8) * AT;
-    const h = terrH(P, cx, cz, 1); ok = C.fly || (h > P.sea + 3 && h < P.snowLine + (P.iceSea ? 900 : 0) && forestM(P, cx, cz) * P.treeDen < 0.6);
+  let tw = 0; for (const c of pool) tw += c.w;
+  let pv = r() * tw, C = pool[0]; for (const c of pool) { pv -= c.w; if (pv <= 0) { C = c; break; } }
+  const si = E.creatures.indexOf(C), beh = C.beh, air = beh === 'fly' || beh === 'swarm';
+  let cx = 0, cz = 0, ok = false, h = 0;
+  for (let t = 0; t < 8 && !ok; t++) {
+    cx = (tx + 0.1 + r() * 0.8) * AT; cz = (tz + 0.1 + r() * 0.8) * AT; h = terrH(P, cx, cz, 1);
+    if (beh === 'swim') ok = h < P.sea - 8;
+    else if (air) ok = true;
+    else ok = h > P.sea + 3 && h < P.snowLine + (P.iceSea ? 900 : 0) && forestM(P, cx, cz) * P.treeDen < 0.6 && (!C.beach || t > 4 || h < P.sea + 10) && !civBlock(s, cx, cz);
   }
   if (!ok) return [];
-  const out = [], n = C.herd[0] + Math.floor(r() * (C.herd[1] - C.herd[0] + 1)), spread = 7 * Math.sqrt(C.scale) * (C.fly ? 3 : 1);
+  const n = Math.round(lerp(C.herd[0], C.herd[1], r() * r())), out = [];
+  const spread = (air ? 3 : 1) * 4 * Math.sqrt(C.scale) * Math.sqrt(n);
+  const g0 = Math.max(h, P.sea);
+  const H = beh === 'flow' || beh === 'swarm' ? { x: cx, z: cz, hx: cx, hz: cz, y: g0 + (C.fly ? lerp(C.fly[0], C.fly[1], r()) : 0), alt: C.fly ? lerp(C.fly[0], C.fly[1], r()) : 0, head: r() * TAU, spd: 0, panic: 0, scatter: 0, ph: r() * TAU, R0: 3 + Math.sqrt(n) * 1.6 * C.scale, f: -1 } : null;
   for (let i = 0; i < n; i++) {
     const x = cx + gauss(r) * spread, z = cz + gauss(r) * spread, alt = C.fly ? lerp(C.fly[0], C.fly[1], r()) : 0;
-    out.push({ si, hx: cx, hz: cz, x, z, alt, y: Math.max(terrH(P, x, z, 3), P.sea) + alt, head: r() * TAU, phase: r() * TAU, graze: C.fly ? 0 : 1, walk: 0, spd: 0, state: C.fly ? 'walk' : 'graze', t: r() * 8, tx: x, tz: z, scale: C.scale * (0.85 + r() * 0.3), callT: 2 + r() * 12 });
+    const a = { si, id: (r() * 1e9) | 0, hx: cx, hz: cz, x, z, alt, y: g0 + alt, stale: true, head: r() * TAU, phase: r() * TAU, graze: air ? 0 : 1, walk: 0, spd: 0, state: air || beh === 'swim' ? 'walk' : 'graze', t: r() * 8, tx: x, tz: z, scale: C.scale * (0.85 + r() * 0.3), callT: 2 + r() * 12, cm: 1 + n / 12, roam: 12 + spread * 0.5 };
+    if (H) { a.H = H; if (beh === 'swarm') { const d = randDir(r); a.ox = d[0]; a.oy = d[1]; a.oz = d[2]; a.sp = (0.15 + r() * 0.35) * (r() < 0.5 ? -1 : 1); a.ph = r() * TAU; } else { a.ox = x - cx; a.oz = z - cz; } }
+    out.push(a);
   }
   return out;
 }
+// walking mountains: rare, solitary, visible from kilometres away
+const TIT_T = 2500, TIT_R = 9000;
+function genTitan(s, tx, tz) {
+  const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 91));
+  const pool = E.creatures.filter(c => c.beh === 'titan'); if (!pool.length || r() > 0.12) return [];
+  const C = pick(r, pool), si = E.creatures.indexOf(C);
+  for (let t = 0; t < 6; t++) {
+    const x = (tx + 0.2 + r() * 0.6) * TIT_T, z = (tz + 0.2 + r() * 0.6) * TIT_T, h = terrH(P, x, z, 1);
+    if (h > P.sea + 5 && Math.abs(terrH(P, x + 80, z, 1) - h) < 60) return [{ si, id: (r() * 1e9) | 0, hx: x, hz: z, x, z, y: h, head: r() * TAU, phase: r() * TAU, graze: 0, walk: 0, spd: 0, state: 'graze', t: r() * 20, tx: x, tz: z, scale: C.scale * (0.8 + r() * 0.4), callT: 5 + r() * 20, cm: 1, roam: 1500 }];
+  }
+  return [];
+}
+function herdStep(s, H, C, dt, fr) {
+  H.f = fr; const P = s.P;
+  const steer = (tx, tz, rate) => { let da = Math.atan2(tx - H.x, tz - H.z) - H.head; da = Math.atan2(Math.sin(da), Math.cos(da)); H.head += clamp(da, -rate * dt, rate * dt); };
+  const home = Math.hypot(H.x - H.hx, H.z - H.hz);
+  if (C.beh === 'swarm') {
+    if (home > 140) steer(H.hx, H.hz, 0.6); else H.head += gn(s.t * 0.05, H.ph) * 0.5 * dt;
+    const v = 2 + C.size * 2; H.x += Math.sin(H.head) * v * dt; H.z += Math.cos(H.head) * v * dt;
+    const g = Math.max(terrH(P, H.x, H.z, 1), P.sea);
+    H.y = Math.max(lerp(H.y, g + H.alt, 1 - Math.exp(-dt * 0.5)), g + 2);
+    if (Math.hypot(H.x - s.x, H.z - s.z, H.y - s.y) < H.R0 * 1.5 + 5) H.scatter = 1;
+    H.scatter = Math.max(0, H.scatter - dt * 0.2);
+    H.R = H.R0 * (0.75 + 0.25 * Math.sin(s.t * 0.4 + H.ph)) * (1 + 1.8 * H.scatter);
+  } else {
+    if (H.panic > 0) { H.panic -= dt; steer(2 * H.x - s.x, 2 * H.z - s.z, 1.5); H.spd = lerp(H.spd, C.run * C.scale * 0.55, 1 - Math.exp(-dt * 2)); }
+    else { if (home > 350) steer(H.hx, H.hz, 0.2); else H.head += gn(s.t * 0.02, H.ph) * 0.25 * dt; H.spd = lerp(H.spd, C.walk * C.scale * 0.25, 1 - Math.exp(-dt)); }
+    const ax = H.x + Math.sin(H.head) * 40, az = H.z + Math.cos(H.head) * 40;
+    if (terrH(P, ax, az, 1) < P.sea + 2 || forestM(P, ax, az) * P.treeDen > 0.4 || civBlock(s, ax, az)) H.head += 2 * dt;
+    H.x += Math.sin(H.head) * H.spd * dt; H.z += Math.cos(H.head) * H.spd * dt;
+  }
+}
+let animFrame = 0;
 function simAnimals(s, dt) {
   const P = s.P, E = s.eco, lists = E.creatures.map(() => []);
-  const low = s.y - s.ground;
-  const fleeR = s.phase === 'walk' ? 6 : low < 25 ? 20 : 0, rt = [Math.cos(s.yaw), -Math.sin(s.yaw)];
-  for (const tile of s.atiles.values()) for (const a of tile.a) {
-    const C = E.creatures[a.si], dx = a.x - s.x, dz = a.z - s.z, dC = Math.hypot(dx, dz);
+  const low = s.y - s.ground, walking = s.phase === 'walk';
+  const fleeR = walking ? 6 : low < 25 ? 20 : 0, rt = [Math.cos(s.yaw), -Math.sin(s.yaw)], fr = ++animFrame;
+  s.titans.length = 0;
+  const groups = [];
+  for (const t of s.atiles.values()) groups.push(t.a);
+  for (const t of s.ttiles.values()) groups.push(t.a);
+  for (const t of s.vtiles.values()) if (t.a.people) groups.push(t.a.people);
+  const turnTo = (a, tx, tz, rate, d) => { let da = Math.atan2(tx - a.x, tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da)); a.head += clamp(da, -rate * d, rate * d); return da; };
+  for (const g of groups) for (const a of g) {
+    const C = E.creatures[a.si], beh = C.beh, H = a.H;
+    if (H && H.f !== fr) herdStep(s, H, C, dt, fr);
+    const dx = a.x - s.x, dz = a.z - s.z, dC = Math.hypot(dx, dz);
+    if (beh === 'titan') s.titans.push({ x: a.x, z: a.z, top: a.y + C.height * a.scale, r: C.rad * a.scale });
+    if (dC > C.visR + 60) {
+      if (beh === 'flow') { a.x = H.x + a.ox; a.z = H.z + a.oz; a.stale = true; }
+      continue;
+    }
+    if (a.stale) { a.stale = false; a.y = beh === 'swarm' || beh === 'fly' ? a.y : Math.max(terrH(P, a.x, a.z, 3), beh === 'swim' ? -1e9 : P.sea); }
+    // calls (big groups call less often per member)
     a.callT -= dt;
     if (a.callT < 0) {
-      a.callT = 5 + Math.random() * 16;
+      a.callT = (5 + Math.random() * 16) * a.cm;
       const d3 = Math.hypot(dC, a.y - s.y), R = 45 * Math.max(1, Math.sqrt(a.scale));
       if (d3 < R) Music.call(C.voice, (1 - d3 / R) * (1 - d3 / R), clamp((dx * rt[0] + dz * rt[1]) / Math.max(d3, 1), -1, 1), a.scale);
     }
-    if (C.fly) {
-      a.t -= dt;
-      if (a.t < 0 || Math.hypot(a.tx - a.x, a.tz - a.z) < 6) { a.tx = a.hx + gauss(Math.random) * 60; a.tz = a.hz + gauss(Math.random) * 60; a.t = 8 + Math.random() * 10; a.alt = lerp(C.fly[0], C.fly[1], Math.random()); }
-      let da = Math.atan2(a.tx - a.x, a.tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da));
-      a.head += clamp(da, -1.2 * dt, 1.2 * dt); a.spd = C.walk * Math.sqrt(a.scale);
-      a.x += Math.sin(a.head) * a.spd * dt; a.z += Math.cos(a.head) * a.spd * dt;
-      const g = Math.max(terrH(P, a.x, a.z, 1), P.sea);
-      a.y = lerp(a.y, g + a.alt + Math.sin(s.t * 0.7 + a.phase * 0.01) * 2, 1 - Math.exp(-dt * 0.8)); a.y = Math.max(a.y, g + 1.5);
-      a.phase += dt * (5 + 6 / a.scale); a.walk = 1;
+    if (beh === 'swarm') {
+      const T = s.t * a.sp + a.ph, c = Math.cos(T), sn = Math.sin(T), sg = Math.sign(a.sp);
+      a.x = H.x + (a.ox * c - a.oz * sn) * H.R; a.z = H.z + (a.ox * sn + a.oz * c) * H.R;
+      a.y = H.y + a.oy * H.R * 0.45 + Math.sin(T * 1.7) * 1.2;
+      a.head = Math.atan2(-(a.ox * sn + a.oz * c) * sg, (a.ox * c - a.oz * sn) * sg);
+      a.phase += dt * 22; a.walk = 1;
       lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, 1);
       continue;
     }
-    if (dC < fleeR && a.state !== 'flee') { a.state = 'flee'; a.t = 2.5 + Math.random() * 2; a.head = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.6; }
-    a.t -= dt;
+    // far animals think less often
+    a.acc = (a.acc || 0) + dt;
+    if (dC > 160 && beh !== 'titan' && ((a.id + fr) & 3)) { lists[a.si].push(a.x, a.y, a.z, a.scale, C.side ? a.head - Math.PI / 2 : a.head, a.phase, a.graze, a.walk); continue; }
+    const adt = Math.min(a.acc, 0.25); a.acc = 0;
+    if (beh === 'fly') {
+      a.t -= adt;
+      const roam = 60 * Math.sqrt(C.scale);
+      if (a.t < 0 || Math.hypot(a.tx - a.x, a.tz - a.z) < 6) { a.tx = a.hx + gauss(Math.random) * roam; a.tz = a.hz + gauss(Math.random) * roam; a.t = 8 + Math.random() * 10; a.alt = lerp(C.fly[0], C.fly[1], Math.random()); }
+      turnTo(a, a.tx, a.tz, 1.2 / Math.sqrt(C.scale), adt); a.spd = C.walk * Math.sqrt(a.scale);
+      a.x += Math.sin(a.head) * a.spd * adt; a.z += Math.cos(a.head) * a.spd * adt;
+      const gy = Math.max(terrH(P, a.x, a.z, 1), P.sea);
+      a.y = lerp(a.y, gy + a.alt + Math.sin(s.t * 0.7 + a.id) * 2, 1 - Math.exp(-adt * 0.8)); a.y = Math.max(a.y, gy + 1.5 + C.height * a.scale);
+      a.phase += adt * (C.pitch ? 1.2 : 5 + 6 / a.scale); a.walk = 1;
+      lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, 1);
+      continue;
+    }
+    if (beh === 'swim') {
+      a.t -= adt;
+      if (a.t < 0 || Math.hypot(a.tx - a.x, a.tz - a.z) < 8) {
+        for (let k = 0; k < 4; k++) { const tx = a.hx + gauss(Math.random) * 90, tz = a.hz + gauss(Math.random) * 90; if (terrH(P, tx, tz, 1) < P.sea - 5) { a.tx = tx; a.tz = tz; break; } }
+        a.t = 15 + Math.random() * 15;
+      }
+      turnTo(a, a.tx, a.tz, 0.35, adt); a.spd = lerp(a.spd, C.walk * a.scale, 1 - Math.exp(-adt));
+      const nx = a.x + Math.sin(a.head) * a.spd * adt, nz = a.z + Math.cos(a.head) * a.spd * adt;
+      if (terrH(P, nx, nz, 1) < P.sea - 3) { a.x = nx; a.z = nz; } else a.head += adt * 1.5;
+      a.bt = (a.bt ?? Math.random() * 30) - adt;
+      const R = C.height * a.scale;
+      if (a.jump !== undefined) {
+        a.jump += adt / 2.6; const j = a.jump;
+        a.y = P.sea + Math.sin(Math.PI * j) * C.jumpH * a.scale - R; a.graze = -Math.cos(Math.PI * j) * 0.8;
+        if (j >= 1) { a.jump = undefined; a.graze = 0; if (dC < 600) Music.step('splash', 1 - dC / 600); }
+      } else {
+        const surf = a.bt < 0 && a.bt > -6;
+        if (a.bt < -6) { a.bt = 20 + Math.random() * 40; if (Math.random() < 0.35) a.jump = 0; }
+        a.y = lerp(a.y, P.sea - (surf ? R * 0.55 : C.depth * a.scale), 1 - Math.exp(-adt * 0.6));
+        a.graze = lerp(a.graze, 0, 1 - Math.exp(-adt));
+      }
+      a.phase += adt * a.spd / (C.stride * a.scale) * Math.PI + adt * 0.5; a.walk = 1;
+      lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, a.graze, 1);
+      continue;
+    }
+    if (beh === 'burrow') {
+      a.t -= adt;
+      if (a.t < 0) { a.up = Math.random() < 0.7 ? 1 : 0; a.t = 3 + Math.random() * 10; }
+      const hide = (walking && dC < 12) || (!walking && dC < 30 && low < 30) ? 0 : (a.up ?? 1);
+      a.upv = lerp(a.upv ?? 1, hide, 1 - Math.exp(-adt * (hide ? 1.5 : 6)));
+      if (dC < 70) turnTo(a, s.x, s.z, 2, adt); else a.head += gn(s.t * 0.1, a.id % 97) * adt;
+      const gy = terrH(P, a.x, a.z, 3);
+      a.y = gy - (1 - a.upv) * C.depth * a.scale; a.phase += adt * 1.3; a.walk = 0;
+      lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, 0);
+      continue;
+    }
+    let shyR = fleeR * C.shy * (beh === 'flow' ? 1.6 : 1);
+    if (shyR > 0 && dC < shyR && a.state !== 'flee') {
+      a.state = 'flee'; a.t = 2.5 + Math.random() * 2; a.head = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.6;
+      if (H) H.panic = 7;
+    }
+    a.t -= adt;
     let spd = 0;
-    if (a.state === 'graze') {
-      a.graze = lerp(a.graze, 1, 1 - Math.exp(-dt * 1.5));
+    if (beh === 'flow' && a.state !== 'flee') {
+      const tx = H.x + a.ox, tz = H.z + a.oz, dd = Math.hypot(tx - a.x, tz - a.z);
+      const want = dd < 2 ? 0 : Math.min(dd * 0.6, C.run * a.scale);
+      if (want > 0) turnTo(a, tx, tz, 2.5, adt);
+      spd = want; a.graze = lerp(a.graze, want < 0.3 ? 1 : 0, 1 - Math.exp(-adt * 2));
+    } else if ((beh === 'village' || beh === 'curious') && walking && dC < (beh === 'village' ? 9 : 40) && a.state !== 'flee') {
+      // meet the traveller: approach, stop and look
+      turnTo(a, s.x, s.z, 3, adt);
+      const stop = beh === 'village' ? 99 : 3 + C.rad * a.scale * 2;
+      spd = dC > stop ? C.walk * a.scale : 0; a.graze = lerp(a.graze, 0, 1 - Math.exp(-adt * 4)); a.state = 'graze'; a.t = Math.max(a.t, 2);
+    } else if (a.state === 'graze') {
+      a.graze = lerp(a.graze, 1, 1 - Math.exp(-adt * 1.5));
       if (a.t < 0) {
-        const tx = a.hx + gauss(Math.random) * 12, tz = a.hz + gauss(Math.random) * 12;
-        if (terrH(P, tx, tz, 1) > P.sea + 1) { a.tx = tx; a.tz = tz; a.state = 'walk'; a.t = 25; } else a.t = 2;
+        const roam = beh === 'titan' ? a.roam : a.roam || 12;
+        const tx = a.hx + gauss(Math.random) * roam, tz = a.hz + gauss(Math.random) * roam;
+        if (terrH(P, tx, tz, 1) > P.sea + 1) { a.tx = tx; a.tz = tz; a.state = 'walk'; a.t = beh === 'titan' ? 400 : 25; } else a.t = 2;
       }
     } else if (a.state === 'walk') {
-      a.graze = lerp(a.graze, 0, 1 - Math.exp(-dt * 3));
-      let da = Math.atan2(a.tx - a.x, a.tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da));
-      a.head += clamp(da, -1.6 * dt, 1.6 * dt); spd = C.walk * a.scale * (Math.abs(da) < 1 ? 1 : 0.3);
-      if (Math.hypot(a.tx - a.x, a.tz - a.z) < 1.5 || a.t < 0) { a.state = 'graze'; a.t = 4 + Math.random() * 12; }
+      a.graze = lerp(a.graze, 0, 1 - Math.exp(-adt * 3));
+      const da = turnTo(a, a.tx, a.tz, beh === 'titan' ? 0.1 : 1.6, adt);
+      spd = C.walk * a.scale * (Math.abs(da) < 1 ? 1 : 0.3);
+      if (Math.hypot(a.tx - a.x, a.tz - a.z) < 1.5 + C.rad * a.scale || a.t < 0) { a.state = 'graze'; a.t = (beh === 'titan' ? 20 : 4) + Math.random() * 12; }
     } else {
-      a.graze = lerp(a.graze, 0, 1 - Math.exp(-dt * 5)); spd = C.run * a.scale;
-      if (a.t < 0) { a.state = 'graze'; a.t = 3 + Math.random() * 5; a.hx = a.x; a.hz = a.z; }
+      a.graze = lerp(a.graze, 0, 1 - Math.exp(-adt * 5)); spd = C.run * a.scale;
+      if (a.t < 0) { a.state = 'graze'; a.t = 3 + Math.random() * 5; if (!H) { a.hx = a.x; a.hz = a.z; } }
     }
-    a.spd = lerp(a.spd, spd, 1 - Math.exp(-dt * 3));
+    a.spd = lerp(a.spd, spd, 1 - Math.exp(-adt * 3));
     if (a.spd > 0.02) {
-      const nx = a.x + Math.sin(a.head) * a.spd * dt, nz = a.z + Math.cos(a.head) * a.spd * dt, nh = terrH(P, nx, nz, 3);
+      const nx = a.x + Math.sin(a.head) * a.spd * adt, nz = a.z + Math.cos(a.head) * a.spd * adt, nh = terrH(P, nx, nz, beh === 'titan' ? 2 : 3);
       if (nh > P.sea + 0.8) { a.x = nx; a.z = nz; a.y = nh; } else { a.head += Math.PI * 0.6; if (a.state === 'walk') a.state = 'graze'; }
-      a.phase += dt * a.spd / (C.stride * a.scale) * Math.PI;
+      const ph0 = a.phase;
+      a.phase += adt * a.spd / (C.stride * a.scale) * Math.PI;
+      if (beh === 'titan' && dC < 3000 && Math.floor(ph0 / Math.PI) !== Math.floor(a.phase / Math.PI)) Music.step('boom', 1 - dC / 3000);
     }
     a.walk = a.spd / (C.walk * a.scale);
     if (C.hop) { const gy = terrH(P, a.x, a.z, 3); a.y = gy + C.hop * a.scale * Math.abs(Math.sin(a.phase * 0.5)) * Math.min(a.walk * 1.5, 1); }
-    lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, a.graze, a.walk);
+    lists[a.si].push(a.x, a.y, a.z, a.scale, C.side ? a.head - Math.PI / 2 : a.head, a.phase, a.graze, a.walk);
   }
   E.creatures.forEach((C, i) => uploadInst(C.mesh, new Float32Array(lists[i])));
 }
@@ -2333,6 +2685,268 @@ void main(){
   gl_Position=uVP*vec4(rel,1.);
 }`, SKY_GLSL + `in vec3 vW; out vec4 o; uniform vec3 uCam, uBirdCol;
 void main(){ vec3 col=uBirdCol*(sunLight()*.4+ambient()); vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.); }`);
+// ---- small civilizations: hamlets, villages and lone dwellings
+const VT = 1600, VIL_R = 4200;
+const CIV_KINDS = {
+  terran: ['hut', 'house', 'longhouse', 'stilt', 'tower', 'tent', 'dome'],
+  ocean: ['stilt', 'hut', 'house', 'dome', 'tower'],
+  alien: ['pod', 'shroom', 'spire', 'dome', 'tower', 'hut', 'stilt'],
+  desert: ['dome', 'house', 'tent', 'tower', 'spire'],
+  ice: ['dome', 'longhouse', 'tent', 'hut']
+};
+function civGeo(kind, seed) {
+  const B = meshBuilder(seed), r = B.r, P0 = -1.6;
+  const quad = (a, b, c, d, part, aux, ctr) => {
+    let n = vnorm(vcross(vsub(b, a), vsub(c, a)));
+    if (ctr && vdot(n, vsub(vmul(vadd(a, c), 0.5), ctr)) < 0) n = vmul(n, -1);
+    B.tri(a, b, c, n, n, n, part, aux, aux, aux); B.tri(a, c, d, n, n, n, part, aux, aux, aux);
+  };
+  const box = (cx, y0, cz, hx, y1, hz, part, aux) => {
+    const c = [cx, (y0 + y1) / 2, cz], v = (sx, y, sz) => [cx + sx * hx, y, cz + sz * hz];
+    quad(v(-1, y0, 1), v(1, y0, 1), v(1, y1, 1), v(-1, y1, 1), part, aux, c);
+    quad(v(1, y0, -1), v(-1, y0, -1), v(-1, y1, -1), v(1, y1, -1), part, aux, c);
+    quad(v(1, y0, 1), v(1, y0, -1), v(1, y1, -1), v(1, y1, 1), part, aux, c);
+    quad(v(-1, y0, -1), v(-1, y0, 1), v(-1, y1, 1), v(-1, y1, -1), part, aux, c);
+    quad(v(-1, y1, 1), v(1, y1, 1), v(1, y1, -1), v(-1, y1, -1), part, aux, c);
+  };
+  const panel = (p, nrm, w, h, part, aux) => {
+    const t = vnorm([nrm[2], 0, -nrm[0]]), q = vadd(p, vmul(nrm, 0.05)), u = vmul(t, w / 2), v = [0, h / 2, 0];
+    B.tri(vsub(vsub(q, u), v), vsub(vadd(q, u), v), vadd(vadd(q, u), v), nrm, nrm, nrm, part, aux, aux, aux);
+    B.tri(vsub(vsub(q, u), v), vadd(vadd(q, u), v), vadd(vsub(q, u), v), nrm, nrm, nrm, part, aux, aux, aux);
+  };
+  const win = (p, nrm, w, h) => panel(p, nrm, w, h, 3, 1);
+  const door = (p, nrm, w, h) => panel(vadd(p, [0, h / 2, 0]), nrm, w, h, 2, 0.5);
+  const gable = (hx, hz, y, rh, part) => {
+    const o = 0.4, X = hx + o, Z = hz + o, ctr = [0, y, 0];
+    quad([-X, y - o * 0.4, Z], [0, y + rh, Z], [0, y + rh, -Z], [-X, y - o * 0.4, -Z], part, 1, ctr);
+    quad([X, y - o * 0.4, Z], [X, y - o * 0.4, -Z], [0, y + rh, -Z], [0, y + rh, Z], part, 1, ctr);
+    for (const sz of [1, -1]) { const n = [0, 0, sz]; B.tri([-hx, y, sz * hz], [hx, y, sz * hz], [0, y + rh - 0.05, sz * hz], n, n, n, 1, 0.95, 0.95, 1); }
+  };
+  const ring = (R, y, n, w, h) => { for (let k = 0; k < n; k++) { const a = k / n * TAU + 0.4; win([Math.sin(a) * R, y, Math.cos(a) * R], [Math.sin(a), 0, Math.cos(a)], w, h); } };
+  let rad = 3, slope = 0.35;
+  if (kind === 'hut') {
+    const R = 2 + r(), h = 2 + r() * 0.6;
+    B.tube([0, P0, 0], [0, h, 0], R, R, 12, 1, 0.75, 0.95);
+    B.cone([0, h - 0.1, 0], [0, 1, 0], R * (0.9 + r() * 0.8), R * 1.3, 12, 0, 0.85, 1);
+    door([0, 0, R], [0, 0, 1], 0.9, 1.7); for (const a of [1.3, -1.3, 2.7]) win([Math.sin(a) * R, 1.3, Math.cos(a) * R], [Math.sin(a), 0, Math.cos(a)], 0.5, 0.5);
+    rad = R * 1.3;
+  } else if (kind === 'house') {
+    const hx = 2 + r() * 1.3, hz = 2.5 + r() * 2, h = (2.6 + r() * 0.8) * (r() < 0.25 ? 1.8 : 1);
+    box(0, P0, 0, hx, h, hz, 1, 0.9); gable(hx, hz, h, 1.4 + r() * 1.4, 0);
+    door([0, 0, hz], [0, 0, 1], 1, 1.9);
+    for (const sx of [-1, 1]) for (const z of [-0.45, 0.45]) win([sx * hx, 1.5, z * hz], [sx, 0, 0], 0.7, 0.7);
+    if (h > 4) for (const sx of [-1, 1]) win([sx * hx, h - 1.3, 0], [sx, 0, 0], 0.7, 0.7);
+    if (r() < 0.6) box(hx * 0.45, h - 0.5, -hz * 0.4, 0.3, h + 2.4, 0.3, 2, 0.7);
+    rad = Math.max(hx, hz) + 0.5;
+  } else if (kind === 'longhouse') {
+    const hx = 2.6 + r() * 0.8, hz = 6 + r() * 4, h = 1.6, R = hx + 0.3, S = 8;
+    box(0, P0, 0, hx, h, hz, 1, 0.85);
+    const p = (a, z) => [Math.cos(a) * R, h + Math.sin(a) * R * 0.9, z];
+    for (let i = 0; i < S; i++) { const a0 = i / S * Math.PI, a1 = (i + 1) / S * Math.PI; quad(p(a0, hz + 0.3), p(a1, hz + 0.3), p(a1, -hz - 0.3), p(a0, -hz - 0.3), 0, 1, [0, h, 0]); }
+    for (const sz of [1, -1]) { const n = [0, 0, sz]; for (let i = 0; i < S; i++) { const a0 = i / S * Math.PI, a1 = (i + 1) / S * Math.PI, z = sz * hz; B.tri([0, h, z], [Math.cos(a0) * hx, h + Math.sin(a0) * hx * 0.9, z], [Math.cos(a1) * hx, h + Math.sin(a1) * hx * 0.9, z], n, n, n, 1, 0.9, 0.9, 0.9); } }
+    door([0, 0, hz], [0, 0, 1], 1.2, 1.5);
+    for (const sx of [-1, 1]) for (let z = -hz + 2; z < hz - 1; z += 3) win([sx * hx, 1, z], [sx, 0, 0], 0.6, 0.45);
+    rad = hz + 0.5; slope = 0.25;
+  } else if (kind === 'stilt') {
+    const hx = 2 + r(), hz = 2 + r() * 1.2, f = 2.2 + r() * 1.5, h = f + 2.4;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.tube([sx * hx * 0.85, P0, sz * hz * 0.85], [sx * hx * 0.85, f, sz * hz * 0.85], 0.16, 0.14, 5, 2, 0.6, 0.8);
+    box(0, f, 0, hx, h, hz, 1, 0.9);
+    if (r() < 0.5) gable(hx, hz, h, 1.5 + r(), 0); else B.cone([0, h - 0.1, 0], [0, 1, 0], 2 + r() * 1.5, Math.max(hx, hz) * 1.5, 4, 0, 0.85, 1);
+    door([0, f, hz], [0, 0, 1], 0.9, 1.7); for (const sx of [-1, 1]) win([sx * hx, f + 1.4, 0], [sx, 0, 0], 0.7, 0.6);
+    for (const sx of [-0.3, 0.3]) B.tube([sx, 0, hz + 1.6], [sx, f, hz + 0.1], 0.06, 0.06, 4, 2, 0.7, 0.8);
+    for (let k = 1; k < 5; k++) { const t = k / 5; B.tube([-0.3, f * t, hz + 1.6 - 1.5 * t], [0.3, f * t, hz + 1.6 - 1.5 * t], 0.04, 0.04, 4, 2, 0.8, 0.8); }
+    rad = Math.max(hx, hz) + 1.2; slope = 0.5;
+  } else if (kind === 'tower') {
+    const R = 1.3 + r() * 0.8, h = 7 + r() * 6;
+    B.tube([0, P0, 0], [0, h, 0], R * 1.12, R, 10, 1, 0.75, 1);
+    if (r() < 0.5) B.cone([0, h - 0.1, 0], [0, 1, 0], R * 2.5, R * 1.4, 10, 0, 0.85, 1); else B.blob([0, h, 0], [R * 1.3, R * 1.1, R * 1.3], 0, 1, 0.05, 1);
+    for (let y = 2.2, k = 0; y < h - 1; y += 2.4, k++) ring(R * 1.05, y, 3, 0.45, 0.7);
+    door([0, 0, R * 1.1], [0, 0, 1], 0.9, 1.8);
+    rad = R * 1.6; slope = 0.3;
+  } else if (kind === 'dome') {
+    const R = 2.3 + r() * 1.8, f = 0.65 + r() * 0.35;
+    B.blob([0, 0, 0], [R, R * f, R], 1, 0.9, 0.03, 2);
+    B.tube([0, 0.8, R * 0.6], [0, 0.8, R + 0.9], 0.9, 0.9, 8, 1, 0.8, 0.9);
+    door([0, 0, R + 0.92], [0, 0, 1], 1.1, 1.4);
+    B.blob([0, R * f * 0.97, 0], [0.55, 0.22, 0.55], 3, 1, 0, 1);
+    rad = R + 1; slope = 0.4;
+  } else if (kind === 'tent') {
+    const R = 2 + r() * 1.2, h = 3 + r() * 1.5;
+    B.cone([0, -0.3, 0], [0, 1, 0], h, R, 9, 1, 0.75, 1);
+    for (let k = 0; k < 4; k++) { const a = k * 1.57 + r() * 0.3; B.tube([Math.cos(a) * 0.2, h * 0.75, Math.sin(a) * 0.2], [Math.cos(a) * 0.6, h + 0.9, Math.sin(a) * 0.6], 0.05, 0.04, 4, 2, 0.8, 0.9); }
+    door([0, 0, R * 0.62], vnorm([0, 0.2, 1]), 1, 1.3);
+    B.blob([0, h * 0.25, R * 0.66], [0.25, 0.25, 0.1], 3, 1, 0, 0);
+    rad = R + 0.4; slope = 0.4;
+  } else if (kind === 'shroom') {
+    const R = 1.4 + r() * 0.8, h = 2.8 + r() * 2, cr = R * (2 + r() * 0.8), cf = 0.35 + r() * 0.3;
+    B.tube([0, P0, 0], [0, h, 0], R * 1.15, R, 12, 1, 0.75, 0.95);
+    B.blob([0, h + cr * 0.15, 0], [cr, cr * cf, cr], 0, 1, 0.12, 2);
+    for (let k = 0; k < 9; k++) { const a = r() * TAU, d = Math.sqrt(r()) * cr * 0.75; B.blob([Math.cos(a) * d, h + cr * (0.15 + cf * 0.9 * Math.sqrt(1 - (d / cr) ** 2)), Math.sin(a) * d], [cr * 0.11, cr * 0.04, cr * 0.11], r() < 0.5 ? 3 : 2, 1, 0, 0); }
+    door([0, 0, R * 1.1], [0, 0, 1], 0.9, 1.7); ring(R * 1.05, h * 0.6, 4, 0.45, 0.45);
+    rad = cr; slope = 0.4;
+  } else if (kind === 'pod') {
+    const R = 1.6 + r() * 1.2, ly = 1.2 + r() * 2, cy = ly + R * 1.3;
+    B.blob([0, cy, 0], [R, R * 1.35, R], 1, 0.9, 0.08, 2);
+    for (let k = 0; k < 3; k++) { const a = k / 3 * TAU; B.tube([Math.cos(a) * R * 0.5, cy - R * 0.8, Math.sin(a) * R * 0.5], [Math.cos(a) * R * 1.3, P0, Math.sin(a) * R * 1.3], 0.2, 0.12, 5, 2, 0.6, 0.8); }
+    for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; B.blob([Math.cos(a) * R * 1.01, cy, Math.sin(a) * R * 1.01], [0.18, 0.18, 0.18], 3, 1, 0, 0); }
+    B.blob([0, cy + R * 1.35, 0], [0.3, 0.3, 0.3], 3, 1, 0, 1);
+    rad = R * 1.4; slope = 0.6;
+  } else if (kind === 'spire') {
+    const H = 9 + r() * 9, R = 2 + r() * 1.2, n = 5 + Math.floor(r() * 3), tw = r() * 2;
+    for (let i = 0; i < n; i++) { const t = i / n, rr = R * (1 - t * 0.75), y = P0 + i * (H / n), off = [Math.sin(t * 6 + tw) * 0.4, 0, Math.cos(t * 5 + tw) * 0.4]; B.cone(vadd([0, y, 0], off), [0, 1, 0], H / n * 1.6, rr, 9, i % 2, AOy(t), AOy(t + 0.2)); if (i) ring(rr * 0.78, y + 0.5, 4, 0.35, 0.35); }
+    B.blob([0, P0 + H + H / n * 0.6, 0], [0.45, 0.45, 0.45], 3, 1, 0, 1);
+    rad = R + 0.3; slope = 0.35;
+  } else if (kind === 'fire') {
+    for (let k = 0; k < 9; k++) { const a = k / 9 * TAU; B.blob([Math.cos(a) * 1.1, 0.15, Math.sin(a) * 1.1], [0.3, 0.22, 0.3], 2, 0.7, 0.3, 0); }
+    for (let k = 0; k < 3; k++) { const a = k * 2.1; B.tube([Math.cos(a) * 0.7, 0.1, Math.sin(a) * 0.7], [-Math.cos(a) * 0.5, 0.3, -Math.sin(a) * 0.5], 0.09, 0.08, 4, 2, 0.6, 0.6); }
+    for (let k = 0; k < 3; k++) B.cone([(r() - 0.5) * 0.4, 0.15, (r() - 0.5) * 0.4], [r() * 0.2 - 0.1, 1, r() * 0.2 - 0.1], 0.9 + r() * 0.6, 0.35, 6, 3, 1, 1);
+    rad = 1.8; slope = 0.6;
+  } else if (kind === 'totem') {
+    const h = 5 + r() * 3;
+    B.tube([0, P0, 0], [0, h, 0], 0.42, 0.36, 8, 1, 0.8, 1);
+    for (let y = 1.2; y < h; y += 1.3) { B.blob([0, y, 0], [0.55, 0.5, 0.5], r() < 0.5 ? 0 : 1, 1, 0.2, 1); for (const sx of [-1, 1]) B.blob([sx * 0.2, y + 0.1, 0.45], [0.09, 0.09, 0.06], 3, 1, 0, 0); }
+    const n = [0, 0, 1]; for (const sx of [-1, 1]) B.tri([0, h - 0.6, 0], [sx * 2.2, h + 0.3, 0], [sx * 1.6, h - 1.4, 0], n, n, n, 0, 1, 1, 1);
+    rad = 1.5; slope = 0.6;
+  } else if (kind === 'obelisk') {
+    const h = 10 + r() * 6;
+    B.cone([0, P0, 0], [0, 1, 0], h, 1.1, 4, 2, 0.7, 1);
+    B.blob([0, P0 + h + 0.4, 0], [0.4, 0.4, 0.4], 3, 1, 0, 1);
+    for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + Math.PI / 4; B.blob([Math.cos(a) * 1.6, 0.2, Math.sin(a) * 1.6], [0.25, 0.25, 0.25], 3, 1, 0, 0); }
+    rad = 2; slope = 0.6;
+  } else if (kind === 'stones') {
+    for (let k = 0; k < 9; k++) { const a = k / 9 * TAU, h = 2.4 + r() * 1.6; B.tube([Math.cos(a) * 6, P0, Math.sin(a) * 6], [Math.cos(a) * 6 + (r() - 0.5) * 0.4, h, Math.sin(a) * 6 + (r() - 0.5) * 0.4], 0.6, 0.45, 4, 2, 0.6, 0.95); }
+    B.blob([0, 0.5, 0], [0.8, 0.6, 0.8], 3, 1, 0.2, 1);
+    rad = 7; slope = 0.3;
+  } else if (kind === 'lamp') {
+    B.tube([0, P0, 0], [0, 2.6, 0], 0.07, 0.06, 5, 2, 0.7, 0.9);
+    B.blob([0, 2.75, 0], [0.22, 0.26, 0.22], 3, 1, 0, 1);
+    rad = 0.5; slope = 1;
+  } else if (kind === 'crop') {
+    for (let i = 0; i < 7; i++) { const x = -3 + i + (r() - 0.5) * 0.3, h = 0.35 + r() * 0.2; B.blob([x, h * 0.8, 0], [0.32, h, 0.32], 1, null, 0.3, 1); }
+    rad = 0; slope = 1;
+  }
+  return { geo: new Float32Array(B.v), rad, slope };
+}
+function makeCulture(P, type, r, E) {
+  const alien = type === 'alien', weird = alien || r() < 0.3;
+  const vivid = (s, v) => hsv(r(), s * (0.6 + r() * 0.4), v * (0.7 + r() * 0.3));
+  const WALLS = {
+    terran: [[0.85, 0.82, 0.74], [0.62, 0.45, 0.3], [0.75, 0.6, 0.42], [0.7, 0.35, 0.25], [0.5, 0.42, 0.35], [0.88, 0.86, 0.8]],
+    ocean: [[0.9, 0.88, 0.82], [0.55, 0.7, 0.75], [0.75, 0.6, 0.42], [0.85, 0.55, 0.45]],
+    desert: [[0.8, 0.62, 0.45], [0.85, 0.75, 0.6], [0.7, 0.5, 0.35], [0.9, 0.85, 0.75]],
+    ice: [[0.9, 0.93, 0.97], [0.75, 0.8, 0.88], [0.45, 0.35, 0.25]]
+  };
+  const ROOFS = [[0.5, 0.4, 0.22], [0.25, 0.27, 0.3], [0.55, 0.22, 0.12], [0.3, 0.38, 0.2], [0.35, 0.25, 0.18]];
+  const walls = alien || (weird && r() < 0.5) ? [vivid(0.7, 0.85), vivid(0.7, 0.85), vivid(0.5, 0.9)] : Array.from({ length: 3 }, () => jit(r, pick(r, WALLS[type] || WALLS.terran), 0.12));
+  const glowC = alien ? hsv(r(), 0.6, 1) : weird && r() < 0.4 ? hsv(r(), 0.5, 1) : [1, 0.68, 0.32];
+  const kinds = [];
+  const addK = (kind, o) => { const g = civGeo(kind, (r() * 1e9) | 0); kinds.push(Object.assign({ kind, m: instMesh(g.geo), rad: g.rad, slope: g.slope, roof: [0.4, 0.3, 0.2], trim: [0.45, 0.4, 0.36], glowC, glowI: 1.2 }, o)); return kinds.length - 1; };
+  const pool = (CIV_KINDS[type] || CIV_KINDS.terran).slice().sort(() => r() - 0.5);
+  const houses = pool.slice(0, 2 + (r() < 0.5 ? 1 : 0)).map((k, i) => ({ k: addK(k, { roof: alien || weird && r() < 0.4 ? vivid(0.7, 0.6) : jit(r, pick(r, ROOFS), 0.1) }), w: i ? 0.45 : 1 }));
+  const centre = addK(pick(r, ['fire', 'totem', 'obelisk', 'stones']), { roof: vivid(0.6, 0.6), trim: [0.6, 0.58, 0.55], glowI: 1.6 });
+  const lampK = addK('lamp', { trim: [0.3, 0.28, 0.26], glowI: 1.5 });
+  const fields = type === 'terran' || type === 'ocean' ? r() < 0.75 : type === 'alien' ? r() < 0.55 : type === 'desert' ? r() < 0.4 : false;
+  const cropK = fields ? addK('crop', { glowI: 0 }) : -1;
+  const cropCols = alien ? [vivid(0.8, 0.8), vivid(0.8, 0.8)] : [jit(r, [0.35, 0.5, 0.15], 0.15), jit(r, [0.75, 0.62, 0.25], 0.1), jit(r, [0.25, 0.42, 0.12], 0.15)];
+  const hw = houses.reduce((a, h) => a + h.w, 0);
+  const cul = {
+    kinds, houses, centre, lampK, cropK, walls, cropCols, weird, folk: makeName(r),
+    den: 0.35 + r() * 0.35, lone: Math.floor(r() * 4), layout: pick(r, ['ring', 'cluster', 'line', 'spiral', 'cluster']),
+    pickHouse: rr => { let v = rr() * hw; for (const h of houses) { v -= h.w; if (v <= 0) return h.k; } return houses[0].k; },
+    scale: rr => weird ? 0.6 + rr() * 1.6 : 0.85 + rr() * 0.35,
+    people: []
+  };
+  const skin = alien ? vivid(0.6, 0.8) : jit(r, pick(r, [[0.85, 0.65, 0.5], [0.55, 0.38, 0.25], [0.7, 0.5, 0.35], [0.4, 0.28, 0.2]]), 0.08);
+  for (let i = 0; i < 2; i++) {
+    E.creatures.push(makeCreature(r, { kind: 'biped', villager: true, alien, weird, cloth: alien || weird ? vivid(0.7, 0.75) : jit(r, pick(r, [[0.55, 0.2, 0.15], [0.2, 0.3, 0.5], [0.35, 0.45, 0.25], [0.6, 0.5, 0.3], [0.45, 0.3, 0.5]]), 0.1), skin: alien && i ? vivid(0.6, 0.8) : skin, glow: glowC }));
+    cul.people.push(E.creatures.length - 1);
+  }
+  return cul;
+}
+// deterministic layout of one VT x VT cell (cached): a village or hamlet plus scattered homes
+function villageSite(s, vx, vz) {
+  const key = vx + ',' + vz; let v = s.vcache.get(key); if (v) return v;
+  v = { key, b: [], f: [], crops: [], people: [], n: 0 }; s.vcache.set(key, v);
+  const cul = s.civ; if (!cul) return v;
+  const P = s.P, r = mulberry(hashInts(vx, vz, P.seed | 0, 555)), ice = s.planet.type === 'ice';
+  const flat = (x, z, d) => { const h = terrH(P, x, z, 1); return [h, Math.max(Math.abs(terrH(P, x + d, z, 1) - h), Math.abs(terrH(P, x, z + d, 1) - h)) / d]; };
+  const okH = h => h > P.sea + 3 && h < P.snowLine + (ice ? 3000 : -30);
+  const place = (k, x, z, rot, sc) => {
+    const K = cul.kinds[k], rad = K.rad * sc;
+    if (v.b.some(b => Math.hypot(b.x - x, b.z - z) < b.rad + rad + 1.5)) return null;
+    if (v.f.some(f => Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) + rad + 2)) return null;
+    const [h, sl] = flat(x, z, Math.max(rad, 2)); if (!okH(h) || sl > K.slope) return null;
+    const b = { k, x, z, y: terrH(P, x, z, 3), rot, sc, rad, tint: jit(r, pick(r, cul.walls), 0.06) }; v.b.push(b); return b;
+  };
+  const field = (cx, cz, d0) => {
+    if (cul.cropK < 0) return;
+    const a = r() * TAU, d = d0 + 10 + r() * 25, fx = cx + Math.cos(a) * d, fz = cz + Math.sin(a) * d, hx = 8 + r() * 12, hz = 6 + r() * 8, rot = r() * TAU;
+    const [h, sl] = flat(fx, fz, Math.max(hx, hz)); if (!okH(h) || sl > 0.22) return;
+    if (v.b.some(b => Math.hypot(b.x - fx, b.z - fz) < b.rad + Math.max(hx, hz) + 2)) return;
+    const c = Math.cos(rot), sn = Math.sin(rot), col = pick(r, cul.cropCols);
+    v.f.push({ x: fx, z: fz, rot, hx, hz });
+    for (let lz = -hz; lz <= hz; lz += 1.7) for (let lx = -hx + 3; lx <= hx - 3 + 0.01; lx += 6) {
+      const x = fx + c * lx - sn * lz, z = fz + sn * lx + c * lz, tv = 0.85 + r() * 0.3;
+      v.crops.push(x, terrH(P, x, z, 3) - 0.05, z, 1, rot, col[0] * tv, col[1] * tv, col[2] * tv);
+    }
+  };
+  if (r() < cul.den) {
+    let cx = 0, cz = 0, ok = false;
+    for (let t = 0; t < 8 && !ok; t++) { cx = (vx + 0.2 + r() * 0.6) * VT; cz = (vz + 0.2 + r() * 0.6) * VT; const [h, sl] = flat(cx, cz, 25); ok = okH(h) && sl < 0.2; }
+    if (ok) {
+      const hamlet = r() < 0.4, n = hamlet ? 3 + Math.floor(r() * 4) : 8 + Math.floor(r() * 16), R0 = 12 + n * 1.1;
+      v.cx = cx; v.cz = cz; v.name = makeName(r); v.hamlet = hamlet;
+      place(cul.centre, cx, cz, r() * TAU, 1);
+      const dir = r() * TAU, lay = cul.layout;
+      let placed = 0;
+      for (let tries = 0; placed < n && tries < n * 5; tries++) {
+        let x, z;
+        if (lay === 'ring') { const a = tries / n * TAU + r() * 0.25, rr = R0 * (0.85 + r() * 0.3) * (1 + Math.floor(tries / n) * 0.6); x = cx + Math.cos(a) * rr; z = cz + Math.sin(a) * rr; }
+        else if (lay === 'line') { const t = (Math.floor(tries / 2) - n / 4) * 11, side = tries % 2 ? 1 : -1; x = cx + Math.cos(dir) * t - Math.sin(dir) * side * 9; z = cz + Math.sin(dir) * t + Math.cos(dir) * side * 9; }
+        else if (lay === 'spiral') { const a = tries * 0.85 + dir, rr = 10 + tries * 2.4; x = cx + Math.cos(a) * rr; z = cz + Math.sin(a) * rr; }
+        else { const a = r() * TAU, rr = 9 + Math.sqrt(r()) * R0 * 1.3; x = cx + Math.cos(a) * rr; z = cz + Math.sin(a) * rr; }
+        let ax = cx, az = cz;
+        if (lay === 'line') { const t = (x - cx) * Math.cos(dir) + (z - cz) * Math.sin(dir); ax = cx + Math.cos(dir) * t; az = cz + Math.sin(dir) * t; }
+        const rot = Math.atan2(-(ax - x), az - z) + (r() - 0.5) * 0.3;
+        if (place(cul.pickHouse(r), x, z, rot, cul.scale(r))) placed++;
+      }
+      v.n = placed;
+      v.R = v.b.reduce((m, b) => Math.max(m, Math.hypot(b.x - cx, b.z - cz) + b.rad), 10);
+      for (let i = 0, nl = 2 + Math.floor(r() * 6); i < nl; i++) { const a = r() * TAU, d = 5 + r() * v.R * 0.9; place(cul.lampK, cx + Math.cos(a) * d, cz + Math.sin(a) * d, 0, 1); }
+      for (let i = 0, nf = hamlet ? 1 : 1 + Math.floor(r() * 3); i < nf; i++) field(cx, cz, v.R);
+      const np = Math.round(placed * (hamlet ? 1.3 : 1.5)) + 2;
+      for (let i = 0; i < np; i++) v.people.push({ x: cx + gauss(r) * v.R * 0.4, z: cz + gauss(r) * v.R * 0.4, hx: cx, hz: cz, roam: v.R * 0.6 });
+    }
+  }
+  for (let i = 0, nl = Math.floor(r() * (cul.lone + 1)); i < nl; i++) {
+    const x = (vx + 0.05 + r() * 0.9) * VT, z = (vz + 0.05 + r() * 0.9) * VT;
+    if (v.cx !== undefined && Math.hypot(x - v.cx, z - v.cz) < v.R + 80) continue;
+    const b = place(cul.pickHouse(r), x, z, r() * TAU, cul.scale(r));
+    if (!b) continue;
+    if (r() < 0.5) field(x, z, b.rad);
+    for (let k = 0, np = 1 + Math.floor(r() * 2); k < np; k++) v.people.push({ x: x + gauss(r) * 4, z: z + gauss(r) * 4, hx: x, hz: z, roam: 10 });
+  }
+  return v;
+}
+function civBlock(s, x, z) {
+  if (!s.civ) return false;
+  const v = villageSite(s, Math.floor(x / VT), Math.floor(z / VT));
+  for (const b of v.b) if (Math.abs(b.x - x) < b.rad + 3 && Math.abs(b.z - z) < b.rad + 3) return true;
+  for (const f of v.f) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot), sn = Math.sin(f.rot); if (Math.abs(c * dx + sn * dz) < f.hx + 2 && Math.abs(-sn * dx + c * dz) < f.hz + 2) return true; }
+  return v.cx !== undefined && Math.hypot(x - v.cx, z - v.cz) < 9;
+}
+function genVillageTile(s, tx, tz) {
+  const cul = s.civ, v = villageSite(s, tx, tz), E = s.eco, out = cul.kinds.map(() => []);
+  for (const b of v.b) out[b.k].push(b.x, b.y - 0.15, b.z, b.sc, b.rot, b.tint[0], b.tint[1], b.tint[2]);
+  if (cul.cropK >= 0) out[cul.cropK] = v.crops;
+  const r = mulberry(hashInts(tx, tz, 8080));
+  out.people = v.people.map(p => {
+    const si = pick(r, cul.people), C = E.creatures[si];
+    return { si, id: (r() * 1e9) | 0, hx: p.hx, hz: p.hz, roam: p.roam, x: p.x, z: p.z, y: 0, stale: true, head: r() * TAU, phase: r() * TAU, graze: 0, walk: 0, spd: 0, state: 'graze', t: r() * 6, tx: p.x, tz: p.z, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 15, cm: 1.5 };
+  });
+  out.site = v;
+  return out;
+}
 
 // surface state
 let surf = null, surfVisits = 0;
@@ -2363,15 +2977,18 @@ function makeSurface(planet, sys, entryDir) {
     lookAhead: 0, cloudH: 2300, curv: 1 / (2 * 400000),
     gtiles: new Map(), gdirty: false, grebuildT: 0, atiles: new Map(), floaters: [], ground: g0,
     pt: 0, cruiseDur: 55 + r() * 35, walkDur: 70 + r() * 50, walked: false, walkV: 0, sideV: 0, bob: 0, wT: 3, wState: 'stand',
-    ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null
+    ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null,
+    ttiles: new Map(), vtiles: new Map(), vcache: new Map(), vdirty: false, vrebuildT: 0, titans: [], seenV: new Set(), civ: null
   };
   s.cloudCov = (P.sCloud ?? P.cloud) * 0.9; s.home = [sx, sz]; if (P.gas) s.walked = true;
   s.eco = makeEcology(P, planet.type, mulberry(hashInts(planet.seed, 4242)));
+  if (planet.civ) s.civ = makeCulture(P, planet.type, mulberry(hashInts(planet.seed, 6262)), s.eco);
   if (s.eco.floater) for (let i = 0; i < 7; i++) s.floaters.push({ x: sx, y: g0, z: sz, head: 0, ph: i * 1.7, sc: 10, t: -1 });
   return s;
 }
 function freeSurface(s) {
-  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear();
+  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear();
+  if (s.civ) s.civ.kinds.forEach(K => freeInstMesh(K.m));
   freeEcology(s.eco); grassMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
 }
 function tileSet(map, size, radius, cx, cz, budget, gen) {
@@ -2408,8 +3025,20 @@ function updateSurfaceWorld(s, dt) {
     s.grebuildT -= dt;
     if (s.gdirty && s.grebuildT <= 0) { s.gdirty = false; s.grebuildT = 0.2; uploadInst(grassMesh, mergeTiles(s.gtiles, 0)); uploadInst(flowerMesh, mergeTiles(s.gtiles, 1)); }
   } else if (s.gtiles.size) { s.gtiles.clear(); grassMesh.n = flowerMesh.n = 0; }
-  // herds
+  // herds, walking mountains and villages
   tileSet(s.atiles, AT, ANIM_R, s.x, s.z, 2, (tx, tz) => genHerd(s, tx, tz));
+  tileSet(s.ttiles, TIT_T, TIT_R, s.x, s.z, 1, (tx, tz) => genTitan(s, tx, tz));
+  if (s.civ) {
+    if (tileSet(s.vtiles, VT, VIL_R, s.x, s.z, 1, (tx, tz) => genVillageTile(s, tx, tz))) s.vdirty = true;
+    s.vrebuildT -= dt;
+    if (s.vdirty && s.vrebuildT <= 0) { s.vdirty = false; s.vrebuildT = 0.5; s.civ.kinds.forEach((K, k) => uploadInst(K.m, mergeTiles(s.vtiles, k))); }
+    for (const t of s.vtiles.values()) {
+      const v = t.a.site;
+      if (!v.n || s.seenV.has(v.key) || Math.hypot(v.cx - s.x, v.cz - s.z) > v.R + 150 || s.y - s.ground > 500) continue;
+      s.seenV.add(v.key);
+      showLoc(v.name, (v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' folk \u00b7 ' + v.n + ' dwellings');
+    }
+  }
   simAnimals(s, dt);
   // sky creatures drifting around the camera's path
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
@@ -2484,8 +3113,9 @@ function renderShadowMap(s, time, chunks, fwd, cam, models) {
   }
   const pp = P_shPlant.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', TREE_R);
   for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); }
+  if (s.civ) { pp.set('uFadeR', VIL_R).set('uSway', 0); for (const K of s.civ.kinds) drawInst(K.m); }
   const ap = P_shAnimal.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', ANIM_R);
-  for (const C of s.eco.creatures) { ap.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash); drawInst(C.mesh); }
+  for (const C of s.eco.creatures) { ap.set('uFadeR', C.visR).set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash).set('uRoll', C.roll).set('uPitch', C.pitch); drawInst(C.mesh); }
   const mp = P_shModel.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam);
   for (const m of models) drawModel(mp, Object.assign({}, m, { rel: vsub(m.w, cam), cols: null }));
   gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -2526,8 +3156,13 @@ function renderSurface(s, time, camQ, cam) {
   // plants, grass & flowers
   glState({ depth: true, write: true });
   const pp = shadowUniforms(surfaceSkyUniforms(P_plant.use(), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time);
-  pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0);
+  pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0).set('uGlowC', [0, 0, 0]);
   for (const sp of E.plants) { pp.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', P.rock).set('uGlowI', sp.glowI); drawInst(sp.m); }
+  if (s.civ) {
+    pp.set('uFadeR', VIL_R).set('uSway', 0);
+    for (const K of s.civ.kinds) { pp.set('uTrunk', K.roof).set('uRockC', K.trim).set('uGlowI', K.glowI).set('uGlowC', K.kind === 'crop' ? [0, 0, 0] : K.glowC); drawInst(K.m); }
+    pp.set('uGlowC', [0, 0, 0]);
+  }
   if (farMesh.n) {
     surfaceSkyUniforms(P_far.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uNear', TREE_R * 0.82).set('uFar', FAR_R);
     gl.bindVertexArray(farMesh.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, farMesh.n);
@@ -2540,8 +3175,8 @@ function renderSurface(s, time, camQ, cam) {
   // creatures
   const ap = shadowUniforms(surfaceSkyUniforms(P_animal.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time).set('uFadeR', ANIM_R);
   for (const C of E.creatures) {
-    ap.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uCol1', C.c1).set('uCol2', C.c2).set('uCol3', C.c3)
-      .set('uSpots', C.spots).set('uGlowA', C.glow).set('uStripes', C.stripes).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash);
+    ap.set('uFadeR', C.visR).set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uCol1', C.c1).set('uCol2', C.c2).set('uCol3', C.c3)
+      .set('uSpots', C.spots).set('uGlowA', C.glow).set('uStripes', C.stripes).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash).set('uRoll', C.roll).set('uPitch', C.pitch);
     drawInst(C.mesh);
   }
   // ship & astronaut
@@ -2613,6 +3248,9 @@ const Music = {
     E.nf = C.createBiquadFilter(); E.nf.type = 'bandpass'; E.nf.frequency.value = 600; E.nf.Q.value = 0.7;
     E.ng = C.createGain(); E.ng.gain.value = 0; en.connect(E.nf); E.nf.connect(E.ng); E.ng.connect(this.sfx); E.ng.connect(this.sfxRev); en.start();
     E.next = 0; this.lastCall = 0;
+    const rn = C.createBufferSource(); rn.buffer = nb; rn.loop = true; rn.playbackRate.value = 0.5;
+    E.rf = C.createBiquadFilter(); E.rf.type = 'lowpass'; E.rf.frequency.value = 110; E.rf.Q.value = 1.5;
+    E.rg = C.createGain(); E.rg.gain.value = 0; rn.connect(E.rf); E.rf.connect(E.rg); E.rg.connect(this.sfx); E.rg.connect(this.sfxRev); rn.start();
     this.nextChord = C.currentTime + 0.3; this.nextBell = C.currentTime + 4;
     setInterval(() => this.tick(), 200);
   },
@@ -2658,11 +3296,12 @@ const Music = {
     src.connect(f); f.connect(g); g.connect(this.sfx); g.connect(this.sfxRev); src.start(t); src.stop(t + 2.5);
   },
   // ship engine: level 0..1 (loudness), pitch 0..1; rate-limited parameter updates
-  engine(level, pitch) {
+  engine(level, pitch, rumble) {
     if (!this.ctx) return;
     const C = this.ctx, t = C.currentTime, E = this.eng;
     if (t < E.next) return; E.next = t + 0.1;
     const tc = 0.25;
+    E.rg.gain.setTargetAtTime((rumble || 0) * 2.2, t, 0.8); E.rf.frequency.setTargetAtTime(70 + (rumble || 0) * 90 + Math.random() * 30, t, 0.3);
     E.g.gain.setTargetAtTime(level * 0.11, t, tc);
     E.ng.gain.setTargetAtTime(level * (0.25 + pitch * 0.5), t, tc);
     E.o1.frequency.setTargetAtTime(38 + pitch * 95, t, tc); E.o2.frequency.setTargetAtTime((38 + pitch * 95) * 2.02, t, tc);
@@ -2671,14 +3310,14 @@ const Music = {
   step(kind, vol) {
     if (!this.ctx) return;
     const C = this.ctx, t = C.currentTime + 0.01, src = C.createBufferSource(), f = C.createBiquadFilter(), g = C.createGain();
-    const K = { grass: [1100, 0.7, 'lowpass', 0.09], sand: [700, 0.6, 'lowpass', 0.12], snow: [2600, 1.2, 'bandpass', 0.14], rock: [1700, 1.5, 'bandpass', 0.06], thud: [220, 0.8, 'lowpass', 0.3] }[kind] || [1000, 0.7, 'lowpass', 0.1];
-    src.buffer = this.white; src.playbackRate.value = 0.8 + Math.random() * 0.4;
+    const K = { grass: [1100, 0.7, 'lowpass', 0.09], sand: [700, 0.6, 'lowpass', 0.12], snow: [2600, 1.2, 'bandpass', 0.14], rock: [1700, 1.5, 'bandpass', 0.06], thud: [220, 0.8, 'lowpass', 0.3], boom: [120, 0.7, 'lowpass', 1.4], splash: [1200, 0.5, 'bandpass', 1.1] }[kind] || [1000, 0.7, 'lowpass', 0.1];
+    src.buffer = this.white; src.loop = true; src.playbackRate.value = 0.8 + Math.random() * 0.4;
     f.type = K[2]; f.frequency.value = K[0] * (0.85 + Math.random() * 0.3); f.Q.value = K[1];
-    const v = (vol || 1) * (kind === 'thud' ? 0.9 : 0.32);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0005, t + K[3]);
-    src.connect(f); f.connect(g); g.connect(this.sfx);
+    const v = (vol || 1) * (kind === 'thud' ? 0.9 : kind === 'boom' ? 1.3 : kind === 'splash' ? 0.6 : 0.32);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + (kind === 'splash' ? 0.05 : 0.006)); g.gain.exponentialRampToValueAtTime(0.0005, t + K[3]);
+    src.connect(f); f.connect(g); g.connect(this.sfx); if (kind === 'boom' || kind === 'splash') g.connect(this.sfxRev);
     if (kind === 'snow') { for (let i = 1; i < 4; i++) { const s2 = C.createBufferSource(), g3 = C.createGain(), t2 = t + i * 0.018 + Math.random() * 0.01; s2.buffer = this.white; g3.gain.setValueAtTime(0, t2); g3.gain.linearRampToValueAtTime(v * 0.6, t2 + 0.003); g3.gain.exponentialRampToValueAtTime(0.0005, t2 + 0.03); s2.connect(f); s2.start(t2, Math.random() * 0.8); s2.stop(t2 + 0.05); } }
-    if (kind === 'rock' || kind === 'thud') { const o = C.createOscillator(), og = C.createGain(); o.frequency.setValueAtTime(kind === 'thud' ? 90 : 160, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12); og.gain.setValueAtTime(v * 0.5, t); og.gain.exponentialRampToValueAtTime(0.0005, t + 0.15); o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + 0.2); }
+    if (kind === 'rock' || kind === 'thud' || kind === 'boom') { const o = C.createOscillator(), og = C.createGain(), L = kind === 'boom' ? 1.5 : 0.15; o.frequency.setValueAtTime(kind === 'boom' ? 55 : kind === 'thud' ? 90 : 160, t); o.frequency.exponentialRampToValueAtTime(kind === 'boom' ? 24 : 45, t + L * 0.8); og.gain.setValueAtTime(v * (kind === 'boom' ? 0.9 : 0.5), t); og.gain.exponentialRampToValueAtTime(0.0005, t + L); o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + L + 0.05); }
     src.start(t, Math.random() * 0.8); src.stop(t + K[3] + 0.05);
   },
   // a creature's call; gain 0..1 by distance, pan -1..1
@@ -2877,11 +3516,14 @@ function exitSystemGoal() {
   const t = vmul(vnorm(vadd(dir, vmul(S.sys.up, 0.4))), S.sys.exitR * 1.6);
   return goFly(() => t, 0, { label: 'leaving ' + S.sys.name + ' system' });
 }
-// dive straight through the star and out the far side
+// dive into the star, circle its blazing core through the convection currents, then out the far side
 function sunGoals() {
   const Rs = S.sys.Rs, dir = vlen(S.pos) > 1e-6 ? vnorm(S.pos) : S.sys.up, side = vnorm(vcross(dir, S.sys.up));
-  const appr = vmul(dir, Rs * 7), out = vmul(vnorm(vadd(vmul(dir, -1), vmul(side, 0.1))), Rs * 7), name = S.sys.name;
+  const appr = vmul(dir, Rs * 7), inP = vmul(vnorm(vadd(dir, vmul(side, 0.5))), Rs * 0.55), name = S.sys.name;
+  const out = vmul(vnorm(vadd(vmul(dir, -1), vmul(side, 0.1))), Rs * 7), ax = vnorm(vcross(inP, side));
   return [goFly(() => appr, Rs * 1.5, { label: name, obj: S.star, through: true }),
+  goFly(() => inP, Rs * 0.08, { label: 'into ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'inside the star \u00b7 rising plasma and the blazing core') }),
+  goOrbit(() => [0, 0, 0], ax, 30, 0.06, { label: 'inside ' + name, obj: S.star }),
   goFly(() => out, Rs * 0.8, { label: 'through ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'flown straight through the star') })];
 }
 function planSystem() {
@@ -2926,7 +3568,7 @@ function enterSystem(st) {
 }
 function exitSystem() {
   S.pos = vadd(S.star.p, vmul(S.pos, 1 / SU_LY)); S.v /= SU_LY; S.mode = 'space';
-  S.sys = null; S.goal = null; S.queue = []; S.galStay++;
+  freeSysGL(S.sys); S.sys = null; S.goal = null; S.queue = []; S.galStay++;
 }
 function skyDisplayColor(P, light, elev) {
   const b = P.sky.map(v => v * v * 0.45), Lv = 4, Ls = 1 / (Math.max(Math.sin(elev) + 0.04, 0) + 0.1);
@@ -2961,8 +3603,8 @@ function refUp() {
 }
 function obstacleLimit() {
   if (S.mode !== 'system') return Infinity;
-  const Rs = S.sys.Rs;
-  let m = Math.abs(vlen(S.pos) - Rs) + Rs * 0.1;
+  const Rs = S.sys.Rs, dS = vlen(S.pos);
+  let m = dS < Rs ? Rs * 0.12 : Math.abs(dS - Rs) + Rs * 0.1;
   for (const p of S.sys.planets) m = Math.min(m, vdist(S.pos, p.pos) - p.R);
   return Math.max(m, 0.01) * 0.9;
 }
@@ -2987,7 +3629,8 @@ function engineSound(dt) {
     pitch = clamp(0.2 + S.thrust * 0.45 + S.acc * 0.18, 0, 1);
   }
   if (S.auto) level *= 0.55;
-  Music.engine(clamp(level, 0, 1), pitch);
+  const rum = S.mode === 'system' ? (vlen(S.pos) < S.sys.Rs ? 1 : smooth(4, 1, vlen(S.pos) / S.sys.Rs) * 0.5) : 0;
+  Music.engine(clamp(level, 0, 1), pitch, rum);
 }
 function speedRange() {
   if (S.mode === 'system') { const dn = Math.max(obstacleLimit() / 0.9, 0.001); return { min: Math.max(dn * 0.006, 0.005), max: Math.max(dn * 1.5, 0.05) }; }
@@ -3065,7 +3708,7 @@ function surfStep(dt) {
   const ang = s.t * TAU / 720;
   s.sun = qrot(qaxis(s.axis, -ang), s.sun0);
   s.spaceQ = qmul(s.Q0, qaxis(s.axis, ang));
-  const H = (x, z) => Math.max(terrH(P, x, z, 2), P.sea);
+  const H = (x, z) => { let m = Math.max(terrH(P, x, z, 2), P.sea); for (const t of s.titans) if (Math.hypot(x - t.x, z - t.z) < t.r) m = Math.max(m, t.top); return m; };
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   const g0 = terrH(P, s.x, s.z, 3);
   s.ground = Math.max(g0, P.sea);
@@ -3084,6 +3727,11 @@ function surfStep(dt) {
     const hl = side(0.5), hr = side(-0.5), hc = side(0);
     let tgt = -clamp((hl - hr) / 260, -1, 1) * 0.11 + gn(s.t * 0.018, 3.3) * 0.09;
     if (hc > s.y + 40) tgt += (hl < hr ? 1 : -1) * 0.12;
+    if (s.civ && S.auto && s.phase === 'cruise') {
+      let best = null, bd = 4000;
+      for (const t of s.vtiles.values()) { const v = t.a.site; if (!v.n || s.seenV.has(v.key)) continue; const d = Math.hypot(v.cx - s.x, v.cz - s.z); if (d < bd) { bd = d; best = v; } }
+      if (best) { let da = Math.atan2(-(best.cx - s.x), -(best.cz - s.z)) - s.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); tgt += clamp(da, -1, 1) * 0.12; }
+    }
     if (s.phase === 'landing' && landOK) tgt = 0;
     s.yawRate = lerp(s.yawRate, tgt, 1 - Math.exp(-dt * 0.7));
     if (s.phase === 'cruise' || s.phase === 'descend') s.speed = lerp(s.speed, 62 + 18 * gn(s.t * 0.01, 9.1), 1 - Math.exp(-dt * 0.3));
@@ -3265,7 +3913,7 @@ function update(dt) {
     updateGalaxies(S.star.p);
     flyAndBank(dt);
     const dS = vlen(S.pos), Rs = S.sys.Rs;
-    if (dS < Rs && !S.inStar) { S.inStar = true; toast('Inside ' + S.sys.name + ' · a sea of glowing plasma'); }
+    if (dS < Rs && !S.inStar) { S.inStar = true; toast('Inside ' + S.sys.name + ' · rising plasma, flowing currents, the core ahead'); }
     else if (dS > Rs * 1.02) S.inStar = false;
     let fade = 0, fc = S.fadeCol;
     S.landCD = Math.max(0, (S.landCD || 0) - dt);
@@ -3305,7 +3953,7 @@ function render() {
     const cq = qmul(S.q, lookQ);
     setView(cq);
     if (S.mode === 'space') renderSpace(S.pos, { dim: 1, hide: 0, nebula: true });
-    else { renderSpace(S.star.p, { dim: 1, hide: 1e-3, nebula: true }); renderSystemBodies(S.sys, S.pos, S.t, {}); }
+    else { renderSpace(S.star.p, { dim: 1, hide: 1e-3, nebula: true }); renderSystemBodies(S.sys, S.pos, S.t, {}); if (vlen(S.pos) < S.sys.Rs) exposure = 0.7; }
     if (S.tp && S.started) renderShipSpace(cq);
   }
   postProcess(exposure, S.fade, S.fadeCol, S.t, warp);
