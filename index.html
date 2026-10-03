@@ -1700,9 +1700,10 @@ function updateShadowMatrix(sun, half, center) {
 function meshBuilder(seed) {
   const v = [], r = mulberry(seed);
   const B = {
-    v, r,
+    v, r, hq: 0,
     tri(a, b, c, na, nb, nc, part, xa, xb, xc) { v.push(a[0], a[1], a[2], na[0], na[1], na[2], part, xa, b[0], b[1], b[2], nb[0], nb[1], nb[2], part, xb, c[0], c[1], c[2], nc[0], nc[1], nc[2], part, xc); },
     tube(a, b, r0, r1, seg, part, xa, xb) {
+      if (B.hq) seg = Math.round(seg * 1.6);
       const d = vnorm(vsub(b, a)), u = perpTo(d), w = vcross(d, u);
       for (let i = 0; i < seg; i++) {
         const a0 = i / seg * TAU, a1 = (i + 1) / seg * TAU;
@@ -1712,6 +1713,7 @@ function meshBuilder(seed) {
       }
     },
     cone(base, dir, h, rad, seg, part, xa, xb) {
+      if (B.hq) seg = Math.round(seg * 1.6);
       const d = vnorm(dir), u = perpTo(d), w = vcross(d, u), tip = vadd(base, vmul(d, h)), off = r() * TAU;
       for (let i = 0; i < seg; i++) {
         const a0 = off + i / seg * TAU, a1 = off + (i + 1) / seg * TAU;
@@ -1726,11 +1728,17 @@ function meshBuilder(seed) {
       const verts = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(vnorm);
       let faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
       const mid = {}, gm = (a, b) => { const k = a < b ? a + '_' + b : b + '_' + a; if (mid[k] === undefined) { mid[k] = verts.length; verts.push(vnorm(vmul(vadd(verts[a], verts[b]), 0.5))); } return mid[k]; };
-      for (let s = 0; s < (sub === undefined ? 1 : sub); s++) {
+      for (let s = 0, ns = Math.min((sub === undefined ? 1 : sub) + B.hq, 2 + (sub > 2 ? 1 : 0)); s < ns; s++) {
         const nf = []; for (const [a, b, cc] of faces) { const ab = gm(a, b), bc = gm(b, cc), ca = gm(cc, a); nf.push([a, ab, ca], [b, bc, ab], [cc, ca, bc], [ab, bc, ca]); }
         faces = nf;
       }
-      const jv = verts.map(p => vmul(p, 1 + (r() - 0.5) * jitter));
+      // lumps depend on direction only, so coarse and fine versions share one shape
+      const p0 = r() * TAU, p1 = r() * TAU, p2 = r() * TAU;
+      const jv = verts.map(p => {
+        const lump = (Math.sin(p[0] * 2.7 + p[1] * 1.3 + p0) + Math.sin(p[1] * 3.1 - p[2] * 2.2 + p1) + Math.sin(p[2] * 2.9 + p[0] * 1.9 + p2)) / 3;
+        const grit = (Math.sin(p[0] * 127.1 + p[1] * 311.7 + p[2] * 74.7 + p0) * 43758.5453 % 1 + 1) % 1 - 0.5;
+        return vmul(p, 1 + (lump * 0.75 + grit * 0.6) * jitter);
+      });
       for (const f of faces) {
         const P = f.map(i => [c[0] + jv[i][0] * rad[0], c[1] + jv[i][1] * rad[1], c[2] + jv[i][2] * rad[2]]);
         const fn = vnorm(vcross(vsub(P[1], P[0]), vsub(P[2], P[0])));
@@ -1754,16 +1762,27 @@ function meshBuilder(seed) {
   return B;
 }
 const AOy = y => 0.45 + 0.55 * clamp(y, 0, 1);
-function plantGeo(kind, seed) {
-  const B = meshBuilder(seed), r = B.r;
+function plantGeo(kind, seed, hq) {
+  const B = meshBuilder(seed), r = B.r; B.hq = hq ? 1 : 0;
   if (kind === 'conifer') {
-    B.tube([0, 0, 0], [0, 0.28, 0], 0.035, 0.028, 5, 0, 0.5, 0.7);
-    for (const [y, h, rr] of [[0.14, 0.44, 0.28], [0.36, 0.4, 0.22], [0.58, 0.42, 0.15]]) B.cone([0, y, 0], [0, 1, 0], h, rr * (0.9 + r() * 0.2), 7, 1, AOy(y) * 0.8, 1);
+    B.tube([0, 0, 0], [0, 0.3, 0], 0.035, 0.026, 5, 0, 0.5, 0.7);
+    const tiers = 4 + (r() < 0.5 ? 1 : 0);
+    for (let i = 0; i < tiers; i++) { const t = i / (tiers - 1), y = 0.1 + t * 0.56; B.cone([(r() - 0.5) * 0.02, y, (r() - 0.5) * 0.02], [0, 1, 0], 0.36 - t * 0.1, (0.31 - t * 0.2) * (0.88 + r() * 0.24), 8, 1, AOy(y) * 0.8, 1); }
   } else if (kind === 'broad') {
-    const th = 0.4 + r() * 0.15; B.tube([0, 0, 0], [0, th, 0], 0.05, 0.035, 5, 0, 0.5, 0.7);
-    B.blob([0, th + 0.2, 0], [0.3, 0.26, 0.3], 1, null, 0.25);
-    for (let i = 0, n = 3 + Math.floor(r() * 3); i < n; i++) { const a = r() * TAU, d = 0.12 + r() * 0.12; B.blob([Math.cos(a) * d, th + 0.05 + r() * 0.2, Math.sin(a) * d], [0.2 + r() * 0.06, 0.18, 0.2 + r() * 0.06], 1, null, 0.3); }
-  } else if (kind === 'bush') B.blob([0, 0.3, 0], [0.45, 0.32, 0.45], 1, null, 0.35);
+    const th = 0.4 + r() * 0.15, lx = (r() - 0.5) * 0.08, lz = (r() - 0.5) * 0.08, top = [lx, th, lz], mid = [lx * 0.4, th * 0.5, lz * 0.4];
+    B.tube([0, 0, 0], mid, 0.055, 0.044, 6, 0, 0.5, 0.6); B.tube(mid, top, 0.044, 0.032, 6, 0, 0.6, 0.7);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + r(); B.tube([Math.cos(a) * 0.04, 0.05, Math.sin(a) * 0.04], [Math.cos(a) * 0.1, -0.02, Math.sin(a) * 0.1], 0.026, 0.012, 4, 0, 0.45, 0.45); }
+    B.blob([lx, th + 0.2, lz], [0.28, 0.24, 0.28], 1, null, 0.3);
+    for (let i = 0, n = 5 + Math.floor(r() * 4); i < n; i++) {
+      const a = i / n * TAU + r() * 0.6, d = 0.15 + r() * 0.13, c = [lx + Math.cos(a) * d, th + 0.03 + r() * 0.24, lz + Math.sin(a) * d];
+      B.tube([lx * 0.9, th - 0.08 + r() * 0.06, lz * 0.9], vadd(c, [0, -0.07, 0]), 0.022, 0.011, 4, 0, 0.6, 0.75);
+      B.blob(c, [0.16 + r() * 0.07, 0.14 + r() * 0.04, 0.16 + r() * 0.07], 1, null, 0.32);
+    }
+    B.blob([lx + (r() - 0.5) * 0.1, th + 0.36 + r() * 0.05, lz + (r() - 0.5) * 0.1], [0.19, 0.15, 0.19], 1, null, 0.3);
+  } else if (kind === 'bush') {
+    B.blob([0, 0.3, 0], [0.42, 0.3, 0.42], 1, null, 0.35);
+    for (let i = 0; i < 3; i++) { const a = i / 3 * TAU + r(); B.blob([Math.cos(a) * 0.25, 0.22 + r() * 0.1, Math.sin(a) * 0.25], [0.24, 0.2, 0.24], 1, null, 0.35); }
+  }
   else if (kind === 'rock') B.blob([0, 0.15, 0], [0.5, 0.3, 0.5], 2, null, 0.5);
   else if (kind === 'palm') {
     const lean = 0.15 + r() * 0.2; let prev = [0, 0, 0];
@@ -1837,11 +1856,11 @@ function plantGeo(kind, seed) {
   }
   return new Float32Array(B.v);
 }
-function grassGeo() {
+function grassGeo(lo) {
   const B = meshBuilder(99), r = B.r;
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < (lo ? 7 : 16); i++) {
     const a = r() * TAU, d = Math.sqrt(r()) * 0.42, x = Math.cos(a) * d, z = Math.sin(a) * d;
-    const h = 0.22 + r() * 0.36, w = 0.012 + r() * 0.01, ba = r() * TAU, dx = Math.cos(ba) * w, dz = Math.sin(ba) * w;
+    const h = 0.22 + r() * 0.36, w = (0.012 + r() * 0.01) * (lo ? 2.1 : 1), ba = r() * TAU, dx = Math.cos(ba) * w, dz = Math.sin(ba) * w;
     const lx = (r() - 0.5) * 0.3, lz = (r() - 0.5) * 0.3, n = vnorm([Math.sin(ba), 0.7, -Math.cos(ba)]);
     const m = [x + lx * 0.4, h * 0.55, z + lz * 0.4], t = [x + lx, h, z + lz];
     B.tri([x - dx, 0, z - dz], [x + dx, 0, z + dz], [m[0] - dx * 0.6, m[1], m[2] - dz * 0.6], n, n, n, 1, 0.35, 0.35, 0.7);
@@ -1871,17 +1890,31 @@ vec3 plantWorld(out vec3 n){
 }`;
 const P_plant = program(PLANT_VS + `
 uniform mat4 uVP; uniform float uCurv, uGlowI; uniform vec3 uTrunk, uRockC, uGlowC;
-out vec3 vW; out vec3 vN; out vec3 vC; out float vAO; out float vE;
-void main(){ vec3 n; vec3 w=plantWorld(n); vW=w; vN=n; vAO=aM.y;
+out vec3 vW; out vec3 vN; out vec3 vC; out float vAO; out float vE; out float vF;
+void main(){ vec3 n; vec3 w=plantWorld(n); vW=w; vN=n; vAO=aM.y; vF=aM.x<.5?2.:(aM.x<1.5)?1.:0.;
   vC=aM.x<.5?uTrunk:(aM.x>1.5&&aM.x<2.5)?uRockC*aJ.yzw:(aM.x>2.5&&dot(uGlowC,vec3(1.))>0.)?uGlowC:aJ.yzw;
   vE=aM.x>2.5?uGlowI*(.75+.25*sin(uTime*1.3+aI.x*.31+aI.z*.17)):0.;
   vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv; gl_Position=uVP*vec4(rel,1.); }`,
-  SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; in vec3 vC; in float vAO; in float vE; out vec4 o; uniform vec3 uCam; uniform float uBias, uTwoSide;
+  NOISE_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; in vec3 vC; in float vAO; in float vE; in float vF; out vec4 o; uniform vec3 uCam; uniform float uBias, uTwoSide, uLeaf;
 void main(){ vec3 rel=vW-uCam; float dist=length(rel);
   if(dist<2.2&&fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>(dist-.6)/1.6) discard;
   vec3 n=normalize(vN); float NL=dot(n,uSun); float dif=mix(max(NL,0.)*.8+.25*max(-NL,0.),abs(NL)*.75+.25,uTwoSide);
   float sh=shadowAt(vW,uBias);
-  vec3 col=vC*(sunLight()*dif*sh*vAO+ambient()*vAO*(.65+.35*n.y));
+  vec3 c=vC; float ao=vAO;
+  if(uLeaf>.5){
+    float near=smoothstep(520.,90.,dist);
+    if(vF>.5&&vF<1.5){
+      // leaf clusters: dappled clumps, sun-catching tips and soft light through the canopy
+      float big=texture(uNoise,vW*.022).r, leaf=texture(uNoise,vW*.15+vec3(.3)).g, fine=texture(uNoise,vW*.32+vec3(.7)).b;
+      float clump=smoothstep(.12,.88,leaf*.7+fine*.3);
+      c*=mix(1.,mix(.84,1.08,clump)*mix(.9,1.06,big),near);
+      c=mix(c,c*vec3(1.1,1.08,.82),near*clump*.25*max(NL,0.));
+      ao*=mix(1.,.86+.14*clump,near);
+      float back=pow(max(dot(normalize(rel),uSun),0.),5.)*(1.-max(NL,0.));
+      c+=vC*vec3(1.,1.08,.6)*back*.55*sh;
+    } else if(vF>1.5){ float bark=texture(uNoise,vec3(vW.x*.3,vW.y*.03,vW.z*.3)).r; c*=mix(1.,.72+.5*bark,near); }
+  }
+  vec3 col=c*(sunLight()*dif*sh*ao+ambient()*ao*(.65+.35*n.y));
   col+=vC*vE*(.15+2.*(1.-dayF()));
   o=vec4(fogApply(col,rel,dist),1.); }`);
 const P_shPlant = program(PLANT_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=plantWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
@@ -1914,9 +1947,11 @@ void main(){ vec3 n=normalize(vN); if(dot(n,vW-uCam)>0.) n=-n;
   vec3 c=vPart<.5?uCol1:vPart<1.5?uCol2:vPart<3.5?uCol3:vPart<4.5?vec3(.92,.9,.86):vPart<5.5?vec3(.025,.02,.02):mix(uCol2,vec3(1.,.35,.38),.45);
   if(uSpots>0.&&vPart<.5) c=mix(c,uCol2,smoothstep(.55,.6,texture(uNoise,vL*.9+vec3(uSpots)).r));
   if(uStripes>0.&&vPart<.5) c=mix(c,uCol3*.8,smoothstep(.45,.55,abs(fract(vL.z*uStripes+sin(vL.y*4.)*.3)-.5)*2.));
-  c*=vPart<1.5?vVar:1.;
+  c*=vPart<1.5?vVar*(.88+.24*texture(uNoise,vL*2.3+vec3(.5)).g):1.;
   float sh=shadowAt(vW,.0002);
   vec3 col=c*(sunLight()*max(dot(n,uSun),0.)*sh+ambient()*(.6+.4*n.y));
+  vec3 V=normalize(uCam-vW); float fr=pow(1.-max(dot(n,V),0.),3.);
+  col+=c*fr*(ambient()*1.3+sunLight()*.35*max(dot(-V,uSun),0.)*sh);
   if(vPart>3.5&&vPart<4.5) col+=sunLight()*pow(max(dot(reflect(normalize(vW-uCam),n),uSun),0.),40.)*.6;
   if(vPart>1.5&&vPart<3.5) col+=uCol3*uGlowA*(1.-dayF())*1.5;
   vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.); }`);
@@ -1990,7 +2025,7 @@ function instMesh(geo) {
 function freeInstMesh(m) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); }
 function uploadInst(m, arr) { gl.bindBuffer(gl.ARRAY_BUFFER, m.ib); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW); m.n = arr.length / 8; }
 const drawInst = m => { if (m.n) { gl.bindVertexArray(m.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, m.verts, m.n); } };
-const grassMesh = instMesh(grassGeo()), flowerMesh = instMesh(flowerGeo());
+const grassMesh = instMesh(grassGeo()), grassFarMesh = instMesh(grassGeo(true)), flowerMesh = instMesh(flowerGeo());
 const floaterMesh = (function () {
   const B = meshBuilder(5);
   B.blob([0, 0, 0], [1, 0.6, 1], 0, 0, 0.08, 2);
@@ -2219,15 +2254,15 @@ function herdFor(r, size) {
   return opts[0][0];
 }
 // expressive faces on the front (+z) of an ellipsoid head. parts: 4 white, 5 dark, 6 blush, 1 skin
-function addFace(B, r, hc, R3, alien, aux) {
+function addFace(B, r, hc, R3, alien, aux, eyesN) {
   const [rx, ry, rz] = R3, s = Math.min(rx, ry);
   const at = (x, y, inset) => vadd(hc, [x, y, rz * Math.sqrt(Math.max(1 - (x / rx) ** 2 - (y / ry) ** 2, 0.03)) - inset]);
-  const nEyes = alien ? pick(r, [1, 2, 2, 3]) : r() < 0.12 ? 1 : 2;
-  const er = s * (nEyes === 1 ? 0.4 : 0.24 + r() * 0.1) * (alien ? 1.1 : 1), ey = ry * (0.1 + r() * 0.12), gap = rx * (0.4 + r() * 0.08);
-  const xs = nEyes === 1 ? [0] : nEyes === 2 ? [-gap, gap] : [-gap * 1.15, 0, gap * 1.15];
+  const nEyes = eyesN || (alien ? pick(r, [1, 2, 2, 3]) : r() < 0.12 ? 1 : 2);
+  const er = s * (nEyes === 1 ? 0.4 : nEyes > 3 ? 0.16 : 0.24 + r() * 0.1) * (alien ? 1.1 : 1), ey = ry * (0.1 + r() * 0.12), gap = rx * (0.4 + r() * 0.08);
+  const xs = nEyes === 1 ? [0] : nEyes === 2 ? [-gap, gap] : nEyes === 3 ? [-gap * 1.15, 0, gap * 1.15] : Array.from({ length: nEyes }, (_, i) => (i / (nEyes - 1) - 0.5) * gap * 2.3);
   const look = [(r() - 0.5) * 0.4, (r() - 0.5) * 0.2], brows = r() < 0.55, tilt = (r() - 0.5) * 0.5, lid = r() < 0.25;
   xs.forEach((x, i) => {
-    const y = ey + (nEyes === 3 && i === 1 ? er * 1.15 : 0), c = at(x, y, er * 0.3);
+    const y = ey + (nEyes === 3 && i === 1 ? er * 1.15 : nEyes > 3 ? Math.cos((i / (nEyes - 1) - 0.5) * 2.4) * er * 1.6 - er * 0.6 : 0), c = at(x, y, er * 0.3);
     B.blob(c, [er, er * (0.95 + r() * 0.25), er * 0.55], 4, aux, 0, 1);
     const pr = er * (0.5 + r() * 0.18), pc = vadd(c, [look[0] * er, look[1] * er, er * 0.42]);
     B.blob(pc, [pr, pr * 1.08, pr * 0.5], 5, aux, 0, 1);
@@ -2245,9 +2280,181 @@ function addFace(B, r, hc, R3, alien, aux) {
   if (r() < 0.5) for (const sx of [-1, 1]) B.blob(at(sx * rx * 0.58, my + ry * 0.16, s * 0.03), [s * 0.14, s * 0.09, s * 0.06], 6, aux, 0, 1);
   if (!alien && r() < 0.6) for (const sx of [-1, 1]) B.blob(vadd(hc, [sx * rx * 0.97, 0, 0]), [s * 0.12, s * 0.2, s * 0.12], 1, aux, 0, 1);
 }
+// villagers: every culture has its own body plan, from familiar folk to walking flowers and hovering monks
+const PERSON_PLANS = ['human', 'stalk', 'bulb', 'squid', 'insect', 'bighead', 'twohead', 'floater', 'robot', 'plant', 'snail', 'bird', 'crystal'];
+const PLAN_FOLK = { human: 'folk', stalk: 'stilt-folk', bulb: 'bulb-folk', squid: 'squid-folk', insect: 'bug-folk', bighead: 'bigheads', twohead: 'two-heads', floater: 'floaters', robot: 'automatons', plant: 'flower-folk', snail: 'snail-folk', bird: 'bird-folk', crystal: 'crystal-folk' };
+function buildPerson(B, r, C, o) {
+  const alien = o.alien, plan = o.plan || 'human', T = o.traits || {};
+  const face = (hc, R3, li, eyes) => { B.blob(hc, R3, 1, li, 0.04, 1); addFace(B, r, hc, R3, alien, li, eyes || T.eyes); };
+  const legs = (H, x, rad, foot) => { for (const [sx, li] of [[-1, 1], [1, 2]]) { B.tube([sx * x, H + 0.05, 0], [sx * x * 1.05, 0.03, 0], rad, rad * 0.78, 5, 1, li, li); B.blob([sx * x * 1.05, 0.04, rad * 0.6], [rad * 1.05, rad * 0.55, rad * 1.6 * (foot || 1)], 0, li, 0, 0); } };
+  const arm = (sh, hand, rad, part) => { B.tube(sh, hand, rad, rad * 0.8, 5, part ?? 0, 0, 0); B.blob(hand, [rad * 0.95, rad * 0.95, rad * 0.95], 1, 0, 0, 0); };
+  const antennae = (hc, hs, li) => { for (const sx of [-1, 1]) { const tip = vadd(hc, [sx * hs * (0.5 + r() * 0.4), hs * (1.4 + r() * 0.8), -hs * 0.2]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.8, 0]), tip, hs * 0.05, hs * 0.035, 4, 1, li, li); B.blob(tip, [hs * 0.13, hs * 0.13, hs * 0.13], 3, li, 0, 0); } };
+  const hat = (hc, hs, li) => {
+    const k = T.hat ?? Math.floor(r() * 6);
+    if (k === 0) B.cone(vadd(hc, [0, hs * 0.7, 0]), [0, 1, 0.15], hs * (1 + r() * 1.4), hs * 0.85, 8, 0, li, li);
+    else if (k === 1) { B.blob(vadd(hc, [0, hs * 0.75, 0]), [hs * 1.5, hs * 0.08, hs * 1.5], 0, li, 0, 1); B.blob(vadd(hc, [0, hs * 0.95, 0]), [hs * 0.7, hs * 0.35, hs * 0.7], 0, li, 0, 1); }
+    else if (k === 2) for (let i = 0; i < 5; i++) { const a = (i / 4 - 0.5) * 1.6; B.cone(vadd(hc, [Math.sin(a) * hs * 0.5, hs * 0.75, -hs * 0.1]), [Math.sin(a), 1, -0.3], hs * (0.6 + r() * 0.5), hs * 0.12, 4, 3, li, li); }
+    else if (k === 3) B.blob(vadd(hc, [0, hs * 0.55, -hs * 0.15]), [hs * 0.95, hs * 0.65, hs * 0.95], 0, li, 0.2, 1);
+  };
+  let H, top;
+  if (plan === 'human' || plan === 'bighead' || plan === 'twohead') {
+    H = (plan === 'bighead' ? 0.5 + r() * 0.2 : 0.8 + r() * 0.45) * (T.leg || 1);
+    const tw = H * 0.4 * (plan === 'bighead' ? 1.3 : 1), th = H * 0.75 * (plan === 'bighead' ? 0.8 : 1);
+    const hs = plan === 'bighead' ? H * (0.6 + r() * 0.2) * (T.head || 1) : H * 0.27 * (alien ? 1 + r() * 0.6 : 0.9 + r() * 0.2) * (T.head || 1);
+    legs(H, tw * 0.25, tw * 0.13);
+    B.blob([0, H + th * 0.45, 0], [tw * 0.5, th * 0.56, tw * 0.33], 0, 0, 0.05);
+    if (r() < 0.55) B.cone([0, H + th * 0.25, 0], [0, -1, 0], H * 0.8, tw * (0.55 + r() * 0.2), 9, 0, 0, 0);
+    for (const sx of [-1, 1]) arm([sx * tw * 0.48, H + th * 0.85, 0], [sx * tw * 0.66, H + th * 0.2, tw * 0.12], tw * 0.1);
+    if (r() < 0.65) B.blob([tw * 0.7, H + th * 0.05, tw * 0.18], [tw * 0.13, tw * 0.17, tw * 0.13], 3, 0, 0, 1);
+    const ny = H + th, heads = plan === 'twohead' ? [-1, 1] : [0];
+    for (const hx of heads) {
+      const h2 = heads.length > 1 ? hs * 0.85 : hs, hc = [hx * h2 * 0.95, ny + h2 * 0.95, h2 * 0.1];
+      B.tube([hx * tw * 0.2, ny - 0.03, 0], [hc[0] * 0.9, ny + h2 * 0.3, 0], tw * 0.12, tw * 0.1, 5, 1, 7, 7);
+      face(hc, [h2 * 0.8, h2, h2 * 0.85], 7, plan === 'bighead' && r() < 0.5 ? 1 : 0);
+      if (plan === 'bighead') for (const sx of [-1, 1]) B.blob(vadd(hc, [sx * h2 * 0.82, h2 * 0.1, 0]), [h2 * 0.12, h2 * 0.35, h2 * 0.25], 1, 7, 0, 1);
+      if (alien && r() < 0.6) antennae(hc, h2, 7); else hat(hc, h2, 7);
+      top = hc[1] + h2;
+    }
+    Object.assign(C, { hipY: H, neckY: ny, walk: plan === 'bighead' ? 0.8 : 1.1, stride: H * 1.2 });
+  } else if (plan === 'stalk') {
+    H = (1.9 + r() * 1.1) * (T.leg || 1); const th = 0.45, hs = 0.17 * (T.head || 1) * (1 + r() * 0.3);
+    legs(H, 0.07, 0.035, 1.4);
+    B.blob([0, H + th * 0.45, 0], [0.16, th * 0.55, 0.12], 0, 0, 0.05);
+    for (const sx of [-1, 1]) { const el = [sx * 0.24, H + th * 0.3, 0.05]; B.tube([sx * 0.13, H + th * 0.85, 0], el, 0.03, 0.025, 5, 0, 0, 0); arm(el, [sx * 0.28, H - 0.5, 0.12], 0.025, 1); }
+    const nk = H + th + 0.35 + r() * 0.4, hc = [0, nk + hs, 0.05];
+    B.tube([0, H + th - 0.02, 0], [0, nk, 0.03], 0.035, 0.03, 5, 1, 7, 7);
+    face(hc, [hs * 0.9, hs * 1.15, hs * 0.85], 7);
+    if (r() < 0.6) antennae(hc, hs, 7); else hat(hc, hs, 7);
+    top = hc[1] + hs * 1.2;
+    Object.assign(C, { hipY: H, neckY: H + th, walk: 1.5, stride: H * 0.9 });
+  } else if (plan === 'bulb') {
+    const R = (0.42 + r() * 0.2) * (T.head || 1); H = 0.22 + r() * 0.12;
+    legs(H + R * 0.25, R * 0.38, R * 0.17, 1.3);
+    const c = [0, H + R, 0];
+    B.blob([0, H + R * 0.62, 0], [R * 1.03, R * 0.5, R * 0.98], 0, 0, 0.04, 1);
+    face(c, [R, R * 0.98, R * 0.95], 0);
+    for (const sx of [-1, 1]) arm([sx * R * 0.92, H + R * 0.9, 0], [sx * R * 1.25, H + R * 0.55, R * 0.25], R * 0.11, 1);
+    const k = Math.floor(r() * 4), tp = [0, H + R * 1.95, 0];
+    if (k === 0) { B.tube(tp, vadd(tp, [0, R * 0.4, 0]), R * 0.05, R * 0.04, 4, 1, 0, 0); B.leaf(vadd(tp, [0, R * 0.38, 0]), [1, 0.6, 0.2], R * 0.6, R * 0.35, 0.1, 0, 0); B.leaf(vadd(tp, [0, R * 0.38, 0]), [-1, 0.6, -0.2], R * 0.5, R * 0.3, 0.1, 0, 0); }
+    else if (k === 1) antennae(c, R * 0.6, 0);
+    else if (k === 2) for (let i = 0; i < 6; i++) B.cone(vadd(tp, [(r() - 0.5) * R * 0.5, -R * 0.08, (r() - 0.5) * R * 0.5]), [r() - 0.5, 1, r() - 0.5], R * (0.3 + r() * 0.3), R * 0.08, 4, 0, 0, 0);
+    else hat(c, R * 0.75, 0);
+    top = H + R * 2.3;
+    Object.assign(C, { hipY: H + R * 0.25, neckY: top, walk: 0.9, stride: H * 2 + 0.35, squash: 0.07 });
+  } else if (plan === 'squid') {
+    H = 0.7 + r() * 0.3; const M = (0.36 + r() * 0.14) * (T.head || 1);
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * TAU + 0.26; let prev = [Math.cos(a) * M * 0.45, H + 0.05, Math.sin(a) * M * 0.45];
+      for (let i = 1; i <= 4; i++) { const t = i / 4, rr = M * (0.45 + t * 0.85), p = [Math.cos(a) * rr, (H + 0.05) * (1 - t) + 0.03 + (i === 4 ? 0.06 : 0), Math.sin(a) * rr]; B.tube(prev, p, M * 0.13 * (1.15 - t * 0.55), M * 0.13 * (1 - t * 0.6), 5, 1, k + 1, k + 1); prev = p; }
+      B.cone(prev, [Math.cos(a), 0.9, Math.sin(a)], M * 0.25, M * 0.05, 4, 1, k + 1, k + 1);
+    }
+    B.blob([0, H + M * 0.15, 0], [M * 0.95, M * 0.32, M * 0.95], 0, 0, 0.06, 1);
+    const hc = [0, H + M * 0.75, 0];
+    B.blob([0, H + M * 1.35, -M * 0.1], [M * 0.92, M * 1.35, M * 0.92], 1, 0, 0.06, 1);
+    face(hc, [M * 0.88, M * 0.75, M * 0.9], 0);
+    for (let i = 0; i < 7; i++) { const a = r() * Math.PI - Math.PI / 2, y = H + M * (1.4 + r()); B.blob([Math.sin(a) * M * 0.8, y, -Math.cos(a) * M * 0.5 - M * 0.2], [M * 0.08, M * 0.08, M * 0.08], 3, 0, 0, 0); }
+    top = H + M * 2.7;
+    Object.assign(C, { hipY: H, neckY: top, walk: 0.85, stride: H * 0.9 });
+  } else if (plan === 'insect') {
+    H = (0.75 + r() * 0.3) * (T.leg || 1);
+    for (const [z, l0] of [[0.14, 1], [-0.14, 3]]) for (const [sx, d] of [[-1, 0], [1, 1]]) { const li = l0 + d, hip = [sx * 0.1, H, z], knee = [sx * 0.36, H + 0.12, z * 1.4], foot = [sx * 0.42, 0.02, z * 1.6]; B.tube(hip, knee, 0.04, 0.032, 5, 0, li, li); B.tube(knee, foot, 0.032, 0.018, 5, 0, li, li); }
+    B.blob([0, H + 0.05, -0.36], [0.2, 0.19, 0.36], 0, 0, 0.04, 1);
+    B.blob([0, H + 0.36, 0.04], [0.16, 0.3, 0.14], 0, 0, 0.04, 1);
+    for (const y of [0.55, 0.3]) for (const sx of [-1, 1]) { const el = [sx * 0.3, H + y - 0.12, 0.12]; B.tube([sx * 0.12, H + y, 0.05], el, 0.03, 0.025, 4, 0, 0, 0); arm(el, [sx * 0.26, H + y - 0.32, 0.28], 0.022, 1); }
+    const hc = [0, H + 0.82, 0.08], hs = 0.16 * (T.head || 1);
+    B.tube([0, H + 0.62, 0.04], [0, H + 0.72, 0.06], 0.05, 0.045, 5, 1, 7, 7);
+    B.blob(hc, [hs, hs * 0.9, hs], 1, 7, 0.03, 1);
+    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * hs * 0.72, hs * 0.15, hs * 0.45]), [hs * 0.45, hs * 0.55, hs * 0.4], 5, 7, 0, 1); B.blob(vadd(hc, [sx * hs * 0.8, hs * 0.38, hs * 0.75]), [hs * 0.1, hs * 0.1, hs * 0.06], 4, 7, 0, 0); B.cone(vadd(hc, [sx * hs * 0.25, -hs * 0.6, hs * 0.7]), [-sx * 0.4, -0.6, 1], hs * 0.45, hs * 0.08, 4, 5, 7, 7); }
+    antennae(hc, hs, 7);
+    top = hc[1] + hs * 2.2;
+    Object.assign(C, { hipY: H, neckY: H + 0.62, walk: 1.2, stride: H * 1.1 });
+  } else if (plan === 'floater') {
+    const hv = 0.45 + r() * 0.35;
+    B.cone([0, hv + 0.5, 0], [0, -1, 0], 0.5, 0.26, 9, 0, 0, 0);
+    B.blob([0, hv + 0.65, 0], [0.28, 0.3, 0.25], 0, 0, 0.03, 1);
+    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; B.blob([Math.cos(a) * 0.45, hv + 0.35, Math.sin(a) * 0.45], [0.05, 0.05, 0.05], 3, 0, 0, 0); }
+    for (const sx of [-1, 1]) arm([sx * 0.26, hv + 0.85, 0], [sx * 0.34, hv + 0.35, 0.1], 0.04, 1);
+    const hs = 0.25 * (T.head || 1), hc = [0, hv + 1.15 + hs * 0.5, 0.03];
+    face(hc, [hs * 0.9, hs, hs * 0.9], 7);
+    if (r() < 0.5) for (let i = 0; i < 3; i++) B.blob(vadd(hc, [Math.cos(i * 2.1) * hs * 1.6, hs * 0.9 + i * 0.05, Math.sin(i * 2.1) * hs * 1.6]), [hs * 0.16, hs * 0.16, hs * 0.16], 3, 7, 0, 1);
+    else hat(hc, hs, 7);
+    top = hc[1] + hs * 1.4;
+    Object.assign(C, { hipY: 0.01, neckY: hv + 1.0, walk: 1.0, stride: 1.2, squash: 0.05 });
+  } else if (plan === 'robot') {
+    H = (0.8 + r() * 0.4) * (T.leg || 1);
+    for (const [sx, li] of [[-1, 1], [1, 2]]) { B.tube([sx * 0.13, H + 0.05, 0], [sx * 0.14, H * 0.5, 0.02], 0.06, 0.05, 6, 5, li, li); B.blob([sx * 0.14, H * 0.5, 0.02], [0.07, 0.07, 0.07], 1, li, 0, 0); B.tube([sx * 0.14, H * 0.5, 0.02], [sx * 0.15, 0.06, 0], 0.05, 0.05, 6, 5, li, li); B.blob([sx * 0.15, 0.05, 0.05], [0.09, 0.05, 0.15], 1, li, 0, 0); }
+    B.blob([0, H + 0.38, 0], [0.32, 0.36, 0.22], 0, 0, 0, 0);
+    B.blob([0, H + 0.42, 0.18], [0.09, 0.09, 0.05], 3, 0, 0, 1);
+    for (const sx of [-1, 1]) { B.blob([sx * 0.33, H + 0.66, 0], [0.09, 0.09, 0.09], 1, 0, 0, 0); arm([sx * 0.35, H + 0.62, 0], [sx * 0.4, H + 0.12, 0.08], 0.045, 5); }
+    const hs = 0.22 * (T.head || 1), hc = [0, H + 0.92 + hs * 0.5, 0];
+    B.tube([0, H + 0.72, 0], [0, H + 0.85, 0], 0.06, 0.06, 6, 5, 7, 7);
+    B.blob(hc, [hs * 1.05, hs * 0.85, hs * 0.9], 1, 7, 0, 0);
+    if (r() < 0.5) B.blob(vadd(hc, [0, hs * 0.08, hs * 0.75]), [hs * 0.8, hs * 0.2, hs * 0.2], 3, 7, 0, 1);
+    else B.blob(vadd(hc, [0, hs * 0.1, hs * 0.72]), [hs * 0.38, hs * 0.38, hs * 0.2], 3, 7, 0, 1);
+    for (let i = -2; i <= 2; i++) B.blob(vadd(hc, [i * hs * 0.14, -hs * 0.45, hs * 0.75]), [hs * 0.04, hs * 0.1, hs * 0.04], 5, 7, 0, 0);
+    const tip = vadd(hc, [hs * 0.3, hs * 1.7, 0]); B.tube(vadd(hc, [hs * 0.3, hs * 0.7, 0]), tip, 0.015, 0.012, 4, 5, 7, 7); B.blob(tip, [0.05, 0.05, 0.05], 3, 7, 0, 1);
+    top = tip[1];
+    Object.assign(C, { hipY: H, neckY: H + 0.72, walk: 1.0, stride: H * 1.1 });
+  } else if (plan === 'plant') {
+    H = (0.75 + r() * 0.4) * (T.leg || 1); const th = H * 0.8;
+    for (const [sx, li] of [[-1, 1], [1, 2]]) { const ft = [sx * 0.13, 0.03, 0]; B.tube([sx * 0.11, H + 0.05, 0], ft, 0.07, 0.05, 6, 1, li, li); for (const a of [-0.8, 0, 0.8]) B.cone(vadd(ft, [0, 0.05, 0]), [Math.sin(a) + sx * 0.4, -0.25, Math.cos(a)], 0.2, 0.03, 4, 1, li, li); }
+    B.tube([0, H, 0], [0, H + th, 0], 0.17, 0.12, 8, 1, 0, 0);
+    for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; B.leaf([Math.cos(a) * 0.12, H + th * 0.35, Math.sin(a) * 0.12], [Math.cos(a), -0.6, Math.sin(a)], 0.45, 0.2, -0.05, 0, 0); }
+    for (const sx of [-1, 1]) { const hand = [sx * 0.42, H + th * 0.45, 0.12]; B.tube([sx * 0.1, H + th * 0.85, 0], hand, 0.04, 0.03, 5, 1, 0, 0); B.leaf(hand, [sx * 0.6, 0.4, 0.5], 0.3, 0.16, 0.05, 0, 0); }
+    const hs = 0.24 * (T.head || 1), hc = [0, H + th + hs * 0.9, 0.04];
+    face(hc, [hs * 0.85, hs * 0.9, hs * 0.85], 7);
+    if (r() < 0.6) { for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; B.blob(vadd(hc, [Math.cos(a) * hs * 1.15, Math.sin(a) * hs * 1.15, -hs * 0.35]), [hs * 0.32, hs * 0.32, hs * 0.1], 3, 7, 0, 1); } }
+    else for (let i = 0; i < 7; i++) { const a = (i / 6 - 0.5) * 2.2; B.leaf(vadd(hc, [0, hs * 0.7, -hs * 0.1]), [Math.sin(a), 1.2, -0.3], hs * (1.4 + r()), hs * 0.6, 0.15, 0, 7); }
+    top = hc[1] + hs * 1.6;
+    Object.assign(C, { hipY: H, neckY: H + th, walk: 0.8, stride: H });
+  } else if (plan === 'snail') {
+    B.blob([0, 0.17, -0.05], [0.26, 0.17, 0.62], 1, 0, 0.04, 1);
+    const sc = [0, 0.62, -0.2];
+    for (let i = 0; i < 9; i++) { const a = i * 0.75, k = 1 - i * 0.085, rr = 0.36 * k; B.blob(vadd(sc, [0, Math.sin(a) * 0.22 * k, -Math.cos(a) * 0.22 * k]), [rr * 0.85, rr, rr], i % 2 ? 0 : 2, 0, 0.03, 1); }
+    B.tube([0, 0.25, 0.42], [0, 0.85, 0.5], 0.15, 0.12, 7, 1, 0, 0);
+    const hs = 0.2 * (T.head || 1), hc = [0, 0.95 + hs * 0.5, 0.52];
+    B.blob(hc, [hs * 0.9, hs, hs * 0.85], 1, 7, 0.03, 1);
+    for (const sx of [-1, 1]) { const tip = vadd(hc, [sx * hs * 0.8, hs * 1.9, hs * 0.3]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.6, 0]), tip, hs * 0.08, hs * 0.06, 5, 1, 7, 7); B.blob(tip, [hs * 0.3, hs * 0.3, hs * 0.3], 4, 7, 0, 1); B.blob(vadd(tip, [0, 0, hs * 0.2]), [hs * 0.16, hs * 0.16, hs * 0.14], 5, 7, 0, 1); }
+    B.tube(vadd(hc, [-hs * 0.35, -hs * 0.35, hs * 0.75]), vadd(hc, [hs * 0.35, -hs * 0.35, hs * 0.75]), hs * 0.06, hs * 0.06, 4, 5, 7, 7);
+    for (const sx of [-1, 1]) arm([sx * 0.13, 0.75, 0.52], [sx * 0.3, 0.5, 0.66], 0.035, 1);
+    top = hc[1] + hs * 2.4;
+    Object.assign(C, { hipY: 0.01, neckY: 0.85, walk: 0.6, stride: 0.6, squash: 0.06 });
+  } else if (plan === 'bird') {
+    H = (0.65 + r() * 0.3) * (T.leg || 1);
+    for (const [sx, li] of [[-1, 1], [1, 2]]) { const hip = [sx * 0.12, H + 0.1, 0], knee = [sx * 0.13, H * 0.5, -0.16], foot = [sx * 0.13, 0.03, 0.02]; B.tube(hip, knee, 0.05, 0.035, 5, 6, li, li); B.tube(knee, foot, 0.035, 0.025, 5, 6, li, li); for (const a of [-0.5, 0, 0.5]) B.cone(foot, [Math.sin(a), -0.05, Math.cos(a)], 0.14, 0.02, 3, 6, li, li); }
+    B.blob([0, H + 0.38, 0], [0.3, 0.38, 0.27], 0, 0, 0.06, 1);
+    for (const sx of [-1, 1]) { B.leaf([sx * 0.27, H + 0.6, 0], [sx * 0.35, -1, -0.15], 0.6, 0.32, -0.02, 0, 0); B.leaf([sx * 0.28, H + 0.55, -0.04], [sx * 0.25, -1, -0.3], 0.5, 0.26, -0.02, 0, 0); }
+    for (let k = -1; k <= 1; k++) B.leaf([0, H + 0.2, -0.22], [k * 0.4, -0.2, -1], 0.4, 0.16, 0.05, 0, 0);
+    const hs = 0.21 * (T.head || 1), hc = [0, H + 0.82 + hs * 0.5, 0.05];
+    B.tube([0, H + 0.68, 0], [0, H + 0.82, 0.03], 0.09, 0.08, 6, 0, 7, 7);
+    B.blob(hc, [hs * 0.95, hs, hs * 0.95], 0, 7, 0.03, 1);
+    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * hs * 0.5, hs * 0.2, hs * 0.65]), [hs * 0.26, hs * 0.28, hs * 0.18], 4, 7, 0, 1); B.blob(vadd(hc, [sx * hs * 0.52, hs * 0.22, hs * 0.8]), [hs * 0.13, hs * 0.15, hs * 0.1], 5, 7, 0, 1); }
+    B.cone(vadd(hc, [0, -hs * 0.1, hs * 0.8]), [0, -0.3, 1], hs * (0.6 + r() * 0.9), hs * 0.22, 6, 2, 7, 7);
+    for (let i = 0; i < 4; i++) B.cone(vadd(hc, [0, hs * 0.75, -hs * 0.1 - i * hs * 0.15]), [0, 1, -0.4 - i * 0.35], hs * (0.6 + r() * 0.5), hs * 0.1, 4, 3, 7, 7);
+    top = hc[1] + hs * 1.5;
+    Object.assign(C, { hipY: H, neckY: H + 0.68, walk: 1.2, stride: H * 1.3 });
+  } else {
+    // crystal folk: glowing shards for a body
+    H = (0.75 + r() * 0.35) * (T.leg || 1);
+    legs(H, 0.11, 0.06);
+    B.blob([0, H + 0.4, 0], [0.24, 0.42, 0.18], 0, 0, 0.25, 0);
+    for (let i = 0; i < 8; i++) { const a = r() * TAU; B.cone([Math.cos(a) * 0.15, H + 0.2 + r() * 0.5, Math.sin(a) * 0.12], [Math.cos(a), 0.8 + r(), Math.sin(a)], 0.2 + r() * 0.3, 0.05, 5, 3, 0, 0); }
+    for (const sx of [-1, 1]) arm([sx * 0.22, H + 0.7, 0], [sx * 0.34, H + 0.15, 0.1], 0.045, 0);
+    const hs = 0.23 * (T.head || 1), hc = [0, H + 0.95 + hs * 0.6, 0.03];
+    B.tube([0, H + 0.75, 0], [0, H + 0.95, 0], 0.06, 0.05, 5, 1, 7, 7);
+    B.blob(hc, [hs * 0.9, hs * 1.05, hs * 0.85], 1, 7, 0.2, 0); addFace(B, r, hc, [hs * 0.9, hs * 1.05, hs * 0.85], alien, 7, T.eyes);
+    for (let i = 0; i < 5; i++) { const a = (i / 4 - 0.5) * 1.8; B.cone(vadd(hc, [Math.sin(a) * hs * 0.5, hs * 0.75, -hs * 0.1]), [Math.sin(a), 1, -0.2], hs * (0.6 + r() * 0.8), hs * 0.14, 5, 3, 7, 7); }
+    top = hc[1] + hs * 1.6;
+    Object.assign(C, { hipY: H, neckY: H + 0.75, walk: 1.0, stride: H * 1.15 });
+  }
+  if (o.pack && r() < 0.5) B.blob([0, (C.neckY + C.hipY) * 0.55, -0.25], [0.2, 0.25, 0.14], 0, 0, 0.1, 1);
+  Object.assign(C, { neckZ: 0, grazeA: 0.35, run: 3, beh: 'village', shy: 0, w: 0, herd: [1, 1], height: top, rad: 0.4 });
+  C.scale = (o.weird ? 0.65 + r() * 1.0 : 0.9 + r() * 0.25) * (T.size || 1);
+}
 function makeCreature(r, o) {
   const kind = o.kind || 'quad', alien = !!o.alien, woolly = !!o.woolly, titan = !!o.titan;
   const B = meshBuilder(Math.floor(r() * 1e9));
+  B.hq = kind === 'swarm' || kind === 'bird' || o.villager ? 0 : 1;
   const C = { kind, hipY: 1, neckY: 1, neckZ: 0.5, grazeA: 1.25, wave: 0, waveK: 1, squash: 0, hop: 0, roll: 0, pitch: 0, fly: null, herd: null, scale: 1, walk: 1, run: 5, stride: 1, flap: 0, beh: 'graze', shy: 1, w: 1, side: false, height: 1, rad: 1 };
   let size = 1;
   if (kind === 'quad' || kind === 'tripod' || kind === 'giant') {
@@ -2291,23 +2498,7 @@ function makeCreature(r, o) {
     else { C.scale = alien ? 1 + r() * 1.3 : 1 + r() * 0.3; if (r() < 0.25) { C.beh = 'curious'; C.shy = 0; } }
     size = L + legL;
   } else if (kind === 'biped' && o.villager) {
-    const H = 0.8 + r() * 0.45, tw = H * 0.4, th = H * 0.75, hs = H * 0.27 * (alien ? 1 + r() * 0.6 : 0.9 + r() * 0.2);
-    for (const [sx, li] of [[-1, 1], [1, 2]]) {
-      B.tube([sx * tw * 0.25, H + 0.05, 0], [sx * tw * 0.27, 0.03, 0], tw * 0.13, tw * 0.1, 5, 1, li, li);
-      B.blob([sx * tw * 0.27, 0.04, tw * 0.08], [tw * 0.13, tw * 0.07, tw * 0.2], 0, li, 0, 0);
-    }
-    B.blob([0, H + th * 0.45, 0], [tw * 0.5, th * 0.56, tw * 0.33], 0, 0, 0.05);
-    if (r() < 0.55) B.cone([0, H + th * 0.25, 0], [0, -1, 0], H * 0.8, tw * (0.55 + r() * 0.2), 9, 0, 0, 0);
-    for (const sx of [-1, 1]) { const hand = [sx * tw * 0.66, H + th * 0.2, tw * 0.12]; B.tube([sx * tw * 0.48, H + th * 0.85, 0], hand, tw * 0.1, tw * 0.08, 5, 0, 0, 0); B.blob(hand, [tw * 0.09, tw * 0.09, tw * 0.09], 1, 0, 0, 0); }
-    if (r() < 0.65) B.blob([tw * 0.7, H + th * 0.05, tw * 0.18], [tw * 0.13, tw * 0.17, tw * 0.13], 3, 0, 0, 1);
-    const ny = H + th, hc = [0, ny + hs * 0.95, hs * 0.1];
-    B.tube([0, ny - 0.03, 0], [0, ny + hs * 0.3, 0], tw * 0.12, tw * 0.1, 5, 1, 7, 7);
-    B.blob(hc, [hs * 0.8, hs, hs * 0.85], 1, 7, 0.05, 1);
-    addFace(B, r, hc, [hs * 0.8, hs, hs * 0.85], alien, 7);
-    if (alien) { for (const sx of [-1, 1]) { if (r() < 0.6) { const tip = vadd(hc, [sx * hs * 0.5, hs * 1.6, 0]); B.tube(vadd(hc, [sx * hs * 0.3, hs * 0.8, 0]), tip, hs * 0.05, hs * 0.04, 4, 1, 7, 7); B.blob(tip, [hs * 0.12, hs * 0.12, hs * 0.12], 3, 7, 0, 0); } } }
-    if (r() < 0.5) B.cone(vadd(hc, [0, hs * 0.7, 0]), [0, 1, r() * 0.3], hs * (0.9 + r() * 1.5), hs * (0.8 + r() * 0.3), 8, 0, 7, 7);
-    Object.assign(C, { hipY: H, neckY: ny, neckZ: 0, grazeA: 0.35, walk: 1.1, run: 3, stride: H * 1.2, beh: 'village', shy: 0, w: 0, herd: [1, 1], height: ny + hs * 2, rad: 0.4 });
-    C.scale = o.weird ? 0.6 + r() * 1.2 : 0.9 + r() * 0.25; size = C.height;
+    buildPerson(B, r, C, o); size = C.height;
   } else if (kind === 'biped') {
     const H = 0.6 + r() * 1.8, legL = H, L = H * (0.7 + r() * 0.5), bh = L * 0.4, neck = L * (0.3 + r() * 0.9), na = 0.2 + r() * 0.7;
     B.blob([0, legL + bh * 0.3, 0], [bh * 0.45, bh * 0.5, L * 0.5], 0, 0, 0.1);
@@ -2449,9 +2640,141 @@ function makeCreature(r, o) {
     Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, walk: 5 + L * 2, run: 9 + L * 3, stride: 1, flap: 1, beh: 'fly', fly: o.high ? [20, 90] : [3, 22], height: L * 0.2, rad: L * 0.6 });
     C.herd = pick(r, [[1, 3], [4, 14], [15, 60]]);
     C.scale = (1 + r() * (alien ? 2.5 : 1)) * (o.high ? 3 : 1); size = L * 0.6;
+  } else if (kind === 'hydra') {
+    // many-headed grazer: every neck nods down to feed together
+    const L = 1.2 + r() * 1.3, bh = L * 0.42, bw = bh * 0.95, legL = L * (0.45 + r() * 0.35), bodyY = legL + bh * 0.42, lx = bw * 0.32, legR = L * 0.06;
+    B.blob([0, bodyY, 0], [bw / 2, bh / 2, L / 2], 0, 0, 0.12);
+    let li = 1;
+    for (const z of [L * 0.3, -L * 0.3]) for (const sx of [-1, 1]) { B.tube([sx * lx, legL + bh * 0.15, z], [sx * lx * 1.1, 0.02, z], legR, legR * 0.75, 5, 1, li, li); B.blob([sx * lx * 1.1, 0.03, z + legR * 0.4], [legR * 1.2, legR * 0.7, legR * 1.6], 2, li, 0.05, 0); li++; }
+    const nh = 3 + Math.floor(r() * 5), neck = L * (0.7 + r() * 0.8), base = [0, bodyY + bh * 0.2, L * 0.38], hs = bh * (0.3 + r() * 0.12);
+    for (let k = 0; k < nh; k++) {
+      const a = (k / (nh - 1) - 0.5) * 1.5, len = neck * (0.8 + r() * 0.4);
+      const mid = vadd(base, [Math.sin(a) * len * 0.35, len * 0.55, len * 0.25]), tip = vadd(base, [Math.sin(a) * len * 0.6, len * (0.85 + Math.cos(a) * 0.1), len * 0.45]);
+      B.tube(base, mid, bh * 0.13, bh * 0.1, 6, 0, 7, 7); B.tube(mid, tip, bh * 0.1, bh * 0.08, 6, 0, 7, 7);
+      const hc = vadd(tip, [0, hs * 0.2, hs * 0.5]);
+      B.blob(hc, [hs * 0.55, hs * 0.5, hs * 0.85], 1, 7, 0.08);
+      for (const sx of [-1, 1]) {
+        B.blob(vadd(hc, [sx * hs * 0.38, hs * 0.22, hs * 0.35]), [hs * 0.14, hs * 0.14, hs * 0.1], 4, 7, 0, 1); B.blob(vadd(hc, [sx * hs * 0.42, hs * 0.24, hs * 0.42]), [hs * 0.07, hs * 0.08, hs * 0.05], 5, 7, 0, 0);
+        B.cone(vadd(hc, [sx * hs * 0.25, hs * 0.35, -hs * 0.3]), [sx * 0.3, 1, -0.6], hs * (0.5 + r() * 0.6), hs * 0.08, 4, 2, 7, 7);
+      }
+    }
+    B.tube([0, bodyY, -L * 0.45], [0, bodyY - bh * 0.2, -L], bh * 0.15, bh * 0.03, 6, 0, 8, 8);
+    for (let k = 0; k < 5; k++) B.cone([0, bodyY + bh * 0.45, L * (0.3 - k * 0.14)], [0, 1, -0.2], bh * 0.3, bh * 0.08, 4, 3, 0, 0);
+    Object.assign(C, { hipY: legL, neckY: base[1], neckZ: base[2], grazeA: 0.9, walk: 0.8 + L * 0.4, run: 3 + L * 2, stride: legL * 1.3 + 0.2, height: base[1] + neck, rad: L * 0.7, shy: 0.6 });
+    C.scale = 1 + r() * (alien ? 2.5 : 1.2); size = L + legL;
+  } else if (kind === 'eyewalker') {
+    // a giant eyeball striding on spindly legs, glancing down at whatever it finds
+    const R = 0.45 + r() * 0.5, H = R * (2.2 + r() * 2), nl = r() < 0.5 ? 3 : 4, ec = [0, H + R * 0.6, 0];
+    B.blob(ec, [R, R, R], 4, 7, 0.02, 2);
+    B.blob(vadd(ec, [0, 0, R * 0.82]), [R * 0.56, R * 0.56, R * 0.25], 3, 7, 0, 1);
+    B.blob(vadd(ec, [0, 0, R * 0.97]), [R * 0.27, R * 0.3, R * 0.1], 5, 7, 0, 1);
+    B.blob(vadd(ec, [R * 0.15, R * 0.18, R * 1.0]), [R * 0.08, R * 0.08, R * 0.04], 4, 7, 0, 0);
+    B.blob(vadd(ec, [0, R * 0.38, -R * 0.08]), [R * 1.05, R * 0.68, R * 1.05], 0, 7, 0.05, 1);
+    for (let k = 0; k < 6; k++) { const a = k / 6 * TAU, p = vadd(ec, [Math.cos(a) * R * 0.75, Math.sin(a) * R * 0.5 - R * 0.2, R * 0.55]); B.tube(p, vadd(p, [Math.cos(a) * R * 0.2, -R * 0.15, -R * 0.4]), R * 0.025, R * 0.015, 4, 6, 7, 7); }
+    for (let k = 0; k < nl; k++) {
+      const a = k / nl * TAU + 0.4, c = Math.cos(a), s = Math.sin(a), li = [1, 2, 5, 6][k];
+      const hip = [c * R * 0.5, H, s * R * 0.5], knee = [c * R * 1.8, H + R * 0.9, s * R * 1.8], foot = [c * R * 2.4, 0.02, s * R * 2.4];
+      B.tube(hip, knee, R * 0.09, R * 0.07, 5, 1, li, li); B.tube(knee, foot, R * 0.07, R * 0.03, 5, 1, li, li); B.blob(knee, [R * 0.1, R * 0.1, R * 0.1], 1, li, 0, 0);
+    }
+    Object.assign(C, { hipY: H, neckY: ec[1], neckZ: 0, grazeA: 0.6, walk: 0.7 + H * 0.2, run: 2 + H, stride: H * 0.7, height: H + R * 1.6, rad: R * 2.4, shy: 0.5, herd: [1, 4] });
+    if (r() < 0.5) { C.beh = 'curious'; C.shy = 0; }
+    C.scale = 1 + r() * (alien ? 2 : 1); size = H + R;
+  } else if (kind === 'centipede') {
+    const N = 9 + Math.floor(r() * 8), seg = 0.32 + r() * 0.2, R = seg * 0.55, hy = R * 1.6, L = N * seg;
+    for (let i = 0; i < N; i++) {
+      const z = L / 2 - i * seg, t = i / (N - 1), rr = R * (1 - Math.abs(t - 0.3) * 0.5);
+      B.blob([0, hy, z], [rr * 1.1, rr * 0.85, seg * 0.7], i % 2 ? 1 : 0, 9, 0.05, 1);
+      for (const sx of [-1, 1]) { const li = (i * 2 + (sx > 0 ? 1 : 0)) % 6 + 1, knee = [sx * rr * 2.0, hy + rr * 0.6, z], foot = [sx * rr * 2.6, 0.02, z + seg * 0.1]; B.tube([sx * rr * 0.8, hy, z], knee, rr * 0.16, rr * 0.12, 4, 1, li, li); B.tube(knee, foot, rr * 0.12, rr * 0.05, 4, 1, li, li); }
+      if (alien && i % 2 === 0) B.cone([0, hy + rr * 0.7, z], [0, 1, -0.3], rr * 0.9, rr * 0.18, 4, 3, 9, 9);
+    }
+    const hc = [0, hy + R * 0.1, L / 2 + seg * 0.7];
+    B.blob(hc, [R * 1.1, R * 0.9, R], 0, 9, 0.05, 1);
+    for (const sx of [-1, 1]) {
+      B.blob(vadd(hc, [sx * R * 0.55, R * 0.4, R * 0.65]), [R * 0.25, R * 0.25, R * 0.2], 2, 9, 0, 0);
+      const at = vadd(hc, [sx * R * 0.4, R * 0.7, R * 0.4]); B.tube(at, vadd(at, [sx * R * 1.2, R * 2.5, R * 1.5]), R * 0.06, R * 0.03, 4, 1, 9, 9);
+      B.cone(vadd(hc, [sx * R * 0.5, -R * 0.4, R * 0.8]), [-sx * 0.5, -0.3, 1], R * 0.7, R * 0.12, 4, 5, 9, 9);
+    }
+    Object.assign(C, { hipY: hy, neckY: hy, neckZ: L / 2, grazeA: 0, wave: R * 0.35, waveK: TAU * 1.2 / L, walk: 0.8 + L * 0.25, run: 3 + L * 0.8, stride: seg * 2.5, height: hy + R, rad: L * 0.5, herd: [1, 3] });
+    C.scale = 1 + r() * (alien ? 3 : 1.2); size = L * 0.5;
+  } else if (kind === 'jelly') {
+    // sky jellyfish drifting over the land, pulsing and trailing tentacles
+    const R = 1 + r() * 1.5, tl = R * (2.5 + r() * 3);
+    B.blob([0, 0, 0], [R, R * (0.55 + r() * 0.3), R], 2, 0, 0.04, 2);
+    B.blob([0, -R * 0.1, 0], [R * 0.6, R * 0.4, R * 0.6], 3, 0, 0.05, 1);
+    for (let k = 0; k < 16; k++) { const a = k / 16 * TAU; B.blob([Math.cos(a) * R * 0.98, -R * 0.05, Math.sin(a) * R * 0.98], [R * 0.08, R * 0.08, R * 0.08], 3, 0, 0, 0); }
+    for (let k = 0, n = 12 + Math.floor(r() * 10); k < n; k++) {
+      const a = k / n * TAU + r() * 0.2, rr = R * (0.6 + r() * 0.35), len = tl * (0.6 + r() * 0.5); let prev = [Math.cos(a) * rr, -R * 0.08, Math.sin(a) * rr];
+      for (let i = 1; i <= 6; i++) { const t = i / 6, p = [prev[0] * 0.97, -R * 0.08 - t * len, prev[2] * 0.97]; B.tube(prev, p, R * 0.035 * (1 - t * 0.6), R * 0.035 * (1 - t * 0.7), 4, 1, 9, 9); prev = p; }
+    }
+    for (let k = 0; k < 4; k++) {
+      const a = k / 4 * TAU; let prev = [Math.cos(a) * R * 0.15, -R * 0.2, Math.sin(a) * R * 0.15];
+      for (let i = 1; i <= 8; i++) { const t = i / 8, p = [Math.cos(a) * R * (0.15 + Math.sin(t * 9) * 0.12), -R * 0.2 - t * tl * 0.6, Math.sin(a) * R * (0.15 + Math.cos(t * 9) * 0.12)]; B.tube(prev, p, R * 0.12 * (1 - t * 0.6), R * 0.12 * (1 - t * 0.65), 5, 0, 9, 9); prev = p; }
+    }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 2, wave: R * 0.25, waveK: TAU / (tl * 0.7), squash: 0.07, beh: 'fly', fly: o.high ? [60, 260] : [4, 30], walk: 1 + R * 0.3, run: 3, stride: 1, shy: 0, height: tl + R, rad: R, herd: pick(r, [[1, 3], [3, 10], [8, 25]]) });
+    if (o.titan) { C.scale = 12 + r() * 25; C.fly = [150, 450]; C.herd = [1, 2]; C.w = 0.3; } else C.scale = (1 + r() * (alien ? 2 : 1)) * (o.high ? 3 : 1);
+    size = R * 2;
+  } else if (kind === 'stacker') {
+    // a hopping totem of round critters, every one with its own face
+    const n = 3 + Math.floor(r() * 4), R0 = 0.35 + r() * 0.3; let y = 0;
+    for (let i = 0; i < n; i++) {
+      const R = R0 * (1 - i * 0.1), c = [0, y + R, 0];
+      B.blob(c, [R, R * 0.9, R], i % 2 ? 1 : 0, 0, 0.05, 1);
+      addFace(B, r, c, [R, R * 0.9, R], alien, 0, i === n - 1 ? 0 : pick(r, [1, 2, 3]));
+      y += R * 1.7;
+    }
+    for (const sx of [-1, 1]) B.blob([sx * R0 * 0.5, 0.06, R0 * 0.3], [R0 * 0.3, R0 * 0.15, R0 * 0.45], 1, 0, 0, 1);
+    const tip = [0, y + R0 * 0.8, 0]; B.tube([0, y - R0 * 0.2, 0], tip, R0 * 0.05, R0 * 0.04, 4, 1, 0, 0); B.blob(tip, [R0 * 0.18, R0 * 0.18, R0 * 0.18], 3, 0, 0, 1);
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, squash: 0.12, hop: R0 * 0.8, walk: 1 + R0, run: 3 + R0 * 3, stride: R0 * 2.5, height: y + R0, rad: R0, shy: 0.4 });
+    if (r() < 0.5) { C.beh = 'curious'; C.shy = 0; }
+    C.scale = 1 + r() * (alien ? 1.5 : 0.6); size = y;
+  } else if (kind === 'spider') {
+    const R = 0.3 + r() * 0.4, H = R * (1.3 + r() * 0.8);
+    B.blob([0, H, R * 0.3], [R * 0.7, R * 0.55, R * 0.7], 0, 0, 0.06, 1);
+    B.blob([0, H + R * 0.25, -R * 1.1], [R * 1.05, R * 0.9, R * 1.2], 1, 0, 0.08, 2);
+    for (let k = 0; k < 8; k++) { const ex = (k % 4 - 1.5) * R * 0.18, ey = H + R * (0.25 + Math.floor(k / 4) * 0.18); B.blob([ex, ey, R * 0.95], [R * 0.09, R * 0.09, R * 0.06], k < 2 ? 3 : 5, 0, 0, 0); }
+    for (let k = 0; k < 4; k++) for (const sx of [-1, 1]) {
+      const a = (k / 3 - 0.5) * 2.0, li = (k * 2 + (sx > 0 ? 1 : 0)) % 6 + 1, dx = Math.cos(a) * sx, dz = Math.sin(a);
+      const hip = [sx * R * 0.5, H, R * 0.3 + dz * R * 0.3], knee = [hip[0] + dx * R * 1.6, H + R * 1.3, hip[2] + dz * R * 1.8], foot = [hip[0] + dx * R * 3.0, 0.02, hip[2] + dz * R * 3.2];
+      B.tube(hip, knee, R * 0.09, R * 0.07, 5, 1, li, li); B.tube(knee, foot, R * 0.07, R * 0.025, 5, 1, li, li);
+    }
+    Object.assign(C, { hipY: H, neckY: H, neckZ: R, grazeA: 0, walk: 1 + R * 3, run: 5 + R * 8, stride: R * 3, height: H + R * 1.4, rad: R * 3, shy: 1.2, herd: [1, 6] });
+    C.scale = 1 + r() * (alien ? 3 : 1); size = R * 4;
+  } else if (kind === 'manta') {
+    // sky rays gliding low over the hills with slow wingbeats
+    const L = 2 + r() * 3, sp = L * (1.6 + r() * 0.8), n = [0, 1, 0];
+    B.blob([0, 0, 0], [L * 0.22, L * 0.1, L * 0.5], 0, 0, 0.03, 1);
+    for (const sx of [-1, 1]) {
+      const fr = [sx * L * 0.12, 0.01, L * 0.42], bk = [sx * L * 0.12, 0.01, -L * 0.4], mid = [sx * sp * 0.25, 0.02, L * 0.15], tip = [sx * sp * 0.5, 0.03, -L * 0.1], midB = [sx * sp * 0.22, 0.02, -L * 0.3];
+      B.tri(fr, mid, bk, n, n, n, 1, 10, 10, 10); B.tri(mid, tip, midB, n, n, n, 1, 10, 10, 10); B.tri(mid, midB, bk, n, n, n, 1, 10, 10, 10);
+      for (let k = 0; k < 4; k++) B.blob([sx * sp * (0.12 + k * 0.08), 0.04, L * (0.05 - k * 0.04)], [L * 0.04, L * 0.015, L * 0.04], 3, 10, 0, 0);
+      B.cone([sx * L * 0.12, 0, L * 0.45], [sx * 0.2, -0.1, 1], L * 0.3, L * 0.05, 4, 1, 0, 0);
+      B.blob([sx * L * 0.15, L * 0.05, L * 0.42], [L * 0.04, L * 0.04, L * 0.04], 2, 0, 0, 0);
+    }
+    B.tube([0, 0, -L * 0.45], [0, 0, -L * 1.6], L * 0.04, L * 0.008, 4, 1, 8, 8);
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 3, flap: 1, beh: 'fly', fly: o.high ? [40, 200] : [5, 45], walk: 4 + L, run: 9 + L * 2, stride: 1, height: L * 0.2, rad: sp * 0.5, herd: pick(r, [[1, 2], [3, 8]]) });
+    C.scale = (1 + r() * (alien ? 3 : 1.5)) * (o.high ? 3 : 1); size = sp;
+  } else if (kind === 'snail') {
+    // shell-backed giants carrying tiny gardens
+    const L = 0.6 + r() * 0.9, sc = [0, L * 0.85, -L * 0.25];
+    B.blob([0, L * 0.2, 0], [L * 0.38, L * 0.22, L], 1, 0, 0.04, 1);
+    for (let i = 0, t = 9 + Math.floor(r() * 4); i < t; i++) { const a = i * 0.7, k = 1 - i * 0.075, rr = L * 0.5 * k; B.blob(vadd(sc, [0, Math.sin(a) * L * 0.32 * k, -Math.cos(a) * L * 0.32 * k]), [rr * 0.8, rr, rr], i % 2 ? 0 : 3, 0, 0.04, 1); }
+    if (r() < 0.6) for (let k = 0; k < 6; k++) { const p = vadd(sc, [(r() - 0.5) * L * 0.4, L * 0.45, (r() - 0.5) * L * 0.5]); B.tube(p, vadd(p, [0, L * 0.25, 0]), L * 0.015, L * 0.01, 4, 1, 0, 0); B.blob(vadd(p, [0, L * 0.27, 0]), [L * 0.06, L * 0.05, L * 0.06], 2, 0, 0, 0); }
+    const hc = [0, L * 0.35, L * 0.95];
+    for (const sx of [-1, 1]) { const tip = vadd(hc, [sx * L * 0.15, L * 0.55, L * 0.1]); B.tube(vadd(hc, [sx * L * 0.08, 0, 0]), tip, L * 0.035, L * 0.025, 5, 1, 7, 7); B.blob(tip, [L * 0.07, L * 0.07, L * 0.07], 4, 7, 0, 1); B.blob(vadd(tip, [0, 0, L * 0.05]), [L * 0.035, L * 0.035, L * 0.03], 5, 7, 0, 0); }
+    Object.assign(C, { hipY: 0.01, neckY: L * 0.35, neckZ: L * 0.8, grazeA: 0.4, squash: 0.05, walk: 0.3 + L * 0.2, run: 0.8 + L * 0.5, stride: L, height: L * 1.4, rad: L, shy: 0.3 });
+    C.scale = 1 + r() * (alien ? 4 : 1.5); size = L * 1.5;
+  } else if (kind === 'hoop') {
+    // a living wheel that rolls across the plains, its eyes spinning with it
+    const R = 0.5 + r() * 0.8, w = R * 0.16;
+    for (let k = 0; k < 24; k++) { const a = k / 24 * TAU; B.blob([0, R + Math.cos(a) * R, Math.sin(a) * R], [w * 1.2, w, w], k % 3 ? 0 : 3, 0, 0.05, 1); }
+    for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; B.tube([0, R, 0], [0, R + Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92], w * 0.25, w * 0.2, 4, 1, 0, 0); }
+    B.blob([0, R, 0], [R * 0.3, R * 0.3, R * 0.3], 1, 0, 0.03, 1);
+    for (const sx of [-1, 1]) { B.blob([sx * R * 0.27, R, 0], [R * 0.06, R * 0.17, R * 0.17], 4, 0, 0, 1); B.blob([sx * R * 0.32, R, R * 0.04], [R * 0.03, R * 0.08, R * 0.08], 5, 0, 0, 1); }
+    Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, roll: R, walk: 1.5 + R * 2, run: 6 + R * 5, stride: Math.PI * R, height: R * 2, rad: R, shy: 0.8 });
+    C.scale = 1 + r() * (alien ? 2 : 0.8); size = R * 2;
   }
   let c1, c2;
-  const vivid = alien || kind === 'blob' || kind === 'serpent' || kind === 'tripod' || kind === 'roller' || kind === 'swarm' || (r() < 0.4 && kind !== 'biped');
+  const vivid = alien || ['blob', 'serpent', 'tripod', 'roller', 'swarm', 'eyewalker', 'jelly', 'stacker', 'hoop', 'snail', 'spider'].includes(kind) || (r() < 0.4 && kind !== 'biped');
   if (o.villager) { c1 = o.cloth; c2 = o.skin; }
   else if (kind === 'bird' && !alien) { c1 = pick(r, [[0.92, 0.92, 0.9], [0.12, 0.11, 0.12], [0.45, 0.32, 0.2], [0.55, 0.55, 0.58], [0.2, 0.3, 0.55], [0.75, 0.25, 0.15]]); c2 = r() < 0.5 ? vmul(c1, 0.6) : pick(r, [[0.15, 0.15, 0.17], [0.95, 0.95, 0.95], [0.5, 0.38, 0.25]]); }
   else if (titan) { c1 = jit(r, pick(r, [[0.35, 0.32, 0.28], [0.42, 0.34, 0.25], [0.3, 0.3, 0.33]]), 0.15); c2 = alien ? hsv(r(), 0.6, 0.45) : jit(r, [0.2, 0.32, 0.12], 0.2); }
@@ -2493,7 +2816,9 @@ function makeEcology(P, type, r) {
   const flowerSet = [[1, 1, 0.95], [1, 0.85, 0.2], [0.65, 0.4, 1], [1, 0.3, 0.3], [1, 0.55, 0.75], [0.4, 0.6, 1], [1, 0.6, 0.2]];
   const creatures = (n, kinds, alien, o) => { for (let i = 0; i < n; i++) E.creatures.push(makeCreature(r, Object.assign({ kind: pick(r, kinds), alien }, o || {}))); };
   const titans = (p, alien) => { if (r() < p) E.creatures.push(makeCreature(r, { kind: pick(r, ['quad', 'quad', 'tripod', 'stilt']), titan: true, alien })); };
-  const ALL = ['quad', 'quad', 'biped', 'giant', 'flyer', 'flyer', 'blob', 'serpent', 'crab', 'roller', 'stilt', 'burrower', 'swarm', 'tripod'];
+  const ALL = ['quad', 'quad', 'biped', 'giant', 'flyer', 'flyer', 'blob', 'serpent', 'crab', 'roller', 'stilt', 'burrower', 'swarm', 'tripod', 'hydra', 'eyewalker', 'centipede', 'stacker', 'spider', 'snail', 'hoop'];
+  const WEIRD = ['hydra', 'eyewalker', 'centipede', 'stacker', 'snail', 'hoop', 'spider', 'tripod', 'stilt'];
+  const sky = (p, alien, o) => { if (r() < p) creatures(1, ['jelly', 'manta', 'jelly'], alien, o); };
   const shuffled = a => a.slice().sort(() => r() - 0.5);
   if (type === 'terran' || type === 'ocean') {
     if (type === 'terran' || r() < 0.5) add('conifer', { zones: { high: 1, forest: 0.2 }, den: 0.9, scale: [13, 26], tints: tints(P.conifer) });
@@ -2507,6 +2832,8 @@ function makeEcology(P, type, r) {
     E.flowerCols = [pick(r, flowerSet), pick(r, flowerSet), pick(r, flowerSet)];
     E.creatures.push(makeCreature(r, { kind: 'quad', woolly: r() < 0.45 }));
     creatures(3 + Math.floor(r() * 3.5), ALL.filter(k => k !== 'tripod'), false);
+    if (r() < 0.6) creatures(1, WEIRD, false);
+    sky(type === 'ocean' ? 0.45 : 0.3, false);
     if (r() < (type === 'ocean' ? 0.9 : 0.5)) creatures(1, ['swimmer'], false);
     creatures(1 + Math.floor(r() * 2.5), ['bird'], false);
     if (r() < 0.45) creatures(1, ['bird'], false, { soar: true });
@@ -2521,6 +2848,9 @@ function makeEcology(P, type, r) {
     E.grassDen = 0.85; E.flowerCols = [gc, gc2, [1, 1, 1]]; E.flowerGlow = 0.8; E.birdCol = vmul(hsv(r(), 0.7, 0.8), 0.6); E.herdP = 0.85;
     if (r() < 0.85) E.floater = { col: pick(r, glowCols), size: [8, 34] };
     creatures(5 + Math.floor(r() * 4), ALL, true);
+    creatures(1 + Math.floor(r() * 2), WEIRD, true);
+    sky(0.8, true); sky(0.4, true);
+    if (r() < 0.35) E.creatures.push(makeCreature(r, { kind: 'jelly', titan: true, alien: true }));
     if (r() < 0.5) creatures(1, ['swimmer'], true);
     creatures(1 + Math.floor(r() * 2), ['bird'], true);
     if (r() < 0.3) creatures(1, ['bird'], true, { soar: true });
@@ -2532,7 +2862,7 @@ function makeEcology(P, type, r) {
     if (r() < 0.45) add('crystal', { zones: { rocky: 0.25 }, den: 0.3, scale: [1.5, 5], tints: tints([1, 0.7, 0.35], 3, 0.15), glowI: 0.5, sway: 0, tall: false, slopeMax: 1.2 });
     if (r() < 0.35) exotic(pick(r, ['pillar', 'fan', 'giantshroom']), { meadow: 0.05, rocky: 0.1 }, 0.4);
     E.grassDen = 0.18; E.flowerCols = [[1, 0.85, 0.2], [1, 0.45, 0.2]]; E.motes = 1; E.herdP = 0.45;
-    creatures(2 + Math.floor(r() * 3), ['quad', 'serpent', 'blob', 'crab', 'roller', 'burrower', 'biped', 'stilt', 'swarm'], r() < 0.3);
+    creatures(2 + Math.floor(r() * 3), ['quad', 'serpent', 'blob', 'crab', 'roller', 'burrower', 'biped', 'stilt', 'swarm', 'centipede', 'snail', 'hoop', 'eyewalker', 'spider'], r() < 0.3);
     titans(0.25, r() < 0.3);
     if (r() < 0.6) creatures(1, ['bird'], false, { soar: true });
     if (r() < 0.5) creatures(1, ['bird'], false);
@@ -2551,7 +2881,7 @@ function makeEcology(P, type, r) {
     if (r() < 0.55) add('crystal', { zones: { rocky: 0.4, any: 0.03 }, den: 0.5, scale: [2, 10], tints: tints(vivid(1), 3, 0.15), glowI: 1.1, sway: 0, tall: false, slopeMax: 1.2 });
     if (r() < 0.3) exotic('pillar', { any: 0.015 }, 1, { tints: tints(vivid(1), 3, 0.1) });
     E.grassDen = 0; E.motes = -1; E.birds = false; E.herdP = 0.3;
-    if (r() < 0.5) creatures(1 + Math.floor(r() * 2), ['tripod', 'blob', 'roller', 'stilt', 'crab'], true);
+    if (r() < 0.5) creatures(1 + Math.floor(r() * 2), ['tripod', 'blob', 'roller', 'stilt', 'crab', 'eyewalker', 'hoop', 'stacker'], true);
   } else if (type === 'lava') {
     rock([[0.6, 0.55, 0.55], [0.4, 0.38, 0.38]]);
     if (r() < 0.6) add('crystal', { zones: { rocky: 0.4, any: 0.03 }, den: 0.5, scale: [2, 9], tints: tints([1, 0.45, 0.1], 3, 0.15), glowI: 1.4, sway: 0, tall: false, slopeMax: 1.2 });
@@ -2564,14 +2894,17 @@ function makeEcology(P, type, r) {
     creatures(2 + Math.floor(r() * 2), ['flyer'], true, { high: true });
     creatures(1, ['swarm'], true, { high: true });
     creatures(1, ['bird'], true, { high: true });
+    sky(0.9, true, { high: true });
+    if (r() < 0.4) E.creatures.push(makeCreature(r, { kind: 'jelly', titan: true, alien: true }));
     if (r() < 0.6) creatures(1, ['swimmer'], true, { sky: true });
   }
-  for (const sp of E.plants) sp.m = instMesh(plantGeo(sp.kind, sp.seed));
+  for (const sp of E.plants) { sp.m = instMesh(plantGeo(sp.kind, sp.seed)); sp.mh = instMesh(plantGeo(sp.kind, sp.seed, true)); }
   return E;
 }
-function freeEcology(E) { E.plants.forEach(sp => freeInstMesh(sp.m)); E.creatures.forEach(c => freeInstMesh(c.mesh)); }
+function freeEcology(E) { E.plants.forEach(sp => { freeInstMesh(sp.m); freeInstMesh(sp.mh); }); E.creatures.forEach(c => freeInstMesh(c.mesh)); }
 
-const TT = 96, TREE_R = 1400, GT = 12, GRASS_R = 64, AT = 200, ANIM_R = 1200;
+// grass reaches far (thinner blades beyond GRASS_NEAR); plants within PLANT_HQ_R use the detailed meshes
+const TT = 96, TREE_R = 1400, GT = 12, GRASS_R = 165, GRASS_NEAR = 60, GRASS_ALT = 110, PLANT_HQ_R = 270, AT = 200, ANIM_R = 1200;
 const chunkDet = size => size <= 256 ? 3 : size <= 1024 ? 2 : size <= 4096 ? 1 : 0;
 function genPlantTile(s, tx, tz) {
   const P = s.P, E = s.eco, ns = E.plants.length, out = E.plants.map(() => []), r = mulberry(hashInts(tx, tz, P.seed | 0));
@@ -3078,10 +3411,24 @@ function makeCulture(P, type, r, E, lv) {
   };
   const skin = alien ? vivid(0.6, 0.8) : jit(r, pick(r, [[0.85, 0.65, 0.5], [0.55, 0.38, 0.25], [0.7, 0.5, 0.35], [0.4, 0.28, 0.2]]), 0.08);
   cul.skin = skin;
-  for (let i = 0; i < 3; i++) {
-    E.creatures.push(makeCreature(r, { kind: 'biped', villager: true, alien, weird, cloth: alien || weird ? vivid(0.7, 0.75) : jit(r, pick(r, [[0.55, 0.2, 0.15], [0.2, 0.3, 0.5], [0.35, 0.45, 0.25], [0.6, 0.5, 0.3], [0.45, 0.3, 0.5], [0.15, 0.15, 0.18], [0.8, 0.78, 0.7]]), 0.1), skin: alien && i ? vivid(0.6, 0.8) : jit(r, skin, 0.06), glow: glowC }));
-    cul.people.push(E.creatures.length - 1);
-  }
+  // body plans: one species per culture, with cosmopolitan cities mixing in other peoples
+  const pickPlan = () => !alien && !weird && r() < 0.6 ? 'human' : !alien && r() < 0.3 ? pick(r, ['human', 'bighead', 'stalk', 'bird', 'plant']) : pick(r, PERSON_PLANS.slice(1));
+  const plans = [pickPlan()];
+  if (lv >= 3 && r() < 0.5) plans.push(pick(r, PERSON_PLANS));
+  if (lv >= 4 && r() < 0.4) plans.push(pick(r, PERSON_PLANS));
+  cul.plans = plans; cul.folkKind = PLAN_FOLK[plans[0]]; cul.others = new Set(plans).size - 1;
+  const traits = { head: alien || weird ? 0.8 + r() * 0.7 : 0.9 + r() * 0.25, leg: weird ? 0.75 + r() * 0.6 : 0.9 + r() * 0.2, size: alien ? 0.75 + r() * 0.7 : 1, eyes: alien ? pick(r, [0, 0, 1, 3, 4, 5]) : 0, hat: r() < 0.5 ? Math.floor(r() * 6) : undefined };
+  const CLOTH = [[0.55, 0.2, 0.15], [0.2, 0.3, 0.5], [0.35, 0.45, 0.25], [0.6, 0.5, 0.3], [0.45, 0.3, 0.5], [0.15, 0.15, 0.18], [0.8, 0.78, 0.7]];
+  plans.forEach((plan, pi) => {
+    const sk = plan === 'robot' ? jit(r, pick(r, [[0.7, 0.72, 0.75], [0.55, 0.6, 0.7], [0.85, 0.72, 0.4], [0.35, 0.38, 0.42]]), 0.05)
+      : plan === 'plant' ? jit(r, pick(r, [[0.35, 0.55, 0.2], [0.45, 0.35, 0.22], [0.55, 0.72, 0.3]]), 0.1)
+        : plan === 'crystal' || plan === 'squid' || plan === 'snail' || plan === 'insect' || plan === 'floater' || pi > 0 ? vivid(0.55, 0.85) : skin;
+    const tr = pi ? Object.assign({}, traits, { eyes: 0, size: 1 }) : traits;
+    for (let i = 0, n = plans.length > 1 ? 2 : 4; i < n; i++) {
+      E.creatures.push(makeCreature(r, { kind: 'biped', villager: true, alien, weird, plan, traits: tr, pack: r() < 0.4, cloth: alien || weird || plan !== 'human' ? vivid(0.7, 0.75) : jit(r, pick(r, CLOTH), 0.1), skin: jit(r, sk, i ? 0.1 : 0.04), glow: glowC }));
+      cul.people.push(E.creatures.length - 1);
+    }
+  });
   // city style
   const CW = {
     terran: [[0.62, 0.6, 0.58], [0.55, 0.38, 0.3], [0.75, 0.72, 0.66], [0.35, 0.42, 0.5], [0.82, 0.8, 0.75]], ocean: [[0.85, 0.85, 0.82], [0.4, 0.55, 0.62], [0.7, 0.66, 0.6]],
@@ -3528,7 +3875,7 @@ function freeSurface(s) {
   s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear(); s.ctiles.clear(); s.ccache.clear();
   cityMeshes.forEach(M => M.n = 0); lampN = 0;
   if (s.civ) s.civ.kinds.forEach(K => freeInstMesh(K.m));
-  freeEcology(s.eco); grassMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
+  freeEcology(s.eco); grassMesh.n = grassFarMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
 }
 function tileSet(map, size, radius, cx, cz, budget, gen) {
   const tx0 = Math.floor(cx / size), tz0 = Math.floor(cz / size), rt = Math.ceil(radius / size) + 1, missing = [];
@@ -3543,11 +3890,18 @@ function tileSet(map, size, radius, cx, cz, budget, gen) {
   for (const [k, t] of map) if (Math.hypot((t.tx + 0.5) * size - cx, (t.tz + 0.5) * size - cz) > radius + size * 3) { map.delete(k); changed = true; }
   return changed;
 }
-function mergeTiles(map, k) {
-  let n = 0; for (const t of map.values()) n += t.a[k].length;
-  const a = new Float32Array(n); let o = 0;
-  for (const t of map.values()) { a.set(t.a[k], o); o += t.a[k].length; }
-  return a;
+function mergeTiles(map, k) { return catF([...map.values()].map(t => t.a[k])); }
+function catF(arrs) {
+  let n = 0; for (const a of arrs) n += a.length;
+  const out = new Float32Array(n); let o = 0;
+  for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+}
+// split tiles into near (detailed) and far sets around the traveller
+function splitTiles(map, size, x, z, R) {
+  const near = [], far = [];
+  for (const t of map.values()) (Math.hypot((t.tx + 0.5) * size - x, (t.tz + 0.5) * size - z) < R ? near : far).push(t);
+  return [near, far];
 }
 // regional showers and storms drifting across the land; cloud cover varies from place to place
 function weatherStep(s, dt) {
@@ -3567,18 +3921,28 @@ function updateSurfaceWorld(s, dt) {
   const P = s.P, E = s.eco;
   weatherStep(s, dt);
   if (tileSet(s.tiles, TT, TREE_R, s.x, s.z, 6, (tx, tz) => genPlantTile(s, tx, tz))) s.dirty = true;
+  const hqOn = s.y - s.ground < 300;
+  if (hqOn !== s.hqOn) { s.hqOn = hqOn; s.dirty = true; }
   s.rebuildT -= dt;
-  if (s.dirty && s.rebuildT <= 0) { s.dirty = false; s.rebuildT = 0.25; E.plants.forEach((sp, k) => uploadInst(sp.m, mergeTiles(s.tiles, k))); }
+  if (s.dirty && s.rebuildT <= 0) {
+    s.dirty = false; s.rebuildT = 0.25;
+    const [near, far] = splitTiles(s.tiles, TT, s.x, s.z, hqOn ? PLANT_HQ_R : -1);
+    E.plants.forEach((sp, k) => { uploadInst(sp.mh, catF(near.map(t => t.a[k]))); uploadInst(sp.m, catF(far.map(t => t.a[k]))); });
+  }
   if (tileSet(s.ftiles, FT, FAR_R, s.x, s.z, 3, (tx, tz) => [genFarTile(s, tx, tz)])) s.fdirty = true;
   s.frebuildT -= dt;
   if (s.fdirty && s.frebuildT <= 0) { s.fdirty = false; s.frebuildT = 0.5; uploadInst(farMesh, mergeTiles(s.ftiles, 0)); }
   // grass & flowers only near the ground
-  const low = s.y - s.ground < 45;
+  const low = s.y - s.ground < GRASS_ALT;
   if (low) {
-    if (tileSet(s.gtiles, GT, GRASS_R, s.x, s.z, 8, (tx, tz) => genGrassTile(s, tx, tz))) s.gdirty = true;
+    if (tileSet(s.gtiles, GT, GRASS_R, s.x, s.z, 14, (tx, tz) => genGrassTile(s, tx, tz))) s.gdirty = true;
     s.grebuildT -= dt;
-    if (s.gdirty && s.grebuildT <= 0) { s.gdirty = false; s.grebuildT = 0.2; uploadInst(grassMesh, mergeTiles(s.gtiles, 0)); uploadInst(flowerMesh, mergeTiles(s.gtiles, 1)); }
-  } else if (s.gtiles.size) { s.gtiles.clear(); grassMesh.n = flowerMesh.n = 0; }
+    if (s.gdirty && s.grebuildT <= 0) {
+      s.gdirty = false; s.grebuildT = 0.25;
+      const [near, far] = splitTiles(s.gtiles, GT, s.x, s.z, GRASS_NEAR);
+      uploadInst(grassMesh, catF(near.map(t => t.a[0]))); uploadInst(grassFarMesh, catF(far.map(t => t.a[0]))); uploadInst(flowerMesh, mergeTiles(s.gtiles, 1));
+    }
+  } else if (s.gtiles.size) { s.gtiles.clear(); grassMesh.n = grassFarMesh.n = flowerMesh.n = 0; }
   // herds, walking mountains and villages
   tileSet(s.atiles, AT, ANIM_R, s.x, s.z, 2, (tx, tz) => genHerd(s, tx, tz));
   tileSet(s.ttiles, TIT_T, TIT_R, s.x, s.z, 1, (tx, tz) => genTitan(s, tx, tz));
@@ -3590,7 +3954,7 @@ function updateSurfaceWorld(s, dt) {
       const v = t.a.site;
       if (!v.n || s.seenV.has(v.key) || Math.hypot(v.cx - s.x, v.cz - s.z) > v.R + 150 || s.y - s.ground > 500) continue;
       s.seenV.add(v.key);
-      showLoc(v.name, (s.civ.lv === 0 ? 'a nomad camp' : v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' folk \u00b7 ' + v.n + (s.civ.lv === 0 ? ' tents' : ' dwellings'));
+      showLoc(v.name, (s.civ.lv === 0 ? 'a nomad camp' : v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + ' \u00b7 ' + v.n + (s.civ.lv === 0 ? ' tents' : ' dwellings'));
     }
     if (s.civ.lv >= 2) {
       if (tileSet(s.ctiles, CT, CITY_R, s.x, s.z, 1, (tx, tz) => genCityTile(s, tx, tz))) s.cdirty = true;
@@ -3600,7 +3964,7 @@ function updateSurfaceWorld(s, dt) {
         if (s.seenV.has(c.key) || Math.hypot(c.x - s.x, c.z - s.z) > c.R + 300 || s.y - s.ground > 2500) continue;
         s.seenV.add(c.key);
         const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = c.pop > 1e6 ? (c.pop / 1e6).toFixed(1) + ' million' : Math.round(c.pop / 1000) * 1000 + '';
-        showLoc(c.name, kind + ' of the ' + s.civ.folk + ' folk \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
+        showLoc(c.name, kind + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + (s.civ.others === 1 ? ' and another people' : s.civ.others > 1 ? ' and ' + s.civ.others + ' other peoples' : '') + ' \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
       }
     }
   }
@@ -3678,7 +4042,7 @@ function renderShadowMap(s, time, chunks, fwd, cam, models) {
     tp.set('uChunk', c).set('uDet', chunkDet(c[2])); gl.drawElements(gl.TRIANGLES, terrMesh.count, gl.UNSIGNED_INT, 0);
   }
   const pp = P_shPlant.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', TREE_R);
-  for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); }
+  for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); drawInst(sp.mh); }
   if (s.civ) { pp.set('uFadeR', VIL_R).set('uSway', 0); for (const K of s.civ.kinds) drawInst(K.m); }
   if (s.cityList.length) drawCity(P_shCity.use().set('uLVP', shadow.lvp).set('uShO', shadow.o));
   const ap = P_shAnimal.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', ANIM_R);
@@ -3724,24 +4088,26 @@ function renderSurface(s, time, camQ, cam) {
   }
   // plants, grass & flowers
   glState({ depth: true, write: true });
-  const pp = shadowUniforms(surfaceSkyUniforms(P_plant.use(), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time);
-  pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0).set('uGlowC', [0, 0, 0]);
-  for (const sp of E.plants) { pp.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', P.rock).set('uGlowI', sp.glowI); drawInst(sp.m); }
+  const pp = shadowUniforms(surfaceSkyUniforms(P_plant.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time);
+  const ppAgain = () => shadowUniforms(pp.use().tex('uNoise', noiseTex, gl.TEXTURE_3D));
+  pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0).set('uGlowC', [0, 0, 0]).set('uLeaf', 1);
+  for (const sp of E.plants) { pp.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', P.rock).set('uGlowI', sp.glowI).set('uLeaf', sp.kind === 'rock' || sp.kind === 'crystal' ? 0 : 1); drawInst(sp.m); drawInst(sp.mh); }
+  pp.set('uLeaf', 0);
   if (s.civ) {
     pp.set('uFadeR', VIL_R).set('uSway', 0);
     for (const K of s.civ.kinds) { pp.set('uTrunk', K.roof).set('uRockC', K.trim).set('uGlowI', K.glowI).set('uGlowC', K.kind === 'crop' ? [0, 0, 0] : K.glowC); drawInst(K.m); }
     pp.set('uGlowC', [0, 0, 0]);
   }
   if (s.cityList.length) { const cs = s.civ.city; drawCity(shadowUniforms(surfaceSkyUniforms(P_city.use(), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uWin', cs.win).set('uN1', cs.n1).set('uN2', cs.n2).set('uCyber', cs.cyber ? 1 : 0).set('uTime', time).set('uWet', s.rain)); }
-  pp.use();
+  ppAgain();
   if (farMesh.n) {
     surfaceSkyUniforms(P_far.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uNear', TREE_R * 0.82).set('uFar', FAR_R);
     gl.bindVertexArray(farMesh.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, farMesh.n);
-    pp.use();
+    ppAgain();
   }
-  if (agl < 45) {
+  if (agl < GRASS_ALT) {
     pp.set('uFadeR', GRASS_R).set('uBias', 0.0001).set('uTwoSide', 1).set('uSway', 0.25).set('uTrunk', vmul(P.grass, 0.8)).set('uRockC', [1, 0.85, 0.3]).set('uGlowI', E.flowerGlow);
-    drawInst(grassMesh); drawInst(flowerMesh);
+    drawInst(grassMesh); drawInst(grassFarMesh); drawInst(flowerMesh);
   }
   // creatures
   const ap = shadowUniforms(surfaceSkyUniforms(P_animal.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), s)).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uTime', time).set('uFadeR', ANIM_R);
@@ -4385,8 +4751,8 @@ function surfStep(dt) {
       toast(S.auto ? 'Landed · press W A S D to walk yourself' : 'Landed · W A S D walk · Shift run · Space jump · L to fly');
     }
   } else if (s.phase === 'takeoff') {
-    vyT = 5 + s.pt * 5; s.speed = lerp(s.speed, 60, 1 - Math.exp(-dt * 0.4)); minAlt = 0.95;
-    if (s.y - s.ground > 50) { s.phase = 'cruise'; s.pt = 0; s.cruiseDur = 40 + Math.random() * 30; }
+    vyT = 16 + s.pt * 14; s.speed = lerp(s.speed, 60, 1 - Math.exp(-dt * 1.6)); minAlt = 0.95;
+    if (s.pt > 1 || s.y - s.ground > 50) { s.phase = 'cruise'; s.pt = 0; s.cruiseDur = 40 + Math.random() * 30; s.climb = Math.max(s.vy, 0); }
   } else {
     let clear = s.clear;
     if (s.phase === 'descend') { const k = smooth(0, 16, s.t); clear = lerp(1500, s.clear, k); if (s.t > 16) { s.phase = 'cruise'; s.pt = 0; } }
@@ -4413,9 +4779,12 @@ function manualSurfFlight(s, dt) {
   else if (s.speed > 260) s.speed = lerp(s.speed, 260, 1 - Math.exp(-dt * 0.7));
   if (k.KeyS) s.speed = Math.max(0, s.speed - 70 * dt);
   if (k.KeyX) s.speed *= Math.exp(-5 * dt);
+  // never quite hover: idle drift of about 20 km/h
+  s.speed = Math.max(s.speed, 5.6);
   const vert = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0), cp = Math.cos(s.pitch);
+  s.climb = lerp(s.climb || 0, vert * (boost ? 160 : 70), 1 - Math.exp(-dt * (vert ? 2.5 : 4)));
   s.x += -Math.sin(s.yaw) * cp * s.speed * dt; s.z += -Math.cos(s.yaw) * cp * s.speed * dt;
-  s.vy = Math.sin(s.pitch) * s.speed + vert * 25;
+  s.vy = Math.sin(s.pitch) * s.speed + s.climb;
   s.y += s.vy * dt;
   if (s.y < s.ground + 2.5) { s.y = s.ground + 2.5; if (s.pitch < 0) s.pitch = lerp(s.pitch, 0, 1 - Math.exp(-dt * 4)); }
   s.roll = lerp(s.roll, s.yawRate * 0.9, 1 - Math.exp(-dt * 2));
@@ -4433,7 +4802,6 @@ function walkStep(s, dt) {
   const run = k.ShiftLeft || k.ShiftRight;
   if (manual) {
     fin = ((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0);
-    side = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
     const turn = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
     s.turnV = lerp(s.turnV || 0, turn * (run ? 2.2 : 1.8), 1 - Math.exp(-dt * 8)); s.yaw += s.turnV * dt;
   } else {
@@ -4453,14 +4821,15 @@ function walkStep(s, dt) {
     else if (!manual) { s.yaw += dt * 1.6; s.walkV *= 0.9; }
   }
   const mv = Math.hypot(vx, vz), g = terrH(P, s.x, s.z, 3);
-  if (mv > 0.2) { let da = (s.walkV < -0.2 ? s.yaw : Math.atan2(-vx, -vz)) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 8)); }
+  const turning = manual && Math.abs(s.turnV || 0) > 0.05;
+  if (mv > 0.2 || turning) { let da = (s.walkV < -0.2 || mv <= 0.2 ? s.yaw : Math.atan2(-vx, -vz)) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 10)); }
   if (s.air) { s.vyJ -= 9.8 * dt; s.footY += s.vyJ * dt; if (s.footY <= g) { s.footY = g; s.air = false; s.vyJ = 0; Music.step(groundKind(s), 1.6); } }
   else s.footY = lerp(s.footY, g, 1 - Math.exp(-dt * 20));
-  const ph0 = s.walkPhase, cad = mv * 3.4 / (1 + mv * 0.22);
+  const ph0 = s.walkPhase, cad = Math.max(mv, turning ? 1.1 : 0) * 3.4 / (1 + mv * 0.22);
   s.walkPhase += dt * cad; s.bob += dt * cad * 1.25;
   if (!s.air && Math.floor(ph0 / Math.PI) !== Math.floor(s.walkPhase / Math.PI)) Music.step(groundKind(s), clamp(mv / 3, 0.45, 1.2));
   s.y = s.footY + 1.7 + (S.tp || s.air ? 0 : Math.sin(s.bob) * 0.035 * Math.min(mv, 1.5));
-  s.speed = mv; s.vy = 0; s.yawRate = 0; s.ground = Math.max(g, P.sea);
+  s.speed = mv; s.walkAnim = Math.max(mv, turning ? 1.4 : 0); s.vy = 0; s.yawRate = 0; s.ground = Math.max(g, P.sea);
   s.roll = lerp(s.roll, 0, 1 - Math.exp(-dt * 3));
   if (!manual && !drag) s.pitch = lerp(s.pitch, (S.tp ? -0.18 : -0.06) + Math.sin(s.t * 0.13) * 0.06, 1 - Math.exp(-dt * 0.5));
 }
@@ -4594,7 +4963,7 @@ function surfaceModels(s) {
   }
   if (s.phase === 'walk') {
     if (s.park) out.push({ mesh: shipMesh, w: [s.park.x, s.park.y, s.park.z], q: qaxis([0, 1, 0], s.park.yaw), cols: SHIP_COLS, glow: 0.15 });
-    if (S.tp && !s.driving) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * night, phase: s.walkPhase, walk: clamp(s.speed / 3.5, 0, 1.5), air: s.air ? 1 : 0 });
+    if (S.tp && !s.driving) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * night, phase: s.walkPhase, walk: clamp((s.walkAnim ?? s.speed) / 3.5, 0, 1.5), air: s.air ? 1 : 0 });
   } else if (S.tp) out.push({ mesh: shipMesh, w: [s.x, s.y, s.z], q: surfCamQ(s), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
   return out;
 }
