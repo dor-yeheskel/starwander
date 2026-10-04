@@ -107,9 +107,8 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <button id="bCenter" title="Center the view (C)">CENTER</button>
   <button id="bView" class="on" title="Third / first person (V)">VIEW</button>
   <button id="bMarks" class="on" title="Markers (T)">MARKERS</button>
-  <button id="bMusic" class="on" title="Music (M)">MUSIC</button>
-  <button id="bSound" class="on" title="All sound on / off (N)">SOUND</button>
   <button id="bPause" title="Pause (P)">PAUSE</button>
+  <button id="bSound" title="Sound on / off (M)">&#x1F50A;</button>
   <button id="bHelp" title="Controls (?)">?</button>
   <button id="bFull" title="Fullscreen (Enter)">&#x26F6;</button>
 </div>
@@ -133,7 +132,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div><b>C / V</b>center view / first &ndash; third person</div>
   <div><b>O</b>autopilot &middot; <b style="width:auto">P</b> pause</div>
   <div><b>T / H</b>markers / hide interface</div>
-  <div><b>M / N</b>music / all sound &middot; <b style="width:auto">Enter</b> fullscreen</div>
+  <div><b>M</b>sound on / off &middot; <b style="width:auto">Enter</b> fullscreen</div>
   <details>
     <summary>Travel</summary>
     <div><b>Click</b>a galaxy, star, planet or the sun to fly there</div>
@@ -1744,10 +1743,23 @@ void main(){
 }`, NOISE_GLSL + TERR_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; out vec4 o;
 uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3, uPave, uNeonA, uNeonB, uPondC, uRoadLamp; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava, uWet; uniform vec4 uPat;
 uniform vec4 uCityP[16], uCityQ[16]; uniform highp sampler2D uRoads; uniform int uRoadN;
+// superblocks (mirrors mergeOf() / superPark() in JS)
+int mergeOf(int i, ivec2 c){ vec4 PR=uCityP[i], Q=uCityQ[i]; vec2 b0=vec2(c*2);
+  if(PR.x<=PR.z&&b0.x+1.>PR.x-.5&&b0.x<PR.z+.5&&b0.y+1.>PR.y-.5&&b0.y<PR.w+.5) return 0;
+  if(abs(floor(Q.z*.5)-float(c.x))<.5&&abs(floor(Q.w*.5)-float(c.y))<.5) return 0;
+  uint h=ih(c+ivec2(int(Q.x)+7777,int(Q.y)+3333))&1023u; return h<110u?1:h<220u?2:h<310u?3:0; }
+bool superPark(int i, ivec2 b, int mk){ ivec2 a=ivec2((mk&1)==1?int(floor(float(b.x)*.5))*2:b.x,(mk&2)==2?int(floor(float(b.y)*.5))*2:b.y);
+  vec4 Q=uCityQ[i]; return (ih(a+ivec2(int(Q.x)+1111,int(Q.y)+2222))&1023u)<280u; }
+// distance to the nearest street line along u (x) and along v (y), ignoring streets swallowed by superblocks
+vec2 streetG(int i, vec2 l, float B){ vec2 k=floor(l/B+.5), g=abs(l-B*k); int ku=int(k.x), kv=int(k.y);
+  if(abs(ku)%2==1&&(mergeOf(i,ivec2((ku-1)/2,int(floor(l.y/B*.5))))&1)==1) g.x=B;
+  if(abs(kv)%2==1&&(mergeOf(i,ivec2(int(floor(l.x/B*.5)),(kv-1)/2))&2)==2) g.y=B;
+  return g; }
 // city blocks: 0 buildings, 1 park, 2 plaza (mirrors blockKind() in JS)
 int blockKind(int i, ivec2 b){ vec4 PR=uCityP[i], Q=uCityQ[i];
   if(PR.x<=PR.z&&float(b.x)>PR.x-.5&&float(b.x)<PR.z+.5&&float(b.y)>PR.y-.5&&float(b.y)<PR.w+.5) return 1;
   if(abs(float(b.x)-Q.z)<.5&&abs(float(b.y)-Q.w)<.5) return 2;
+  int mk=mergeOf(i,ivec2(floor(vec2(b)*.5))); if(mk>0) return superPark(i,b,mk)?1:0;
   uint h=ih(b+ivec2(int(Q.x),int(Q.y)))&1023u; return h<60u?1:h<95u?2:0; }
 // nearest highway: (distance to its centreline, distance along it)
 vec2 roadAt(vec2 p){
@@ -1803,7 +1815,7 @@ void main(){
   for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=p-C.xy; float dd=length(d); if(dd>C.z*sqrt(uCityS[i].x)*(1.+uCityS[i].z)+60.||alt<.5) continue;
     float cr=cos(C.w), sr=sin(C.w); vec2 l=vec2(cr*d.x+sr*d.y,-sr*d.x+cr*d.y);
     float dn=dd<1e-3?0.:dd*C.z/cityEdge(i,l); if(dn>C.z+60.) continue;
-    float B=uCityB[i].x, W=uCityB[i].y; vec2 g=abs(l-B*floor(l/B+.5)); float sd=min(g.x,g.y);
+    float B=uCityB[i].x, W=uCityB[i].y; vec2 g=streetG(i,l,B); float sd=min(g.x,g.y);
     float dash=step(sd,.2)*step(.5,fract((g.x<g.y?l.y:l.x)/7.));
     vec3 pave=uPave*(.6+.25*v2), road=vec3(.06,.06,.065)*(.9+.2*v2);
     // the central park swallows its inner streets
@@ -1813,13 +1825,16 @@ void main(){
     int bk=cpark?1:sd>=W*.5?blockKind(i,ivec2(floor(l/B))):0;
     float green=0., pf=smoothstep(C.z+60.,C.z,dn)*(1.-smoothstep(.12,.22,slope));
     if(bk==1){
-      // park: lawns crossed by winding gravel paths, a walk around the edge, a pond in the big park
+      // park: lawns crossed by winding gravel paths, a walk around the edge, a pond in the big parks
       vec3 lawn=mix(uGrass,uGrass2,v1)*(.85+.3*v2);
       float path=smoothstep(.07,.04,abs(gn(l/42.+vec2(float(i)*7.1,3.3))));
-      vec2 bl=cpark?min(l-pk0,pk1-l):vec2(B*.5-W*.5)-abs(l-(floor(l/B)+.5)*B);
+      vec2 bl=cpark?min(l-pk0,pk1-l):vec2(sd-W*.5);
       path=max(path,smoothstep(2.6,2.,min(bl.x,bl.y)));
       cc=mix(lawn,uPave*1.3*(.85+.2*v2),path); green=1.-path;
-      if(cpark){ vec2 pc=(PR.xy+PR.zw+1.)*.5*B, pr=(PR.zw-PR.xy+1.)*B*.24; float e=length((l-pc)/pr)+gn(l/18.)*.06;
+      vec2 pc=vec2(0.), pr=vec2(0.); bool hasPond=false;
+      if(cpark){ pc=(PR.xy+PR.zw+1.)*.5*B; pr=(PR.zw-PR.xy+1.)*B*.24; hasPond=true; }
+      else { ivec2 cc2=ivec2(floor(l/(2.*B))); if(mergeOf(i,cc2)==3){ pc=(vec2(cc2)*2.+1.)*B; pr=vec2(.34,.26)*B; hasPond=true; } }
+      if(hasPond){ float e=length((l-pc)/pr)+gn(l/18.)*.06;
         float sh=smoothstep(1.,.88,e); cc=mix(cc,uPondC,sh); green*=1.-sh; pond=max(pond,sh*pf); }
     } else if(bk==2){
       // plaza: chequered paving, concentric rings and a star around the fountain
@@ -4080,8 +4095,37 @@ function cityOut(c, x, z) { const [u, v] = cityUV(c, x, z), d = Math.hypot(u, v)
 function blockKind(c, i, j) {
   const p = c.park; if (p && i >= p[0] && i <= p[2] && j >= p[1] && j <= p[3]) return 1;
   if (i === c.plaza[0] && j === c.plaza[1]) return 2;
+  const mk = mergeOf(c, Math.floor(i / 2), Math.floor(j / 2)); if (mk) return superPark(c, i, j, mk) ? 1 : 0;
   const h = ih(i + c.sx, j + c.sz) & 1023;
   return h < 60 ? 1 : h < 95 ? 2 : 0;
+}
+// superblocks: on a lattice of 2x2 blocks, some neighbours merge (bit 1: side by side, bit 2: one above the other, 3: all four);
+// the streets between merged blocks disappear. Mirrored by mergeOf() in the terrain shader
+function mergeOf(c, I, J) {
+  const p = c.park, i0 = I * 2, j0 = J * 2;
+  if (p && i0 + 1 >= p[0] && i0 <= p[2] && j0 + 1 >= p[1] && j0 <= p[3]) return 0;
+  if (Math.floor(c.plaza[0] / 2) === I && Math.floor(c.plaza[1] / 2) === J) return 0;
+  const h = ih(I + c.sx + 7777, J + c.sz + 3333) & 1023;
+  return h < 110 ? 1 : h < 220 ? 2 : h < 310 ? 3 : 0;
+}
+// the lowest block of the superblock that (i, j) belongs to
+const superAnchor = (i, j, mk) => [mk & 1 ? Math.floor(i / 2) * 2 : i, mk & 2 ? Math.floor(j / 2) * 2 : j];
+function superPark(c, i, j, mk) { const [a, b] = superAnchor(i, j, mk); return (ih(a + c.sx + 1111, b + c.sz + 2222) & 1023) < 280; }
+// is the street along u = k*B present through block row j / the street along v = m*B through block column i
+const streetV = (c, k, j) => !(k & 1) || !(mergeOf(c, (k - 1) / 2, Math.floor(j / 2)) & 1);
+const streetH = (c, m, i) => !(m & 1) || !(mergeOf(c, Math.floor(i / 2), (m - 1) / 2) & 2);
+// distance to the nearest street that is really there
+function streetDist(c, u, v) {
+  const B = c.B, k = Math.round(u / B), m = Math.round(v / B);
+  return Math.min(streetV(c, k, Math.floor(v / B)) ? Math.abs(u - k * B) : B, streetH(c, m, Math.floor(u / B)) ? Math.abs(v - m * B) : B);
+}
+// an agent standing on a street line: ax 1 on a line of constant u, 0 on a line of constant v
+const onStreet = (c, u, v, ax) => ax ? streetV(c, Math.round(u / c.B), Math.floor(v / c.B)) : streetH(c, Math.round(v / c.B), Math.floor(u / c.B));
+// 2x2 superblock parks get a round pond at their heart
+function superPond(c, u, v, k) {
+  const B = c.B, I = Math.floor(u / (2 * B)), J = Math.floor(v / (2 * B));
+  if (mergeOf(c, I, J) !== 3 || !superPark(c, I * 2, J * 2, 3)) return false;
+  const a = (u - (I * 2 + 1) * B) / (B * 0.34 * k), b = (v - (J * 2 + 1) * B) / (B * 0.26 * k); return a * a + b * b < 1;
 }
 // inside the central park, where its inner streets give way to lawns (m = margin from its outer streets)
 function inParkRect(c, u, v, m) { const p = c.park, B = c.B; return !!p && u > p[0] * B + m && u < (p[2] + 1) * B - m && v > p[1] * B + m && v < (p[3] + 1) * B - m; }
@@ -4093,9 +4137,8 @@ function cityGreen(c, x, z, m) {
   const [u, v] = cityUV(c, x, z), B = c.B, h = c.SW / 2 + m;
   if (cityN(c, u, v) > 1) return false;
   if (inParkRect(c, u, v, h)) return !inPond(c, u, v, 1.15);
-  const i = Math.floor(u / B), j = Math.floor(v / B), du = u - i * B, dv = v - j * B;
-  if (du < h || du > B - h || dv < h || dv > B - h) return false;
-  return blockKind(c, i, j) === 1;
+  if (streetDist(c, u, v) < h) return false;
+  return blockKind(c, Math.floor(u / B), Math.floor(v / B)) === 1 && !superPond(c, u, v, 1.15);
 }
 function cityCore(s, cx, cz) {
   const key = cx + ',' + cz; if (s.ccache.has(key)) return s.ccache.get(key);
@@ -4317,22 +4360,20 @@ function genCityTile(s, tx, tz) {
       for (let k = 0, np = 4 + Math.floor(r() * 6); k < np; k++) { const a = r() * TAU, d = R0 + 3 + r() * inner * 0.25; stroll(bu + Math.cos(a) * d, bv + Math.sin(a) * d, inner * 0.2); }
     } else {
       for (let k = 0, nl = 2 + Math.floor(r() * 3); k < nl; k++) {
-        const u = bu + (r() - 0.5) * inner * 0.8, v = bv + (r() - 0.5) * inner * 0.8; if (inPond(c, u, v, 1.2)) continue;
+        const u = bu + (r() - 0.5) * inner * 0.8, v = bv + (r() - 0.5) * inner * 0.8; if (inPond(c, u, v, 1.2) || superPond(c, u, v, 1.2)) continue;
         const [lx, lz] = W(u, v); out.lamps.push(lx, y + 4, lz, 0.45, lc[0], lc[1], lc[2], 0);
       }
-      for (let k = 0, np = 1 + Math.floor(r() * 4); k < np; k++) { const u = bu + (r() - 0.5) * inner * 0.7, v = bv + (r() - 0.5) * inner * 0.7; if (!inPond(c, u, v, 1.3)) stroll(u, v, inner * 0.25); }
+      for (let k = 0, np = 1 + Math.floor(r() * 4); k < np; k++) { const u = bu + (r() - 0.5) * inner * 0.7, v = bv + (r() - 0.5) * inner * 0.7; if (!inPond(c, u, v, 1.3) && !superPond(c, u, v, 1.3)) stroll(u, v, inner * 0.25); }
     }
   };
-  for (let j = -n; j < n; j++) for (let i = -n; i < n; i++) {
+  const nhAt = (i, j) => nh[clamp(j + n, 0, N - 1) * N + clamp(i + n, 0, N - 1)];
+  const single = (i, j) => {
     const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = cityN(c, bu, bv);
-    if (f > 1) continue;
-    const bk = blockKind(c, i, j);
-    if (bk) { communal(i, j, bk); continue; }
     const isMega = mega.has(i + ',' + j);
-    if (!isMega && r() < 0.04 + f * 0.08) continue;
-    const hs = [nh[(j + n) * N + i + n], nh[(j + n) * N + i + n + 1], nh[(j + n + 1) * N + i + n], nh[(j + n + 1) * N + i + n + 1]];
+    if (!isMega && r() < 0.04 + f * 0.08) return;
+    const hs = [nhAt(i, j), nhAt(i + 1, j), nhAt(i, j + 1), nhAt(i + 1, j + 1)];
     const hmin = Math.min(...hs), hmax = Math.max(...hs);
-    if (hmax - hmin > 30 || hmin < P.sea + 1.5) continue;
+    if (hmax - hmin > 30 || hmin < P.sea + 1.5) return;
     const inner = B - c.SW, m = c.SW / 2, sub = f < 0.25 ? 1 : r() < 0.5 ? 2 : 4;
     if (isMega) {
       const [x, z] = W(bu, bv), y = hmin - 2, w0 = inner * 0.94, h = 380 + r() * 760, kind = st.tall[1] > st.tall[0] || r() < 0.4 ? 1 : 0, col = jit(r, pick(r, st.walls), 0.06);
@@ -4342,7 +4383,7 @@ function genCityTile(s, tx, tz) {
       out.lamps.push(x, top + 2, z, 5, 1, 0.12, 0.08, 1);
       c.lots.set(i + ',' + j, [{ u0: bu - w0 / 2, u1: bu + w0 / 2, v0: bv - w0 / 2, v1: bv + w0 / 2, top }]);
       pop += h / 3.4 * w0 * w0 / 25; nb++;
-      continue;
+      return;
     }
     const lots = sub === 1 ? [[0, 0, 1, 1]] : sub === 2 ? [[0, 0, 0.5, 1], [0.5, 0, 1, 1]] : [[0, 0, 0.5, 0.5], [0.5, 0, 1, 0.5], [0, 0.5, 0.5, 1], [0.5, 0.5, 1, 1]];
     const list = [];
@@ -4363,6 +4404,79 @@ function genCityTile(s, tx, tz) {
       pop += floors * sw * sd / 25; nb++;
     }
     if (list.length) c.lots.set(i + ',' + j, list);
+  };
+  // superblocks: two or four blocks joined into one larger site, for a big park or a single grand building
+  const superBlock = (i0, j0, i1, j1) => {
+    const blocks = []; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) blocks.push([i, j]);
+    const inside = blocks.filter(([i, j]) => cityN(c, (i + 0.5) * B, (j + 0.5) * B) <= 1);
+    if (!inside.length) return;
+    if (blockKind(c, i0, j0) === 1) { for (const [i, j] of inside) communal(i, j, 1); return; }
+    if (inside.length < blocks.length) { for (const [i, j] of inside) single(i, j); return; }
+    const m = c.SW / 2, u0 = i0 * B + m, u1 = (i1 + 1) * B - m, v0 = j0 * B + m, v1 = (j1 + 1) * B - m;
+    const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, wu = u1 - u0, wv = v1 - v0, wm = Math.min(wu, wv), f = cityN(c, cu, cv);
+    const hs = []; for (let j = j0; j <= j1 + 1; j++) for (let i = i0; i <= i1 + 1; i++) hs.push(nhAt(i, j));
+    const hmin = Math.min(...hs); if (Math.max(...hs) - hmin > 40 || hmin < P.sea + 1.5) return;
+    const y = hmin - 2, col = jit(r, pick(r, st.walls), 0.07), neon = st.neon ? 1 : 0, list = [];
+    // one building piece: kind 0 box, 1 cylinder, 2 dome, 3 spire; base height, footprint and colour
+    const piece = (kind, pu, pv, base, sw, h, sd, cl, elev) => {
+      const [x, z] = W(pu, pv); out.inst[kind].push(x, base, z, c.rot, sw, h, sd, r(), cl[0], cl[1], cl[2], neon + (elev ? 2 : 0));
+      list.push({ u0: pu - sw / 2, u1: pu + sw / 2, v0: pv - sd / 2, v1: pv + sd / 2, top: base + h }); return base + h;
+    };
+    const beacon = (pu, pv, top, sz) => { const [x, z] = W(pu, pv); out.lamps.push(x, top + 1.5, z, sz, 1, 0.12, 0.08, 1); };
+    const isMega = blocks.some(([i, j]) => mega.has(i + ',' + j)), tall = c.Hc * Math.exp(-((f * 2.2) ** 2)), roll = r();
+    let kindV = isMega || (c.R > 700 && f < 0.35 && roll < 0.22) ? 'mega' : f < 0.6 && roll < 0.6 ? (blocks.length === 2 && r() < 0.5 ? 'twin' : 'tower') : r() < 0.5 ? 'court' : 'hall';
+    if (tall < 28 && (kindV === 'tower' || kindV === 'twin')) kindV = r() < 0.5 ? 'court' : 'hall';
+    const along = wu >= wv, tk = pickW(st.tall);
+    if (kindV === 'mega') {
+      // a mega-tall tiered tower rising from a broad base
+      const h = 500 + r() * 900, w0 = wm * 0.82, kind = tk === 1 || r() < 0.35 ? 1 : 0;
+      let top = piece(0, cu, cv, y, wu * 0.9, 14, wv * 0.9, col, false);
+      for (const [w, th] of [[w0, h * 0.36], [w0 * 0.78, h * 0.28], [w0 * 0.56, h * 0.2], [w0 * 0.36, h * 0.16]]) { top = piece(kind, cu, cv, top, w, th, w, col, true); if (st.cyber || r() < 0.5) beacon(cu, cv, top - 1.5, 3.5); }
+      top = piece(3, cu, cv, top, w0 * 0.12, h * 0.14, w0 * 0.12, vmul(col, 0.8), true); beacon(cu, cv, top, 6);
+      pop += h / 3.4 * w0 * w0 / 22;
+    } else if (kindV === 'tower' || kindV === 'twin') {
+      // towers standing on a shared podium of shops
+      const pod = 7 + Math.floor(r() * 3) * 3.4, ptop = piece(0, cu, cv, y, wu * 0.92, pod, wv * 0.92, vmul(col, 0.92), false);
+      const towers = kindV === 'twin' ? [-0.25, 0.25] : [0], tw = (kindV === 'twin' ? wm * 0.62 : wm * 0.58) * (0.85 + r() * 0.15), h0 = Math.max(tall * (1.3 + r() * 1.2), 60);
+      towers.forEach((o, k) => {
+        const pu = cu + (along ? o * wu : 0), pv = cv + (along ? 0 : o * wv), h = Math.round(h0 * (k ? 0.82 + r() * 0.18 : 1) / 3.4) * 3.4;
+        let top = piece(tk, pu, pv, ptop, tw, h, tw, col, true);
+        if (r() < st.capP + 0.2) top = piece(st.cap, pu, pv, top, tw * 0.55, tw * (0.5 + r() * 0.9), tw * 0.55, vmul(col, 0.8), true);
+        beacon(pu, pv, top, 2.6); pop += h / 3.4 * tw * tw / 25;
+      });
+    } else if (kindV === 'court') {
+      // a perimeter block around a quiet inner courtyard
+      const d = Math.min(wm * 0.24, 22), h = Math.max(Math.round(Math.max(tall * 0.45, 9 + r() * 12) / 3.4) * 3.4, 6.8), c2 = jit(r, col, 0.05);
+      piece(0, cu, v0 + d / 2, y, wu, h + 2, d, col, false); piece(0, cu, v1 - d / 2, y, wu, h + 2, d, col, false);
+      piece(0, u0 + d / 2, cv, y, d, h + 2, wv - 2 * d - 3, c2, false); piece(0, u1 - d / 2, cv, y, d, h + 2, wv - 2 * d - 3, c2, false);
+      pop += h / 3.4 * (wu * wv - (wu - 2 * d) * (wv - 2 * d)) / 25;
+    } else {
+      // a low, wide hall: a market under a dome, or a round arena
+      if (r() < 0.5) {
+        const h = 8 + r() * 10, top = piece(0, cu, cv, y, wu * 0.88, h, wv * 0.88, col, false);
+        piece(2, cu, cv, top, wm * 0.62, wm * (0.18 + r() * 0.14), wm * 0.62, jit(r, pick(r, st.walls), 0.1), true);
+      } else {
+        const R0 = wm * 0.86, top = piece(1, cu, cv, y, R0, 12 + r() * 10, R0, col, false);
+        piece(2, cu, cv, top, R0 * 0.96, R0 * 0.16, R0 * 0.96, vmul(col, 1.1), true);
+        for (let k = 0; k < 6; k++) { const a = k / 6 * TAU, [x, z] = W(cu + Math.cos(a) * R0 * 0.52, cv + Math.sin(a) * R0 * 0.52); out.lamps.push(x, top + 2, z, 1.2, lc[0], lc[1], lc[2], 0); }
+      }
+      pop += wu * wv / 60;
+    }
+    nb++;
+    list.sort((a, b) => b.top - a.top);
+    for (const [i, j] of blocks) c.lots.set(i + ',' + j, list);
+  };
+  for (let j = -n; j < n; j++) for (let i = -n; i < n; i++) {
+    const mk = mergeOf(c, Math.floor(i / 2), Math.floor(j / 2));
+    if (mk) {
+      const [i0, j0] = superAnchor(i, j, mk);
+      if (i === i0 && j === j0) superBlock(i0, j0, i0 + (mk & 1), j0 + (mk >> 1 & 1));
+      continue;
+    }
+    if (cityN(c, (i + 0.5) * B, (j + 0.5) * B) > 1) continue;
+    const bk = blockKind(c, i, j);
+    if (bk) { communal(i, j, bk); continue; }
+    single(i, j);
   }
   c.pop = pop; c.nb = nb;
   // street lamps along both sides of every street
@@ -4370,6 +4484,7 @@ function genCityTile(s, tx, tz) {
   for (let k = -n; k <= n; k++) for (let t = -c.Rmax; t <= c.Rmax; t += 38) for (const sd of [-off, off]) for (const ax of [0, 1]) {
     const u = ax ? t : k * B + sd, v = ax ? k * B + sd : t;
     if (cityN(c, u, v) > 1 || inParkRect(c, u, v, 2)) continue;
+    if (ax ? !streetH(c, k, Math.floor(t / B)) : !streetV(c, k, Math.floor(t / B))) continue;
     const [x, z] = W(u, v), y = c.hAt(u, v) + 6;
     if (y < P.sea + 7) continue;
     const lcol = st.cyber ? pick(r, [st.n1, st.n2, lc, lc]) : lc;
@@ -4380,7 +4495,7 @@ function genCityTile(s, tx, tz) {
   const spawn = (si, lane, alt) => {
     for (let k = 0; k < 10; k++) {
       const ax = r() < 0.5 ? 1 : 0, line = pick(r, lines), t = (r() * 2 - 1) * c.Rmax, u = ax ? line : t, v = ax ? t : line, f = cityN(c, u, v);
-      if (f > 0.9 || parkStreet(c, u, v) || r() > 0.06 + Math.exp(-((f * 1.9) ** 2))) continue;
+      if (f > 0.9 || parkStreet(c, u, v) || !onStreet(c, u, v, ax) || r() > 0.06 + Math.exp(-((f * 1.9) ** 2))) continue;
       out.agents.push(streetAgent(s, c, si, u, v, ax, lane, alt, r)); return;
     }
   };
@@ -4418,7 +4533,7 @@ function crowdStep(s) {
       const wx = s.x + dx - c.x, wz = s.z + dz - c.z, u = co * wx + si * wz, v = -si * wx + co * wz, d = cityN(c, u, v);
       if (d > 0.9 || Math.random() > 0.12 + 0.88 * Math.exp(-((d * 1.8) ** 2))) continue;
       const su = Math.round(u / c.B) * c.B, sv = Math.round(v / c.B) * c.B, ax = Math.abs(u - su) < Math.abs(v - sv) ? 1 : 0;
-      if (parkStreet(c, ax ? su : u, ax ? v : sv)) continue;
+      if (parkStreet(c, ax ? su : u, ax ? v : sv) || !onStreet(c, ax ? su : u, ax ? v : sv, ax)) continue;
       const na = streetAgent(s, c, si2, ax ? su : u, ax ? v : sv, ax, lane, alt, Math.random);
       if (a) { Object.assign(a, na); return a; }
       return na;
@@ -4456,12 +4571,16 @@ function gridStep(s, a, C, dt, dC, walking) {
     if (ax) a.v = a.next; else a.u = a.next;
     const opts = [a.dir, (a.dir + 1) % 4, (a.dir + 3) % 4], du = [B, 0, -B, 0], dv = [0, B, 0, -B];
     let nd = Math.random() < 0.6 ? a.dir : opts[Math.random() < 0.5 ? 1 : 2];
-    const okD = d => cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2);
+    const ku = Math.round(a.u / B), kv = Math.round(a.v / B);
+    // only along streets that exist (superblocks close some), inside the city and not through the central park
+    const segOK = d => d === 0 ? streetH(c, kv, ku) : d === 2 ? streetH(c, kv, ku - 1) : d === 1 ? streetV(c, ku, kv) : streetV(c, ku, kv - 1);
+    const okD = d => segOK(d) && cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2);
     if (!okD(nd)) nd = opts.find(okD) ?? (a.dir + 2) % 4;
     a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B);
     if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
   } else if (ax) a.v = p; else a.u = p;
-  const du = [1, 0, -1, 0][a.dir], dv = [0, 1, 0, -1][a.dir], lu = a.u + dv * a.lane, lv = a.v - du * a.lane;
+  // keep to the right of the direction of travel
+  const du = [1, 0, -1, 0][a.dir], dv = [0, 1, 0, -1][a.dir], lu = a.u - dv * a.lane, lv = a.v + du * a.lane;
   const co = Math.cos(c.rot), si = Math.sin(c.rot);
   a.x = c.x + co * lu - si * lv; a.z = c.z + si * lu + co * lv;
   const g = dC < 40 ? terrH(P, a.x, a.z, 3) : c.hAt(lu, lv);
@@ -5310,11 +5429,6 @@ const Music = {
     const t = this.ctx.currentTime;
     this.lp.frequency.setTargetAtTime(mode === 'surface' ? 2400 : mode === 'system' ? 1800 : 1200, t, 3);
     this.windG.gain.setTargetAtTime(wind, t, 1.5);
-  },
-  toggle() {
-    this.on = !this.on;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.on ? 0.75 : 0, this.ctx.currentTime, 1);
-    return this.on;
   },
   // all sound on / off (remembered between visits)
   toggleMute() {
@@ -6620,17 +6734,15 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyL') toggleLand();
   if (e.code === 'KeyT') toggleMarks();
   if (e.code === 'KeyH') document.body.classList.toggle('hideui');
-  if (e.code === 'KeyM') toggleMusic();
-  if (e.code === 'KeyN') toggleSound();
+  if (e.code === 'KeyM' || e.code === 'KeyN') toggleSound();
   if (e.code === 'KeyF') toggleFlash();
   if (e.code === 'Enter' || e.code === 'NumpadEnter') toggleFull();
   if (e.key === '?' || e.code === 'Slash') toggleHelp();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-function syncButtons() { $('bMusic').classList.toggle('on', Music.on && !Music.muted); $('bSound').classList.toggle('on', !Music.muted); }
-function toggleMusic() { Music.toggle(); syncButtons(); toast(Music.muted ? (Music.on ? 'Music on · all sound is off (N)' : 'Music off') : Music.on ? 'Music on' : 'Music off'); }
-function toggleSound() { Music.toggleMute(); syncButtons(); toast(Music.muted ? 'All sound off' : 'Sound on'); }
+function syncButtons() { const b = $('bSound'); b.textContent = Music.muted ? '\u{1F507}' : '\u{1F50A}'; b.title = Music.muted ? 'Sound off · click to turn on (M)' : 'Sound on · click to mute (M)'; }
+function toggleSound() { Music.toggleMute(); syncButtons(); toast(Music.muted ? 'Sound off' : 'Sound on'); }
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
 function toggleFlash() {
@@ -6642,7 +6754,6 @@ $('bFlash').onclick = () => { if (S.started) toggleFlash(); };
 $('bCenter').onclick = () => centerView();
 $('bPause').onclick = () => { if (S.started) togglePause(); };
 $('bBuggy').onclick = () => toggleBuggy();
-$('bMusic').onclick = () => toggleMusic();
 $('bSound').onclick = () => toggleSound();
 syncButtons();
 $('bHelp').onclick = () => toggleHelp();
