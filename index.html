@@ -108,6 +108,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <button id="bView" class="on" title="Third / first person (V)">VIEW</button>
   <button id="bMarks" class="on" title="Markers (T)">MARKERS</button>
   <button id="bMusic" class="on" title="Music (M)">MUSIC</button>
+  <button id="bSound" class="on" title="All sound on / off (N)">SOUND</button>
   <button id="bPause" title="Pause (P)">PAUSE</button>
   <button id="bHelp" title="Controls (?)">?</button>
   <button id="bFull" title="Fullscreen (Enter)">&#x26F6;</button>
@@ -132,7 +133,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div><b>C / V</b>center view / first &ndash; third person</div>
   <div><b>O</b>autopilot &middot; <b style="width:auto">P</b> pause</div>
   <div><b>T / H</b>markers / hide interface</div>
-  <div><b>M</b>music &middot; <b style="width:auto">Enter</b> fullscreen</div>
+  <div><b>M / N</b>music / all sound &middot; <b style="width:auto">Enter</b> fullscreen</div>
   <details>
     <summary>Travel</summary>
     <div><b>Click</b>a galaxy, star, planet or the sun to fly there</div>
@@ -145,6 +146,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
     <div><b>Cities</b>oval and sprawling, with parks, ponds, fountain plazas and lit highways to their neighbours</div>
     <div><b>Landmarks</b>arches, needles, floating isles, giant bones, table mountains, crystal spires, sea stacks and stone rings</div>
     <div><b>Skies</b>tinted skies, rings, great moons, auroras and shimmering veils</div>
+  <div><b>Mists</b>fog that pools in valleys and over water, thickest at dawn and in rain, tinted on some worlds</div>
   </details>
 </div>
 <div id="err"></div>
@@ -1597,12 +1599,36 @@ vec3 flashAt(vec3 w, vec3 n, float two){ vec3 s=vec3(0.);
     s+=uFlC[i]*P.w/(d2+P.w*.3)*cone*nl; }
   return s; }
 uniform float uFogD, uView;
+// fog: a broad haze that thins with altitude, and a ground mist pooling below uMist.y that drifts in banks
+// uFogO camera world position; uMist x mist density (1/m), y mist base height, z mist scale height, w haze scale height
+// uFogC rgb mist tint, a forward sun-glow; uFogN xy drift, z bank frequency (1/m), w bank contrast; uFogE mist's own glow
+uniform vec3 uFogO, uFogE; uniform vec4 uMist, uFogC, uFogN;
+float fogH(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float fogNz(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(fogH(i),fogH(i+vec2(1,0)),f.x),mix(fogH(i+vec2(0,1)),fogH(i+vec2(1,1)),f.x),f.y); }
+float fogBank(vec2 w){ if(uFogN.w<=0.) return 1.; vec2 p=w*uFogN.z+uFogN.xy;
+  float n=fogNz(p)*.62+fogNz(p*2.63+vec2(3.1,7.7))*.38; return mix(1.,smoothstep(.2,.8,n)*1.9,uFogN.w); }
+// optical depth of a layer whose density is 1 below h0 and falls off exponentially (scale H) above it, along a segment from hc to hp
+float fogLayer(float hc, float hp, float dist, float h0, float H){
+  float lo=min(hc,hp), hi=max(hc,hp), span=hi-lo;
+  if(span<.01) return dist*exp(-max(lo-h0,0.)/H);
+  float fb=clamp((h0-lo)/span,0.,1.), a=max(lo,h0);
+  float up=hi>a+.01?H*(exp(-(a-h0)/H)-exp(-(hi-h0)/H))/(hi-a):(hi>a?exp(-(a-h0)/H):0.);
+  return dist*(fb+(1.-fb)*up);
+}
+vec2 fogTau(vec3 rel, float dist){
+  float hc=uFogO.y, hp=hc+rel.y;
+  float haze=uFogD*fogLayer(hc,hp,dist,uMist.y,uMist.w), mist=0.;
+  if(uMist.x>0.) mist=uMist.x*fogLayer(hc,hp,dist,uMist.y,uMist.z)*(fogBank(uFogO.xz+rel.xz*.3)+fogBank(uFogO.xz+rel.xz*.75))*.5;
+  return vec2(haze,mist);
+}
+vec3 mistCol(vec3 d){ float g=pow(max(dot(d,uSun),0.),6.); return uFogC.rgb*(sunLight()*(.22+uFogC.a*g)+ambient()*.8)+uFogE; }
 vec3 fogApply(vec3 col, vec3 rel, float dist){
-  vec3 d=rel/dist;
-  float f=1.-exp(-dist*uFogD);
-  f=max(f,smoothstep(uView*.7,uView,dist));
+  vec3 d=rel/dist; vec2 tau=fogTau(rel,dist);
+  float f=max(1.-exp(-tau.x),smoothstep(uView*.7,uView,dist));
   vec3 fc=skyCol(normalize(vec3(d.x,max(d.y,0.)*.4+.01,d.z)));
-  return mix(col,fc,f);
+  col=mix(col,fc,f);
+  return mix(col,mistCol(d),1.-exp(-min(tau.y,40.)));
 }
 `;
 const SHADOW_GLSL = `
@@ -1683,7 +1709,10 @@ void main(){
     c=mix(c,cc,cov*fade*.95); occ=cov*fade*.95;
   }
   float ext=exp(-.14/(max(d.y,0.)+.1));
-  o=vec4(c,(1.-(1.-max(occ,fxA))*ext)*uAir);
+  // standing in (or looking across) the ground mist hides the horizon and even the stars
+  float mf=0.;
+  if(uMist.x>0.){ mf=1.-exp(-min(uMist.x*fogLayer(uFogO.y,uFogO.y+d.y*4000.,4000.,uMist.y,uMist.z)*fogBank(uFogO.xz+d.xz*700.),40.)); c=mix(c,mistCol(d),mf); }
+  o=vec4(c,max((1.-(1.-max(occ,fxA))*ext),mf)*uAir);
 }`);
 
 // terrain chunk mesh: 33x33 grid + skirts
@@ -4534,12 +4563,13 @@ void main(){ vec3 n=normalize(vN); vec3 rel=vW-uCam; float dist=length(rel), nig
   if(uKind>2.5) col+=(uCyber>.5?uN1:uWin)*smoothstep(.85,1.,vL.y/vX.y)*(.4+2.*night);
   o=vec4(fogApply(col,rel,dist),1.); }`);
 const P_shCity = program(CITY_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=cityWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
-const P_lamp = program(`layout(location=0) in vec2 aC; layout(location=1) in vec4 aI; layout(location=2) in vec4 aJ;
+const P_lamp = program(SKY_GLSL + `layout(location=0) in vec2 aC; layout(location=1) in vec4 aI; layout(location=2) in vec4 aJ;
 uniform mat4 uVP; uniform vec3 uCam; uniform float uCurv, uPx, uTime, uNight; uniform vec2 uVpx; out vec2 vUV; out vec3 vC;
-void main(){ vec3 rel=aI.xyz-uCam; float d=length(rel); rel.y-=dot(rel.xz,rel.xz)*uCurv;
+void main(){ vec3 rel=aI.xyz-uCam; float d=length(rel); vec2 ft=fogTau(rel,max(d,.01)); rel.y-=dot(rel.xz,rel.xz)*uCurv;
   float blink=aJ.w>.5?step(.55,fract(uTime*.6+aI.x*.0137)):1.;
-  float real=aI.w/d*uPx, px=max(real,1.6);
-  vC=aJ.rgb*uNight*blink*pow(min(real/px,1.),.6)*max(.25,1.)*smoothstep(32000.,12000.,d)*(aJ.w>.5?3.:1.6);
+  // in mist, lights dim with distance but spread into a soft halo
+  float real=aI.w/d*uPx, halo=1.+min(ft.y,2.5)*.7, px=max(real,1.6)*halo;
+  vC=aJ.rgb*uNight*blink*pow(min(real/max(real,1.6),1.),.6)*smoothstep(32000.,12000.,d)*(aJ.w>.5?3.:1.6)*exp(-(ft.x*.5+ft.y*.8))/sqrt(halo);
   vUV=aC; vec4 cp=uVP*vec4(rel,1.); cp.xy+=aC*px*2./uVpx*cp.w; gl_Position=cp; }`,
   `in vec2 vUV; in vec3 vC; out vec4 o; void main(){ float r=dot(vUV,vUV); if(r>1.) discard; o=vec4(vC*exp(-r*3.5),1.); }`);
 const lampBuf = gl.createBuffer();
@@ -4612,6 +4642,7 @@ function makeSurface(planet, sys, entryDir) {
   }
   s.eco = makeEcology(P, planet.type, mulberry(hashInts(planet.seed, 4242)));
   s.eco.marks = makeLandmarks(P, planet.type, mulberry(hashInts(planet.seed, 8181)));
+  s.fogS = fogStyle(P, planet.type, mulberry(hashInts(planet.seed, 9191)));
   s.ltiles = new Map(); s.lmObs = []; s.lmSpots = [];
   if (planet.civ) s.civ = makeCulture(P, planet.type, mulberry(hashInts(planet.seed, 6262)), s.eco, planet.civLv || 0);
   P.pads = []; P.cityU = s.cityU; P.cityB = s.cityB; P.cityS = s.cityS;
@@ -4652,6 +4683,47 @@ function splitTiles(map, size, x, z, R) {
   return [near, far];
 }
 // regional showers and storms drifting across the land; cloud cover varies from place to place
+// ---- fog: every world has its own mists; they gather in valleys and over water, thicken at dawn and in rain,
+// thin out at midday, drift in banks with the wind, and vary in density (and on some worlds colour) from region to region
+function fogStyle(P, type, r) {
+  const F = { amt: 0, tint: [0.86, 0.88, 0.92], tint2: null, H: 40 + r() * 30, lift: 6 + r() * 16, haze: 1600, freq: 1 / (450 + r() * 550), pat: 0.55 + r() * 0.35, sun: 0.8, wind: 0.5 + r() * 1.5, region: 6000 + r() * 7000, glow: [0, 0, 0] };
+  if (P.airless) return F;
+  const foggy = r() < 0.2 ? 1.8 + r() * 0.6 : 0.35 + r() * 1.15;
+  const odd = [[1, 0.86, 0.66], [0.84, 0.78, 0.98], [0.74, 0.94, 0.88], [0.98, 0.8, 0.86], [0.8, 0.9, 1.05]];
+  if (type === 'terran') { F.amt = foggy; if (r() < 0.35) F.tint2 = pick(r, odd); }
+  else if (type === 'ocean') { F.amt = 1.35 * foggy; F.tint = [0.84, 0.9, 0.97]; F.lift = 3 + r() * 6; F.H = 30 + r() * 20; if (r() < 0.25) F.tint2 = pick(r, odd); }
+  else if (type === 'desert') { F.amt = 0.3 * foggy; F.tint = jit(r, [1, 0.82, 0.62], 0.08); F.tint2 = jit(r, [0.95, 0.58, 0.42], 0.1); F.H = 90 + r() * 60; F.haze = 2600; F.pat = 0.3 + r() * 0.3; F.sun = 1.2; F.wind *= 2; }
+  else if (type === 'ice') { F.amt = 1.25 * foggy; F.tint = [0.93, 0.96, 1.02]; F.tint2 = [0.76, 0.9, 1.06]; F.haze = 1200; }
+  else if (type === 'alien') { F.amt = 1.1 * foggy; F.tint = hsv(r(), 0.22 + r() * 0.3, 1); F.tint2 = hsv(r(), 0.45, 1); F.sun = 1.3; if (r() < 0.5) F.glow = vmul(F.tint, 0.012); }
+  else if (type === 'lava') { F.amt = 0.9 + r() * 0.8; F.tint = [0.42, 0.33, 0.29]; F.tint2 = [0.62, 0.3, 0.2]; F.H = 70 + r() * 60; F.haze = 900; F.glow = [0.05, 0.012, 0.004]; F.pat = 0.7; }
+  else if (type === 'gas' || type === 'icegiant') { F.amt = 0.8; F.tint = P.g3.map(v => clamp(v * 1.05, 0.2, 1.1)); F.tint2 = P.g1; F.H = 220 + r() * 160; F.lift = 0; F.haze = 3000; F.pat = 0.75; }
+  return F;
+}
+function fogStep(s, dt) {
+  const F = s.fogS, P = s.P; if (!F) return;
+  s.fogT = (s.fogT || 0) - dt;
+  if (s.fogT <= 0) {
+    s.fogT = 0.5;
+    // the mist settles at the typical ground level around the traveller, so lower land and water fill first
+    let sum = 2 * Math.max(terrH(P, s.x, s.z, 0), P.sea), n = 2;
+    for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; sum += Math.max(terrH(P, s.x + Math.cos(a) * 700, s.z + Math.sin(a) * 700, 0), P.sea); n++; }
+    s.fogBaseT = sum / n;
+    s.fogRegT = smooth(-0.35, 0.4, gn(s.x / F.region + 17.3, s.z / F.region - 5.1));
+    s.fogColT = F.tint2 ? smooth(0.1, 0.5, gn(s.x / (F.region * 1.7) - 3.7, s.z / (F.region * 1.7) + 9.2)) : 0;
+  }
+  const k = s.fogBase === undefined ? 1 : 1 - Math.exp(-dt * 0.35);
+  s.fogBase = lerp(s.fogBase ?? s.fogBaseT, s.fogBaseT, k); s.fogReg = lerp(s.fogReg ?? s.fogRegT, s.fogRegT, k); s.fogCol = lerp(s.fogCol ?? s.fogColT, s.fogColT, k);
+  // morning and evening mists, burnt off by the midday sun, thicker at night and in rain
+  const sy = s.sun[1], tod = lerp(0.45, 1, 1 - smooth(0.12, 0.55, sy)) + 0.9 * Math.exp(-(((sy - 0.03) / 0.13) ** 2));
+  // never thicker than ~120 m visibility at the mist's base
+  s.fogAmt = Math.min(F.amt * lerp(0.1, 1.6, s.fogReg) * tod * (1 + 1.1 * s.rain), 3);
+  s.fogDrift = s.fogDrift || [0, 0];
+  s.fogDrift[0] += dt * F.wind * F.freq * 0.8; s.fogDrift[1] += dt * F.wind * F.freq * 0.35;
+  // at night the mist over and around a city glows with its lights
+  let cg = 0;
+  if (s.civ && s.civ.lv >= 2) for (const c of s.cityList) cg = Math.max(cg, smooth(1800, 0, cityOut(c, s.x, s.z)) * clamp(c.R / 900, 0.4, 1.3));
+  s.fogCity = lerp(s.fogCity || 0, cg, k);
+}
 function weatherStep(s, dt) {
   const w = s.wx, n = gn(s.x / 11000 + s.t * 0.004 + w.ph, s.z / 11000 + 7.7) * 0.5 + 0.5;
   const target = w.rainP > 0 ? smooth(1 - w.rainP * 0.55, 1.1 - w.rainP * 0.55, n) : 0;
@@ -4681,6 +4753,7 @@ function updateSurfaceWorld(s, dt) {
     Music.city(tr, cr, s.civ && (s.civ.alien || s.civ.city.cyber));
   }
   weatherStep(s, dt);
+  fogStep(s, dt);
   if (tileSet(s.tiles, TT, TREE_R, s.x, s.z, 10, (tx, tz) => genPlantTile(s, tx, tz))) s.dirty = true;
   const hqOn = s.y - s.ground < 300;
   if (hqOn !== s.hqOn) { s.hqOn = hqOn; s.dirty = true; }
@@ -4795,10 +4868,18 @@ function collectChunks(s, fwd) {
   return out;
 }
 function surfaceSkyUniforms(p, s) {
-  const P = s.P;
+  const P = s.P, F = s.fogS || {}, tint = vlerp(vlerp(F.tint || [1, 1, 1], F.tint2 || F.tint || [1, 1, 1], s.fogCol || 0), [0.68, 0.7, 0.74], s.rain * 0.5).map(v => v * 1.15);
   p.set('uSun', s.sun).set('uSkyTint', P.sky).set('uSunCol', s.sys.star.light).set('uSunI', 1.9).set('uFogD', (P.fogD || 1 / 30000) * (1 + 3.5 * s.rain)).set('uView', 30000)
-    .set('uOver', s.rain * 0.85).set('uFlash', s.flash).set('uFlP', s.flP).set('uFlD', s.flD).set('uFlC', s.flC);
+    .set('uOver', s.rain * 0.85).set('uFlash', s.flash).set('uFlP', s.flP).set('uFlD', s.flD).set('uFlC', s.flC)
+    .set('uFogO', s.fogCam || [s.x, s.y, s.z]).set('uMist', [(s.fogAmt || 0) / 350, (s.fogBase ?? P.sea) + (F.lift || 0), F.H || 50, F.haze || 1600])
+    .set('uFogC', [...tint, F.sun || 0.8]).set('uFogN', [...(s.fogDrift || [0, 0]), F.freq || 0, F.pat || 0]).set('uFogE', fogGlow(s));
   return p;
+}
+function fogGlow(s) {
+  const F = s.fogS || {}, amt = s.fogAmt || 0, night = 1 - smooth(-0.2, 0.05, s.sun[1]);
+  let e = vmul(F.glow || [0, 0, 0], amt);
+  if (s.civ && s.fogCity > 0.01) { const cs = s.civ.city, lc = cs.cyber ? vlerp(cs.n1, cs.n2, 0.5) : cs.win; e = vadd(e, vmul(lc, 0.03 * s.fogCity * night)); }
+  return e;
 }
 const terrUniforms = (p, P) => p.set('uTOff', [P.ox, P.oz]).set('uTCont', P.cont).set('uTBase', P.base).set('uTMount', P.mount).set('uTHill', P.hill)
   .set('uTStyle', [P.terrace || 0, P.spike || 0, P.canyon || 0, P.dune || 0]).set('uTCrater', P.crater || 0).set('uCity', P.cityU).set('uCityB', P.cityB).set('uCityS', P.cityS);
@@ -4834,6 +4915,7 @@ function renderSurface(s, time, camQ, cam) {
   const P = s.P, E = s.eco;
   const day = smooth(-0.2, 0.04, s.sun[1]), agl = s.y - s.ground, walking = s.phase === 'walk';
   const fwd = qfwd(camQ), chunks = collectChunks(s, fwd), models = surfaceModels(s);
+  s.fogCam = cam;
   updateFlashlights(s, cam, camQ);
   renderShadowMap(s, time, chunks, fwd, cam, models);
   gl.bindFramebuffer(gl.FRAMEBUFFER, post.hdr.fb); gl.viewport(0, 0, post.w, post.h);
@@ -4929,7 +5011,7 @@ function renderSurface(s, time, camQ, cam) {
   // translucent sky creatures
   if (lampN && day < 0.9) {
     glState({ depth: true, blend: 'add' });
-    P_lamp.use().set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1 - day).set('uVpx', [post.w, post.h]);
+    surfaceSkyUniforms(P_lamp.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1 - day).set('uVpx', [post.w, post.h]);
     gl.bindVertexArray(lampVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, lampN);
   }
   // a soft glare around each lit lamp of the flashlight, headlamps, searchlight or scanner
@@ -4937,7 +5019,7 @@ function renderSurface(s, time, camQ, cam) {
   if (fg.length && (day < 0.97 || (S.scan && S.scan.holding))) {
     gl.bindBuffer(gl.ARRAY_BUFFER, flashBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(fg), gl.DYNAMIC_DRAW);
     glState({ depth: true, blend: 'add' });
-    P_lamp.use().set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1.2 * (1 - day) + 0.15).set('uVpx', [post.w, post.h]);
+    surfaceSkyUniforms(P_lamp.use(), s).set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1.2 * (1 - day) + 0.15).set('uVpx', [post.w, post.h]);
     gl.bindVertexArray(flashVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, fg.length / 8);
   }
   if (floaterMesh.n && E.floater) {
@@ -4965,13 +5047,16 @@ function renderSurface(s, time, camQ, cam) {
 //  AMBIENT GENERATIVE MUSIC
 // ============================================================================
 const Music = {
-  ctx: null, on: true, chords: [[50, 57, 62, 64, 66, 69], [47, 54, 59, 61, 62, 66], [43, 50, 57, 59, 62, 66], [45, 52, 57, 59, 61, 64], [48, 55, 60, 62, 64, 67]],
+  ctx: null, on: true, muted: (() => { try { return localStorage.getItem('starwander.mute') === '1'; } catch (e) { return false; } })(),
+  chords: [[50, 57, 62, 64, 66, 69], [47, 54, 59, 61, 62, 66], [43, 50, 57, 59, 62, 66], [45, 52, 57, 59, 61, 64], [48, 55, 60, 62, 64, 67]],
   prog: [0, 1, 2, 3, 0, 2, 4, 3], ci: 0, bells: [62, 64, 66, 69, 71, 74, 76, 78, 81, 83],
   start() {
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const C = this.ctx = new AC();
-    this.master = C.createGain(); this.master.gain.value = 0; this.master.connect(C.destination);
+    // everything (music and sound effects) passes through one output, so a single switch silences it all
+    this.out = C.createGain(); this.out.gain.value = this.muted ? 0 : 1; this.out.connect(C.destination);
+    this.master = C.createGain(); this.master.gain.value = 0; this.master.connect(this.out);
     this.master.gain.setTargetAtTime(this.on ? 0.75 : 0, C.currentTime, 3);
     const len = C.sampleRate * 6, ir = C.createBuffer(2, len, C.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
@@ -4986,7 +5071,7 @@ const Music = {
     this.windG = C.createGain(); this.windG.gain.value = 0;
     ns.connect(this.windF); this.windF.connect(this.windG); this.windG.connect(this.master); ns.start();
     // sound effects: independent of the music toggle
-    this.sfx = C.createGain(); this.sfx.gain.value = 0.9; this.sfx.connect(C.destination);
+    this.sfx = C.createGain(); this.sfx.gain.value = 0.9; this.sfx.connect(this.out);
     this.sfxRev = C.createConvolver(); this.sfxRev.buffer = ir; this.sfxRevG = C.createGain(); this.sfxRevG.gain.value = 0.35; this.sfxRev.connect(this.sfxRevG); this.sfxRevG.connect(this.sfx);
     const wb = C.createBuffer(1, C.sampleRate, C.sampleRate), wd = wb.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1; this.white = wb;
     const E = this.eng = {};
@@ -5230,6 +5315,13 @@ const Music = {
     this.on = !this.on;
     if (this.ctx) this.master.gain.setTargetAtTime(this.on ? 0.75 : 0, this.ctx.currentTime, 1);
     return this.on;
+  },
+  // all sound on / off (remembered between visits)
+  toggleMute() {
+    this.muted = !this.muted;
+    try { localStorage.setItem('starwander.mute', this.muted ? '1' : '0'); } catch (e) { }
+    if (this.ctx) this.out.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.08);
+    return this.muted;
   }
 };
 
@@ -6316,7 +6408,7 @@ function renderScanPreview(s) {
   gl.bindBuffer(gl.ARRAY_BUFFER, scanIB); gl.bufferData(gl.ARRAY_BUFFER, inst, gl.DYNAMIC_DRAW);
   // steady studio daylight, whatever the time on the planet
   const lit = p => shadowUniforms(surfaceSkyUniforms(p, s)).set('uShOn', 0).set('uSun', vnorm([0.45, 0.8, 0.55])).set('uSunCol', [1, 0.97, 0.92]).set('uSunI', 1.9)
-    .set('uOver', 0).set('uFlash', 0).set('uFogD', 0).set('uView', 1e9).set('uFlP', scanZero).set('uVP', vp).set('uCam', cam).set('uCurv', 0).set('uTime', S.t);
+    .set('uOver', 0).set('uFlash', 0).set('uFogD', 0).set('uView', 1e9).set('uMist', [0, 0, 1, 1]).set('uFogE', [0, 0, 0]).set('uFlP', scanZero).set('uVP', vp).set('uCam', cam).set('uCurv', 0).set('uTime', S.t);
   if (animal) {
     const C = t.C, p = lit(P_animal.use().tex('uNoise', noiseTex, gl.TEXTURE_3D)).set('uFadeR', 1e9);
     p.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uCol1', C.c1).set('uCol2', C.c2).set('uCol3', C.c3)
@@ -6512,7 +6604,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   if (!S.started) return;
   if (e.code === 'KeyP') { togglePause(); return; }
-  if (S.paused && !/^(KeyH|KeyM|KeyF|Enter|NumpadEnter|Slash)$/.test(e.code)) return;
+  if (S.paused && !/^(KeyH|KeyM|KeyN|KeyF|Enter|NumpadEnter|Slash)$/.test(e.code)) return;
   const onFoot = S.mode === 'surface' && surf && surf.phase === 'walk';
   if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
   // Space: jump on foot, otherwise take the controls and slow the craft down
@@ -6529,14 +6621,16 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') toggleMarks();
   if (e.code === 'KeyH') document.body.classList.toggle('hideui');
   if (e.code === 'KeyM') toggleMusic();
+  if (e.code === 'KeyN') toggleSound();
   if (e.code === 'KeyF') toggleFlash();
   if (e.code === 'Enter' || e.code === 'NumpadEnter') toggleFull();
   if (e.key === '?' || e.code === 'Slash') toggleHelp();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-function syncButtons() { $('bMusic').classList.toggle('on', Music.on); }
-function toggleMusic() { Music.toggle(); syncButtons(); toast(Music.on ? 'Music on' : 'Music off'); }
+function syncButtons() { $('bMusic').classList.toggle('on', Music.on && !Music.muted); $('bSound').classList.toggle('on', !Music.muted); }
+function toggleMusic() { Music.toggle(); syncButtons(); toast(Music.muted ? (Music.on ? 'Music on · all sound is off (N)' : 'Music off') : Music.on ? 'Music on' : 'Music off'); }
+function toggleSound() { Music.toggleMute(); syncButtons(); toast(Music.muted ? 'All sound off' : 'Sound on'); }
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
 function toggleFlash() {
@@ -6549,6 +6643,8 @@ $('bCenter').onclick = () => centerView();
 $('bPause').onclick = () => { if (S.started) togglePause(); };
 $('bBuggy').onclick = () => toggleBuggy();
 $('bMusic').onclick = () => toggleMusic();
+$('bSound').onclick = () => toggleSound();
+syncButtons();
 $('bHelp').onclick = () => toggleHelp();
 $('bFull').onclick = () => toggleFull();
 $('bLand').onclick = () => toggleLand();
