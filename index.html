@@ -124,7 +124,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div><b>Drag</b>steer where you walk</div>
   <div><b>Space</b>jump</div>
   <div><b>E</b>get in / out of a ship or buggy beside you</div>
-  <div><b>Hold click</b>scan a creature or plant</div>
+  <div><b>Hold click</b>scan a creature, person or plant</div>
   <div><b>B / L</b>buggy / fly from anywhere</div>
   <div class="s">Anywhere</div>
   <div><b>F</b>light on / off</div>
@@ -2740,7 +2740,7 @@ function makeCreature(r, o) {
     else { C.scale = alien ? 1 + r() * 1.3 : 1 + r() * 0.3; if (r() < 0.25) { C.beh = 'curious'; C.shy = 0; } }
     size = L + legL;
   } else if (kind === 'biped' && o.villager) {
-    buildPerson(B, r, C, o); size = C.height;
+    buildPerson(B, r, C, o); size = C.height; C.plan = o.plan || 'human'; C.pack = !!o.pack;
   } else if (kind === 'biped') {
     const H = 0.6 + r() * 1.8, legL = H, L = H * (0.7 + r() * 0.5), bh = L * 0.4, neck = L * (0.3 + r() * 0.9), na = 0.2 + r() * 0.7;
     B.blob([0, legL + bh * 0.3, 0], [bh * 0.45, bh * 0.5, L * 0.5], 0, 0, 0.1);
@@ -6001,24 +6001,28 @@ function rayCapsule(o, d, ax, ay, az, h, r) {
   const px = wx + t * d[0], py = wy + t * d[1] - sv, pz = wz + t * d[2];
   return px * px + py * py + pz * pz < r * r ? t : Infinity;
 }
-const scanKey = t => t.type === 'animal' ? 'a' + t.si : 'p' + t.k;
+const scanKey = t => t.type === 'animal' ? 'a' + t.si : t.type === 'person' ? 'h' + t.a.id : 'p' + t.k;
 function scanCentre(t) {
-  if (t.type === 'animal') { const b = t.C.box, k = t.a.scale; return [t.a.x, t.a.y + (b[1] + b[4]) * 0.5 * k, t.a.z]; }
+  if (t.type !== 'plant') { const b = t.C.box, k = t.a.scale; return [t.a.x, t.a.y + (b[1] + b[4]) * 0.5 * k, t.a.z]; }
   return [t.x, t.y + t.sp.box[4] * t.sc * 0.5, t.z];
 }
-// the nearest wild creature or plant under the cursor, within scanner range
+// the nearest wild creature, person or plant under the cursor, within scanner range
 function scanPick(s, cx, cy) {
   const ray = scanRay(cx, cy); if (!ray) return null;
   const { o, d } = ray, E = s.eco; let best = null, bt = SCAN_R + 15;
   const near = (x, z) => Math.abs(x - s.x) < SCAN_R && Math.abs(z - s.z) < SCAN_R && Math.hypot(x - s.x, z - s.z) < SCAN_R;
-  const tryA = a => {
-    const C = E.creatures[a.si]; if (!C || !C.box || C.villager || !near(a.x, a.z)) return;
+  const tryA = (a, person) => {
+    const C = E.creatures[a.si]; if (!C || !C.box || !C.villager !== !person || !near(a.x, a.z)) return;
     const k = a.scale, b = C.box, rad = Math.max(b[3] - b[0], b[5] - b[2]) * 0.5 * k, h = (b[4] - b[1]) * k;
     const t = rayCapsule(o, d, a.x, a.y + b[1] * k, a.z, h, Math.max(rad * 0.75, 0.3));
-    if (t < bt) { bt = t; best = { type: 'animal', a, si: a.si, C, rad: Math.max(rad, h * 0.5) }; }
+    if (t < bt) { bt = t; best = { type: person ? 'person' : 'animal', a, si: a.si, C, rad: Math.max(rad, h * 0.5) }; }
   };
   for (const t of s.atiles.values()) for (const a of t.a) tryA(a);
   for (const t of s.ttiles.values()) for (const a of t.a) tryA(a);
+  // villagers, townsfolk and city crowds (their vehicles are not people)
+  for (const t of s.vtiles.values()) if (t.a.people) for (const a of t.a.people) tryA(a, true);
+  for (const t of s.ctiles.values()) for (const a of t.a.agents) tryA(a, true);
+  if (s.crowd) for (const a of s.crowd) tryA(a, true);
   E.plants.forEach((sp, k) => {
     if (sp.kind === 'rock' || sp.kind === 'crag' || !sp.box) return;
     const bx = sp.box, hh = bx[4], rr = Math.max(bx[3] - bx[0], bx[5] - bx[2]) * 0.5;
@@ -6107,6 +6111,7 @@ const P_GROW = { conifer: 0.35, broad: 0.45, bush: 0.25, palm: 0.6, cactus: 0.04
 const boxVol = b => Math.max(b[3] - b[0], 0.01) * Math.max(b[4] - b[1], 0.01) * Math.max(b[5] - b[2], 0.01);
 // species-level entry, identical every time the same species is scanned on this world
 function scanSpecies(s, t) {
+  if (t.type === 'person') return scanPerson(s, t);
   const key = scanKey(t); s.scanCache = s.scanCache || new Map();
   if (s.scanCache.has(key)) return s.scanCache.get(key);
   const animal = t.type === 'animal', r = mulberry(hashInts(s.P.seed | 0, animal ? t.si : t.k, animal ? 5151 : 6161));
@@ -6146,6 +6151,7 @@ function scanSpecies(s, t) {
 }
 // measurements of the individual being scanned, with its species' range for comparison
 function scanRows(t, sp) {
+  if (t.type === 'person') return personRows(t, sp);
   const rows = [];
   if (t.type === 'animal') {
     const C = t.C, a = t.a, b = C.box, k = a.scale, rel = k / C.scale, lo = C.titan ? 0.8 : 0.85, hi = C.titan ? 1.2 : 1.15;
@@ -6168,6 +6174,59 @@ function scanRows(t, sp) {
   }
   return rows;
 }
+// ---- people: every scanned person gets their own consistent entry
+const PLAN_DESC = {
+  human: 'two arms, two legs and one head, much like us', stalk: 'tall and slender on stilt-like legs', bulb: 'a round, bulbous body on short legs', squid: 'walks on curling tentacles',
+  insect: 'segmented body, antennae and extra limbs', bighead: 'a small body beneath a great round head', twohead: 'two heads that share one body, and rarely agree',
+  floater: 'drifts above the ground without legs', robot: 'a built being of metal and light', plant: 'a walking plant crowned with a flower', snail: 'carries its home as a spiral shell',
+  bird: 'feathered and beaked, with small folded wings', crystal: 'a being of living crystal'
+};
+const PLAN_SKIN = { robot: 'plating', plant: 'leaves', crystal: 'facets', bird: 'feathers', insect: 'shell', squid: 'skin', snail: 'skin', floater: 'skin' };
+const PLAN_LIFE = { robot: [3, 300], crystal: [40, 900], plant: [2, 60], snail: [10, 140], floater: [20, 260] };
+const PLAN_MASS = { stalk: 0.3, bulb: 1.3, bighead: 1.2, twohead: 1.5, floater: 0.25, robot: 2.2, crystal: 2.4, snail: 1.4, insect: 0.6, bird: 0.5, plant: 0.55, squid: 0.9 };
+const PERSON_VOICE = { warble: 'soft warbles', hoot: 'low hoots', trill: 'quick trills' };
+const JOBS_NOMAD = ['herder', 'storyteller', 'tracker', 'weaver', 'fire-keeper', 'forager'];
+const JOBS_VILLAGE = ['farmer', 'potter', 'weaver', 'herder', 'baker', 'smith', 'fisher', 'healer', 'lamp-keeper', 'beekeeper', 'carpenter', 'miller'];
+const JOBS_CITY = ['merchant', 'engineer', 'teacher', 'courier', 'musician', 'gardener', 'architect', 'cook', 'astronomer', 'tram driver', 'painter', 'librarian', 'street vendor', 'clockmaker', 'botanist', 'doctor'];
+const PERSON_TRAIT = ['friendly, stops to greet travellers', 'loves telling long stories', 'hums while walking', 'collects smooth stones', 'knows every star by name', 'grows herbs by the window',
+  'never misses a sunrise', 'laughs easily', 'keeps a small notebook of sketches', 'shy at first, warm once you say hello', 'always seems to be in a hurry', 'is saving up for a trip off-world'];
+function personHome(s, a) {
+  const urban = c => ({ name: c.name, kind: c.R > 1000 ? 'the great city' : c.R > 450 ? 'the city' : 'the town', urban: true });
+  if (a.city) return urban(a.city);
+  const hx = a.hx ?? a.x, hz = a.hz ?? a.z, c = inCity(s, hx, hz, 0); if (c) return urban(c);
+  const v = villageSite(s, Math.floor(hx / VT), Math.floor(hz / VT));
+  if (v.name && Math.hypot(hx - v.cx, hz - v.cz) < v.R + 40) return { name: v.name, kind: s.civ && s.civ.lv === 0 ? 'the camp' : v.hamlet ? 'the hamlet' : 'the village', urban: false };
+  return { name: null, kind: 'a lone homestead', urban: false };
+}
+function scanPerson(s, t) {
+  const a = t.a, C = t.C, cul = s.civ, key = scanKey(t); s.scanCache = s.scanCache || new Map();
+  if (s.scanCache.has(key)) return s.scanCache.get(key);
+  const r = mulberry(hashInts(s.P.seed | 0, a.id | 0, 7373)), plan = C.plan || 'human', nm = () => makeName(r).replace(/-\d+$/, '');
+  const title = plan === 'robot' ? nm() + ' ' + nm().slice(0, 2).toUpperCase() + '-' + (2 + Math.floor(r() * 97)) : nm() + ' ' + nm();
+  const home = personHome(s, a), life = PLAN_LIFE[plan] || [16, 90];
+  const jobs = (home.urban ? JOBS_CITY : cul && cul.lv === 0 ? JOBS_NOMAD : JOBS_VILLAGE).concat(plan === 'robot' ? ['maintenance unit', 'archivist'] : []);
+  const f = [PLAN_DESC[plan] || PLAN_DESC.human, 'dresses in ' + colourName(C.c1) + (C.pack ? ', carries a pack' : ''), colourName(C.c2) + ' ' + (PLAN_SKIN[plan] || 'skin')];
+  if (C.voice) f.push('speaks in ' + (PERSON_VOICE[C.voice.kind] || 'soft murmurs'));
+  f.push(pick(r, PERSON_TRAIT));
+  if (cul && cul.others && home.urban) f.push('one of ' + (cul.others + 1) + ' peoples sharing the city');
+  const e = {
+    title, latin: (cul ? cul.folk.replace(/-\d+$/, '') + ' ' : '') + (PLAN_FOLK[plan] || 'folk'), person: true, feats: f.map(cap1), key, home, plan,
+    age: Math.round(lerp(life[0], life[0] + (life[1] - life[0]) * 0.8, r())), job: pick(r, jobs), idle: pick(r, ['chatting with neighbours', 'resting in the shade', 'watching the sky', 'tending a small garden'])
+  };
+  s.scanCache.set(key, e); return e;
+}
+function personRows(t, sp) {
+  const C = t.C, a = t.a, b = C.box, k = a.scale, s = surf;
+  const near = s && Math.hypot(a.x - s.x, a.z - s.z) < 9;
+  return [
+    ['Height', fmtLen((b[4] - b[1]) * k)],
+    ['Weight', fmtMass(70 * ((b[4] - b[1]) * k / 1.75) ** 2 * (PLAN_MASS[sp.plan] || 1))],
+    ['Age', sp.plan === 'robot' ? 'built ' + sp.age + ' years ago' : sp.age + ' years'],
+    ['Occupation', sp.job],
+    ['Home', sp.home.name ? sp.home.kind + ' of ' + sp.home.name : sp.home.kind],
+    ['Right now', near ? 'curious about you' : a.city ? (a.wait > 0 || a.spd < 0.2 ? 'waiting on a corner' : 'on the way somewhere') : a.state === 'walk' ? 'out for a stroll' : sp.idle]
+  ];
+}
 // ---- scan flow
 function scanBegin(t) {
   const s = surf, sp = scanSpecies(s, t);
@@ -6176,8 +6235,8 @@ function scanBegin(t) {
   $('tip').style.display = 'none';
   const el = $('scan');
   let h = '<div class="sv" id="scanView"><div class="st"></div><b class="x" title="Close (Esc)">&times;</b></div><div class="si">';
-  h += '<div class="h" data-at=".2" data-t="' + sp.title + '" data-ph="' + (t.type === 'animal' ? 'Unknown creature' : 'Unknown plant') + '"></div>';
-  h += '<div class="d" data-at=".3"><i>' + sp.latin + '</i> &middot; ' + s.planet.name + '</div>';
+  h += '<div class="h" data-at=".2" data-t="' + sp.title + '" data-ph="' + (t.type === 'animal' ? 'Unknown creature' : t.type === 'person' ? 'Unknown person' : 'Unknown plant') + '"></div>';
+  h += '<div class="d" data-at=".3">' + (sp.person ? sp.latin : '<i>' + sp.latin + '</i>') + ' &middot; ' + s.planet.name + '</div>';
   scanRows(t, sp).forEach(([k, v, x], i) => { h += '<div class="r" data-at="' + (0.35 + i * 0.07).toFixed(2) + '"><span>' + k + '</span><b>' + v + (x ? ' <small>' + x + '</small>' : '') + '</b></div>'; });
   h += '<div class="f">' + sp.feats.map((f, i) => '<div data-at="' + (0.8 + i * 0.03).toFixed(2) + '">' + f + '</div>').join('') + '</div><div class="bar"><i></i></div></div>';
   el.innerHTML = h; el.style.display = 'block';
@@ -6195,7 +6254,7 @@ function scanPanelUpdate() {
 function scanRelease() { const sc = S.scan; if (!sc) return; if (!sc.done) scanClose(); else sc.holding = false; }
 function scanClose() { S.scan = null; S.scanView = null; $('scan').style.display = 'none'; Music.scan(0, 0); }
 function scanAnimRate(t) {
-  if (t.type !== 'animal') return 0;
+  if (t.type === 'plant') return 0;
   const C = t.C, b = C.beh;
   return b === 'flock' ? (C.flapHz || 6) : b === 'swarm' ? 22 : b === 'fly' ? (C.pitch ? 1.2 : 5 + 6 / t.a.scale) * (C.flapK || 1) : b === 'burrow' ? 1.3 : C.walk / Math.max(C.stride, 0.05) * Math.PI;
 }
@@ -6217,7 +6276,7 @@ function scanHoverAt(cx, cy) {
   S.scanHover = t;
   if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; return; }
   const known = s.scanned.has(scanKey(t)) ? scanSpecies(s, t) : null;
-  tip.innerHTML = '<b>' + (known ? known.title : t.type === 'animal' ? 'Unknown creature' : 'Unknown plant') + '</b><br><span>hold left mouse to scan</span>';
+  tip.innerHTML = '<b>' + (known ? known.title : t.type === 'animal' ? 'Unknown creature' : t.type === 'person' ? 'Unknown person' : 'Unknown plant') + '</b><br><span>hold left mouse to scan</span>';
   tip.style.display = 'block'; tip.style.left = (cx + 16) + 'px'; tip.style.top = (cy + 12) + 'px'; canvas.style.cursor = 'crosshair';
 }
 // ---- live preview: the scanned creature or plant, animated, drawn into the panel window
@@ -6243,10 +6302,12 @@ function renderScanPreview(s) {
   const rc = el.getBoundingClientRect(); if (rc.width < 8 || rc.height < 8) return;
   const sc = canvas.width / canvas.clientWidth, w = Math.round(rc.width * sc), h = Math.round(rc.height * sc);
   if (!scanTarget || scanTarget.w !== w || scanTarget.h !== h) { if (scanTarget) scanTarget.free(); scanTarget = target(w, h, true); }
-  const t = v.tgt, animal = t.type === 'animal', box = animal ? t.C.box : t.sp.box, k = animal ? t.a.scale : t.sc;
+  const t = v.tgt, animal = t.type !== 'plant', box = animal ? t.C.box : t.sp.box, k = animal ? t.a.scale : t.sc;
   // frame the whole model, turning slowly on its own axis
   const rx = Math.max(Math.abs(box[0]), Math.abs(box[3]), Math.abs(box[2]), Math.abs(box[5])) * k, hy = (box[4] - box[1]) * k * 0.5, cy = (box[1] + box[4]) * 0.5 * k;
-  const R = Math.max(Math.hypot(rx, hy), 0.05), fov = 0.62, D = R / Math.sin(fov / 2) * 0.9, dir = vnorm([0, 0.3, 1]);
+  const fov = 0.62, aspect = w / h, tv = Math.tan(fov / 2), th = tv * aspect, dir = vnorm([0, 0.3, 1]);
+  // back off far enough to fit both the height (vertical field of view) and the turning width (horizontal), plus some depth
+  const D = Math.max(hy * 1.15 / tv, rx * 1.1 / th, 0.3) + rx * 0.7, R = Math.max(Math.hypot(rx, hy), 0.05);
   const cam = vadd([0, cy, 0], vmul(dir, D)), vp = mul4(perspective(fov, w / h, Math.max(D - R * 1.6, D * 0.02), D + R * 1.6), viewFromQuat(qlook(vmul(dir, -1), [0, 1, 0])));
   gl.bindFramebuffer(gl.FRAMEBUFFER, scanTarget.fb); gl.viewport(0, 0, w, h);
   gl.clearColor(0, 0, 0, 0); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
