@@ -23,10 +23,17 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #bar button{background:rgba(10,14,28,.35);border:1px solid rgba(255,255,255,.18);color:#dfe7ff;border-radius:20px;padding:7px 13px;font-size:12px;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(6px);transition:background .3s,border-color .3s}
 #bar button:hover{background:rgba(60,80,140,.4)}
 #bar button.on{border-color:rgba(150,200,255,.75);box-shadow:0 0 12px rgba(120,170,255,.35)}
-#help{position:fixed;top:64px;right:18px;width:350px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
+#help{position:fixed;top:64px;right:18px;width:300px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 18px 14px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
 #help b{color:#a9c4ff;font-weight:500}
-#help div:not(.s){padding-left:118px;text-indent:-118px}
-#help div:not(.s)>b:first-child{display:inline-block;width:118px;text-indent:0;vertical-align:top}
+#help div:not(.s){padding-left:86px;text-indent:-86px}
+#help div:not(.s)>b:first-child{display:inline-block;width:86px;text-indent:0;vertical-align:top}
+#help details{margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:6px}
+#help details div{font-size:12px;opacity:.85}
+#help summary{cursor:pointer;font-size:11px;letter-spacing:.2em;opacity:.55;text-transform:uppercase;list-style:none;transition:opacity .2s}
+#help summary::-webkit-details-marker{display:none}
+#help summary::before{content:'\25B8';display:inline-block;width:14px;transition:transform .2s}
+#help details[open] summary::before{transform:rotate(90deg)}
+#help summary:hover{opacity:.9}
 #toast{position:fixed;left:50%;top:14%;transform:translateX(-50%);font-weight:300;letter-spacing:.3em;font-size:14px;opacity:0;pointer-events:none;text-transform:uppercase;text-shadow:0 0 12px #000;white-space:nowrap}
 #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:18px;background:#000}
 #marks{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
@@ -54,6 +61,26 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #preview .p i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:0}
 #pause{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-weight:200;letter-spacing:.6em;font-size:clamp(22px,3vw,40px);background:rgba(0,0,0,.35);z-index:8;pointer-events:none;text-shadow:0 0 24px rgba(140,180,255,.6)}
 #help .s{margin-top:8px;font-size:11px;letter-spacing:.2em;opacity:.55;text-transform:uppercase}
+#scan{position:fixed;left:24px;top:22px;width:300px;z-index:4;display:none;font-size:12px;letter-spacing:.04em;line-height:1.65;text-shadow:0 0 8px #000;max-height:calc(100vh - 44px);overflow-y:auto;scrollbar-width:none}
+@media (max-width:1150px){#scan{top:70px;max-height:calc(100vh - 92px)}}
+#scan .sv{position:relative;height:190px;border:1px solid rgba(255,110,90,.45);border-bottom:none;border-radius:12px 12px 0 0;background:repeating-linear-gradient(0deg,rgba(255,80,60,.07) 0 1px,transparent 1px 4px);box-shadow:inset 0 0 30px rgba(255,60,40,.18);pointer-events:none}
+#scan .st{position:absolute;left:12px;top:8px;font-size:10px;letter-spacing:.3em;color:#ffa595}
+#scan .x{position:absolute;right:10px;top:2px;cursor:pointer;font-size:20px;font-weight:300;opacity:.6;pointer-events:auto}
+#scan .x:hover{opacity:1}
+#scan .si{background:rgba(8,12,24,.8);border:1px solid rgba(255,110,90,.3);border-top:none;border-radius:0 0 12px 12px;padding:10px 14px 12px;backdrop-filter:blur(6px)}
+#scan .h{font-size:16px;letter-spacing:.12em;font-weight:300}
+#scan .d{font-size:11px;opacity:.6;margin-bottom:6px}
+#scan .r{display:flex;justify-content:space-between;gap:10px}
+#scan .r span{opacity:.55}
+#scan .r b{font-weight:400;text-align:right}
+#scan .r small{opacity:.5;font-size:10px}
+#scan .f{margin-top:7px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}
+#scan .f div{padding-left:12px;text-indent:-12px;opacity:.85}
+#scan .f div::before{content:'\00B7  ';color:#ff8a7a}
+#scan .hid{opacity:.12!important;filter:blur(3px)}
+#scan [data-at]{transition:opacity .25s,filter .25s}
+#scan .bar{height:2px;background:rgba(255,255,255,.1);margin-top:9px;border-radius:2px;overflow:hidden}
+#scan .bar i{display:block;height:100%;width:0;background:#ff6a5a;box-shadow:0 0 6px #ff6a5a}
 </style>
 </head>
 <body>
@@ -71,41 +98,54 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 <div id="tip" class="ui"></div>
 <div id="syslist" class="ui"></div>
 <div id="preview" class="ui"></div>
+<div id="scan" class="ui"></div>
 <div id="pause">PAUSED</div>
 <div id="bar" class="ui">
   <button id="bLand" title="Land / take off (L)" style="display:none">LAND</button>
   <button id="bBuggy" title="Moon buggy (B)" style="display:none">BUGGY</button>
+  <button id="bFlash" title="Flashlight, headlamps or searchlight (F)">LIGHT</button>
   <button id="bCenter" title="Center the view (C)">CENTER</button>
   <button id="bView" class="on" title="Third / first person (V)">VIEW</button>
   <button id="bMarks" class="on" title="Markers (T)">MARKERS</button>
   <button id="bMusic" class="on" title="Music (M)">MUSIC</button>
   <button id="bPause" title="Pause (P)">PAUSE</button>
   <button id="bHelp" title="Controls (?)">?</button>
-  <button id="bFull" title="Fullscreen (F)">&#x26F6;</button>
+  <button id="bFull" title="Fullscreen (Enter)">&#x26F6;</button>
 </div>
 <div id="help" class="ui">
-  <div class="s">Travel</div>
-  <div><b>Click</b>a galaxy, star, planet or the sun to travel there</div>
-  <div><b>Hover</b>a star to preview its planets</div>
-  <div><b>Space</b>hyperspace jump to your selection</div>
-  <div><b>Every world</b>can be entered: living, rocky, volcanic, gas giants, even the star itself</div>
   <div class="s">Flying</div>
-  <div><b>W</b>thrust &middot; <b style="min-width:0">Shift</b> boost &middot; <b style="min-width:0">S / X</b> brake / stop</div>
-  <div><b>A / D</b>turn</div>
-  <div><b>E / Q</b>nose up / down (also &uarr; &darr;)</div>
+  <div><b>W / Shift</b>thrust / boost</div>
+  <div><b>Space</b>slow down &middot; <b style="width:auto">S / X</b> brake / stop</div>
+  <div><b>Drag</b>steer &middot; <b style="width:auto">A / D</b> turn &middot; <b style="width:auto">&uarr; &darr;</b> pitch</div>
+  <div><b>Q / E</b>roll</div>
   <div><b>L</b>land / take off</div>
-  <div class="s">On the ground</div>
-  <div><b>W / S</b>walk &middot; <b style="min-width:0">Shift</b> run &middot; <b style="min-width:0">A / D</b> turn</div>
-  <div><b>Space</b>jump &middot; meet villagers, creatures and city crowds</div>
-  <div><b>B</b>moon buggy: W gas &middot; S brake / reverse &middot; Shift boost</div>
-  <div class="s">View</div>
-  <div><b>Drag</b>look around</div>
-  <div><b>C</b>center the view &middot; <b style="min-width:0">V</b> first / third person</div>
-  <div><b>Wheel</b>camera distance</div>
-  <div class="s">Other</div>
-  <div><b>P</b>pause &middot; <b style="min-width:0">O</b> autopilot drift</div>
-  <div><b>T</b>markers &middot; <b style="min-width:0">H</b> hide interface</div>
-  <div><b>M</b>music &middot; <b style="min-width:0">F</b> fullscreen</div>
+  <div class="s">Ground</div>
+  <div><b>W / S</b>walk &middot; <b style="width:auto">A / D</b> turn &middot; <b style="width:auto">Shift</b> run</div>
+  <div><b>Drag</b>steer where you walk</div>
+  <div><b>Space</b>jump</div>
+  <div><b>E</b>get in / out of a ship or buggy beside you</div>
+  <div><b>Hold click</b>scan a creature or plant</div>
+  <div><b>B / L</b>buggy / fly from anywhere</div>
+  <div class="s">Anywhere</div>
+  <div><b>F</b>light on / off</div>
+  <div><b>Right drag</b>look around &middot; <b style="width:auto">Wheel</b> zoom</div>
+  <div><b>C / V</b>center view / first &ndash; third person</div>
+  <div><b>O</b>autopilot &middot; <b style="width:auto">P</b> pause</div>
+  <div><b>T / H</b>markers / hide interface</div>
+  <div><b>M</b>music &middot; <b style="width:auto">Enter</b> fullscreen</div>
+  <details>
+    <summary>Travel</summary>
+    <div><b>Click</b>a galaxy, star, planet or the sun to fly there</div>
+    <div><b>Hover</b>a star to preview its planets</div>
+    <div><b>J</b>hyperspace jump to your selection</div>
+    <div><b>Worlds</b>every one can be entered, even the star itself</div>
+  </details>
+  <details>
+    <summary>Things to find</summary>
+    <div><b>Cities</b>oval and sprawling, with parks, ponds, fountain plazas and lit highways to their neighbours</div>
+    <div><b>Landmarks</b>arches, needles, floating isles, giant bones, table mountains, crystal spires, sea stacks and stone rings</div>
+    <div><b>Skies</b>tinted skies, rings, great moons, auroras and shimmering veils</div>
+  </details>
 </div>
 <div id="err"></div>
 <script>
@@ -1030,7 +1070,35 @@ function surfaceStyle(P, type, r) {
     P.gas = 1; P.noWater = true; P.base = 0; P.cont = 140; P.mount = 0; P.hill = 90; P.dune = 25; P.sky = vnorm(P.g3).map(v => clamp(v, 0.15, 1));
     P.fogD = 1 / 9000; P.sCloud = 0.45; P.snowLine = 1e5; P.treeLine = 1e5; P.treeDen = 0;
   }
+  if (LANDABLE[type]) skyStyle(P, type, r);
   if (LANDABLE[type]) P.atmo = vmul(vnorm(P.sky.map(v => v * v)), 1.1);
+}
+// every living world gets a sky of its own: a tint, and some of rings, great moons, auroras or iridescent veils
+const SKY_TINTS = {
+  terran: [[0.3, 0.8, 0.88], [0.62, 0.5, 1.0], [1.0, 0.74, 0.5], [1.0, 0.56, 0.7], [0.45, 0.95, 0.62], [0.72, 0.76, 0.92]],
+  ocean: [[0.3, 0.82, 0.92], [0.35, 0.92, 0.75], [0.62, 0.52, 1.0], [0.85, 0.65, 0.95]],
+  desert: [[1.0, 0.58, 0.66], [0.5, 0.8, 0.86], [0.72, 0.52, 0.92], [0.95, 0.85, 0.55]],
+  ice: [[0.42, 0.92, 0.76], [0.66, 0.55, 1.0], [0.9, 0.84, 0.7], [0.5, 0.75, 1.0]],
+  alien: []
+};
+function skyStyle(P, type, r) {
+  const ch = p => r() < p, tints = SKY_TINTS[type];
+  if (tints.length && ch(type === 'desert' ? 0.45 : 0.4)) P.sky = jit(r, pick(r, tints), 0.1);
+  const fx = { ring: null, moons: [], aurora: null, veil: null };
+  if (ch(0.25)) fx.ring = { in: 1.35 + r() * 0.35, out: 2.0 + r() * 0.8, op: 0.45 + r() * 0.45, col: pick(r, [[0.85, 0.78, 0.66], [0.88, 0.9, 0.95], [0.75, 0.62, 0.52], [0.8, 0.7, 0.78], [0.6, 0.72, 0.85]]) };
+  if (ch(0.45)) for (let i = 0, n = 1 + Math.floor(r() * r() * 3); i < n; i++) {
+    const el = 0.15 + r() * 0.9, az = r() * TAU;
+    fx.moons.push({ dir: [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)], rad: (0.035 + r() * r() * 0.12) / (1 + i * 0.6), col: jit(r, pick(r, [[0.85, 0.83, 0.8], [0.9, 0.7, 0.5], [0.6, 0.7, 0.9], [0.8, 0.55, 0.5], [0.7, 0.85, 0.75]]), 0.15), k: 0.6 + r() * 0.35 });
+  }
+  if (ch(type === 'ice' ? 0.75 : type === 'alien' ? 0.5 : 0.3)) fx.aurora = { c1: pick(r, [[0.2, 1, 0.5], [0.3, 0.9, 1], [1, 0.3, 0.7], [0.6, 0.4, 1]]), c2: pick(r, [[1, 0.3, 0.6], [0.4, 0.5, 1], [0.2, 1, 0.6], [1, 0.8, 0.3]]), I: 0.6 + r() * 0.8 };
+  if (ch(type === 'alien' ? 0.4 : 0.2)) fx.veil = { col: hsv(r(), 0.5, 1), I: 0.25 + r() * 0.35 };
+  if (!fx.ring && !fx.moons.length && !fx.aurora && !fx.veil) {
+    const k = Math.floor(r() * 3);
+    if (k === 0) fx.moons.push({ dir: vnorm([r() - 0.5, 0.4 + r() * 0.5, r() - 0.5]), rad: 0.04 + r() * 0.06, col: jit(r, [0.82, 0.8, 0.78], 0.2), k: 0.8 });
+    else if (k === 1) fx.aurora = { c1: [0.25, 1, 0.55], c2: [0.9, 0.35, 0.8], I: 0.8 };
+    else fx.veil = { col: hsv(r(), 0.5, 1), I: 0.3 };
+  }
+  P.skyFx = fx;
 }
 
 function makeSystem(star) {
@@ -1096,6 +1164,9 @@ function makeSystem(star) {
       const rq = qmul(p.tilt, qaxis([1, 0, 0], gauss(pr) * 0.15));
       p.rings = { in: 1.3 + pr() * 0.3, out: 2.0 + pr() * 0.6, q: rq, n: qrot(rq, [0, 1, 0]), col: pick(pr, [[0.82, 0.74, 0.6], [0.85, 0.87, 0.9], [0.7, 0.6, 0.5], [0.75, 0.68, 0.7]]), seed: pr() * 10 };
     }
+    // living worlds whose sky is crossed by rings wear them in orbit as well
+    const rg = p.pal.skyFx && p.pal.skyFx.ring;
+    if (rg) p.rings = { in: rg.in, out: rg.out, q: p.tilt, n: qrot(p.tilt, [0, 1, 0]), col: rg.col, seed: rg.in * 7 };
   });
   sys.exitR = Math.max(EXIT_LY * SU_LY, ...sys.planets.map(p => p.a * AU * 1.4));
   return sys;
@@ -1440,8 +1511,10 @@ function terrH(P, wx, wz, det, raw) {
   let fw = 0;
   if (!raw && P.pads) for (const c of P.pads) {
     const dx = wx - c.x, dz = wz - c.z, d2 = dx * dx + dz * dz;
-    if (d2 > c.Rb * c.Rb) continue;
-    const k = smooth(c.Rb, c.R * 0.92, Math.sqrt(d2)); h = lerp(h, c.h, k); fw = Math.max(fw, k);
+    if (d2 > c.RbM * c.RbM) continue;
+    // distance rescaled so the city's own outline sits at its nominal radius
+    const d = Math.sqrt(d2), dn = d < 1e-6 ? 0 : d * c.R / cityEdge(c, c.co * dx + c.si * dz, -c.si * dx + c.co * dz);
+    const k = smooth(c.Rb, c.R * 0.92, dn); h = lerp(h, c.h, k); fw = Math.max(fw, k);
   }
   if (det > 0) h += (rdg2(x / 160 + 9.1, z / 160 - 3.7, 3) - 0.3) * Math.min(P.mount * 0.015, 18) * mm * (1 - fw);
   if (det > 1) h += fbm2(x / 80 + 13.1, z / 80 + 7.7, 3) * 4 * (1 - fw * 0.75);
@@ -1451,7 +1524,10 @@ function terrH(P, wx, wz, det, raw) {
 const forestM = (P, wx, wz) => smooth(-0.08, 0.28, fbm2((wx + P.ox) / 1900 + 200, (wz + P.oz) / 1900 - 50, 3));
 
 const TERR_GLSL = `
-uniform vec2 uTOff; uniform float uTCont, uTBase, uTMount, uTHill, uTCrater; uniform vec4 uTStyle; uniform vec4 uCity[16], uCityB[16];
+uniform vec2 uTOff; uniform float uTCont, uTBase, uTMount, uTHill, uTCrater; uniform vec4 uTStyle; uniform vec4 uCity[16], uCityB[16], uCityS[16];
+// city outline radius in the direction of l (city street frame); mirrors cityEdge() in JS
+float cityEdge(int i, vec2 l){ vec4 S=uCityS[i]; float a=atan(l.y,l.x)-S.y, ca=cos(a), sa=sin(a);
+  return uCity[i].z/sqrt(ca*ca/S.x+sa*sa*S.x)*(1.+S.z*(.55*sin(2.*a+S.w)+.3*sin(3.*a+S.w*1.7)+.15*sin(5.*a+S.w*2.3))); }
 uint ih(ivec2 p){ uint h=(uint(p.x)*0x27d4eb2du)^(uint(p.y)*0x165667b1u); h=(h^(h>>15u))*0x2c1b3c6du; h=(h^(h>>12u))*0x297a2d39u; return h^(h>>15u); }
 const vec2 GR[8]=vec2[8](vec2(1,0),vec2(-1,0),vec2(0,1),vec2(0,-1),vec2(.70710678,.70710678),vec2(-.70710678,.70710678),vec2(.70710678,-.70710678),vec2(-.70710678,-.70710678));
 float gn(vec2 p){ vec2 i=floor(p); vec2 f=p-i; ivec2 q=ivec2(i); vec2 u=f*f*f*(f*(f*6.-15.)+10.);
@@ -1478,7 +1554,10 @@ float terrH(vec2 w,int det){
   if(uTCrater>0.) h+=craterF(p/700.)*uTCrater;
   if(uTStyle.x>0.){ float t=h/uTStyle.x, f=t-floor(t); h=(floor(t)+smoothstep(.3,.7,f))*uTStyle.x*.75+h*.25; }
   float fw=0.;
-  for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; float d=length(w-C.xy), Rb=C.z+max(300.,C.z*.5); if(d>Rb) continue; float k=smoothstep(Rb,C.z*.92,d); h=mix(h,uCityB[i].w,k); fw=max(fw,k); }
+  for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=w-C.xy; float dd=length(d), m=max(300.,C.z*.5), Rb=C.z+m;
+    if(dd>C.z*sqrt(uCityS[i].x)*(1.+uCityS[i].z)+m) continue;
+    float cr=cos(C.w), sr=sin(C.w), dn=dd<1e-3?0.:dd*C.z/cityEdge(i,vec2(cr*d.x+sr*d.y,-sr*d.x+cr*d.y));
+    float k=smoothstep(Rb,C.z*.92,dn); h=mix(h,uCityB[i].w,k); fw=max(fw,k); }
   if(det>0) h+=(rdg2(p/160.+vec2(9.1,-3.7),3)-.3)*min(uTMount*.015,18.)*mm*(1.-fw);
   if(det>1) h+=fbm2(p/80.+vec2(13.1,7.7),3)*4.*(1.-fw*.75);
   if(det>2) h+=fbm2(p/9.+vec2(3.3,-1.7),2)*.35;
@@ -1507,6 +1586,16 @@ vec3 skyCol(vec3 d){
   return c;
 }
 vec3 ambient(){ return skyCol(vec3(0.,1.,0.))*1.1+skyCol(normalize(vec3(uSun.x,.2,uSun.z)))*.15+vec3(.006,.008,.014); }
+// up to two spotlights (flashlight, buggy headlamps, the ship's searchlight, the scanner): xyz position / power, xyz direction / cone cosine, colour
+uniform vec4 uFlP[2], uFlD[2]; uniform vec3 uFlC[2];
+vec3 flashAt(vec3 w, vec3 n, float two){ vec3 s=vec3(0.);
+  for(int i=0;i<2;i++){ vec4 P=uFlP[i]; if(P.w<=0.) continue;
+    vec3 L=P.xyz-w; float d2=max(dot(L,L),1e-4); vec3 l=L*inversesqrt(d2);
+    float ca=dot(-l,uFlD[i].xyz), cw=uFlD[i].w;
+    float cone=smoothstep(cw,mix(cw,1.,.3),ca)*(.6+.4*smoothstep(mix(cw,1.,.45),1.,ca));
+    float nl=dot(n,l); nl=mix(max(nl,0.),abs(nl)*.8+.2,two);
+    s+=uFlC[i]*P.w/(d2+P.w*.3)*cone*nl; }
+  return s; }
 uniform float uFogD, uView;
 vec3 fogApply(vec3 col, vec3 rel, float dist){
   vec3 d=rel/dist;
@@ -1531,11 +1620,53 @@ float shadowAt(vec3 w, float bias){
 
 const P_sky = program(FS_VS, NOISE_GLSL + SKY_GLSL + `in vec2 vUV; out vec4 o;
 uniform mat3 uCamRot; uniform vec2 uTan; uniform vec3 uCam, uCloudTint; uniform float uTime, uCloudCov, uCloudH, uAir, uCloudVar;
+uniform vec3 uRingN, uRingR, uRingC, uAurB; uniform vec4 uMoon[3], uAurA, uVeil; uniform vec3 uMoonC[3];
 void main(){
   vec3 d=normalize(uCamRot*vec3((vUV.x*2.-1.)*uTan.x,(vUV.y*2.-1.)*uTan.y,-1.));
   vec3 c=skyCol(d);
   float mu=dot(d,uSun);
   c+=uSunCol*sunTrans(uSun.y)*smoothstep(.99985,.99993,mu)*60.*smoothstep(-.02,.0,d.y);
+  float fxA=0., hor=smoothstep(-.03,.03,d.y), thick=exp(-.08/(max(d.y,0.)+.06));
+  // planetary rings in the equatorial plane, seen from the surface (planet radius = 1, centre below us)
+  if(uRingR.z>0.&&d.y>-.05){
+    float dn=dot(d,uRingN), t=abs(dn)>1e-4?-uRingN.y/dn:-1.;
+    if(t>0.){ vec3 w=d*t+vec3(0.,1.,0.); float rr=length(w), x=(rr-uRingR.x)/(uRingR.y-uRingR.x);
+      if(x>0.&&x<1.){
+        float dens=(.3+.7*texture(uNoise,vec3(rr*2.3,.31,.77)).r)*(.6+.4*texture(uNoise,vec3(rr*13.,.61,.17)).g)*smoothstep(0.,.05,x)*smoothstep(1.,.92,x)*(1.-.8*smoothstep(.44,.47,x)*smoothstep(.55,.52,x));
+        float sd=dot(w,uSun), shade=(sd<0.&&length(w-uSun*sd)<1.)?.05:1.;
+        float a=dens*uRingR.z*hor;
+        c+=uRingC*uSunCol*uSunI*.32*shade*(.5+.5*abs(dot(uSun,uRingN)))*a*thick;
+        fxA=max(fxA,a*.8);
+      }
+    }
+  }
+  // great moons, lit by the sun with proper phases
+  for(int i=0;i<3;i++){ vec4 M=uMoon[i]; if(M.w<=0.) continue;
+    float cm=dot(d,M.xyz); if(cm<cos(M.w)) continue;
+    vec3 x=(d-M.xyz*cm)/sin(M.w); float r2=dot(x,x); if(r2>=1.) continue;
+    vec3 nm=normalize(x-M.xyz*sqrt(1.-r2));
+    float tex=.7+.4*fbmT(nm*2.5+float(i)*5.3,4)-.3*smoothstep(.56,.7,fbmTG(nm*5.+float(i)*2.1,3));
+    float a=smoothstep(1.,.97,r2)*hor;
+    c+=uMoonC[i]*tex*(max(dot(nm,uSun),0.)*uSunCol*uSunI*.75+.004)*a*thick;
+    fxA=max(fxA,a);
+  }
+  // auroral curtains rippling across the night sky
+  if(uAurA.w>0.&&d.y>0.){
+    vec2 q=d.xz/(d.y+.3);
+    float f=texture(uNoise,vec3(q*.1+vec2(uTime*.004,uTime*.001),.53)).r, f2=texture(uNoise,vec3(q*.07-vec2(uTime*.002,0.),.13)).g;
+    float band=exp(-pow((q.y*.55+(f-.5)*3.2-.6)*1.5,2.))+.7*exp(-pow((q.x*.5+(f2-.5)*3.-.4)*1.7,2.));
+    float rays=.45+.55*texture(uNoise,vec3(q.x*1.9+uTime*.012,.17,q.y*1.9)).g;
+    float A=band*rays*smoothstep(.04,.22,d.y)*smoothstep(1.,.5,d.y)*uAurA.w*(1.-dayF()*.92);
+    c+=mix(uAurA.rgb,uAurB,smoothstep(.15,.65,d.y+(rays-.5)*.4))*A*.09;
+  }
+  // iridescent high veils: soft streaks that shimmer in daylight
+  if(uVeil.w>0.&&d.y>0.){
+    vec2 q=d.xz/(d.y+.35), qr=vec2(.8*q.x-.6*q.y,.6*q.x+.8*q.y);
+    float v=fbmT(vec3(qr.x*.35+uTime*.002,.71,qr.y*1.6),4);
+    float str=smoothstep(.48,.78,v)*smoothstep(0.,.25,d.y)*smoothstep(1.,.7,d.y);
+    vec3 irid=.5+.5*cos(6.2832*(v*3.+qr.x*.4+vec3(0.,.33,.67)));
+    c+=mix(uVeil.rgb,irid,.6)*str*uVeil.w*(dayF()*.12+.01)*length(uSunCol);
+  }
   float occ=0.;
   if(d.y>0.){
     float t=(uCloudH-uCam.y)/d.y;
@@ -1552,7 +1683,7 @@ void main(){
     c=mix(c,cc,cov*fade*.95); occ=cov*fade*.95;
   }
   float ext=exp(-.14/(max(d.y,0.)+.1));
-  o=vec4(c,(1.-(1.-occ)*ext)*uAir);
+  o=vec4(c,(1.-(1.-max(occ,fxA))*ext)*uAir);
 }`);
 
 // terrain chunk mesh: 33x33 grid + skirts
@@ -1582,7 +1713,28 @@ void main(){
   vec3 rel=w-uCam; rel.y-=dot(rel.xz,rel.xz)*uCurv;
   gl_Position=uVP*vec4(rel,1.);
 }`, NOISE_GLSL + TERR_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; out vec4 o;
-uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3, uPave, uNeonA, uNeonB; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava, uWet; uniform vec4 uPat;
+uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3, uPave, uNeonA, uNeonB, uPondC, uRoadLamp; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava, uWet; uniform vec4 uPat;
+uniform vec4 uCityP[16], uCityQ[16]; uniform highp sampler2D uRoads; uniform int uRoadN;
+// city blocks: 0 buildings, 1 park, 2 plaza (mirrors blockKind() in JS)
+int blockKind(int i, ivec2 b){ vec4 PR=uCityP[i], Q=uCityQ[i];
+  if(PR.x<=PR.z&&float(b.x)>PR.x-.5&&float(b.x)<PR.z+.5&&float(b.y)>PR.y-.5&&float(b.y)<PR.w+.5) return 1;
+  if(abs(float(b.x)-Q.z)<.5&&abs(float(b.y)-Q.w)<.5) return 2;
+  uint h=ih(b+ivec2(int(Q.x),int(Q.y)))&1023u; return h<60u?1:h<95u?2:0; }
+// nearest highway: (distance to its centreline, distance along it)
+vec2 roadAt(vec2 p){
+  vec2 best=vec2(1e9,0.);
+  for(int i=0;i<8;i++){ if(i>=uRoadN) break;
+    vec4 bx=texelFetch(uRoads,ivec2(0,i),0);
+    if(p.x<bx.x||p.y<bx.y||p.x>bx.z||p.y>bx.w) continue;
+    vec2 a=texelFetch(uRoads,ivec2(1,i),0).xy; float acc=0.;
+    for(int k=1;k<16;k++){
+      vec4 t=texelFetch(uRoads,ivec2(1+k/2,i),0); vec2 b=(k&1)==1?t.zw:t.xy;
+      vec2 ab=b-a; float l2=max(dot(ab,ab),1e-3), h=clamp(dot(p-a,ab)/l2,0.,1.), d=length(p-a-ab*h);
+      if(d<best.x) best=vec2(d,acc+h*sqrt(l2));
+      acc+=sqrt(l2); a=b;
+    }
+  }
+  return best; }
 void main(){
   vec3 n=normalize(vN), ng=n; vec2 p=vW.xz; float h=vW.y;
   vec3 rel=vW-uCam; float dist=length(rel);
@@ -1618,24 +1770,60 @@ void main(){
   if(uPat.y>0.) c=mix(c,uAlt,smoothstep(.62,.78,.5+.5*sin((p.x+p.y)*.7/uPat.w*6.+gn(p/(uPat.w*2.))*5.))*uPat.y);
   if(uPat.z>0.) c=mix(c,mix(uStrA,uStrB,.5+.5*sin(h/9.+gn(p/400.)*2.))*(.8+.4*v2),smoothstep(.25,.45,slope)*uPat.z);
   if(alt<0.) c=mix(uSand*.5,uSand*.25,smoothstep(0.,8.,-alt));
-  vec3 cem=vec3(0.);
-  for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=p-C.xy; float dd=length(d); if(dd>C.z+60.||alt<.5) continue;
+  vec3 cem=vec3(0.); float pond=0.;
+  for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=p-C.xy; float dd=length(d); if(dd>C.z*sqrt(uCityS[i].x)*(1.+uCityS[i].z)+60.||alt<.5) continue;
     float cr=cos(C.w), sr=sin(C.w); vec2 l=vec2(cr*d.x+sr*d.y,-sr*d.x+cr*d.y);
+    float dn=dd<1e-3?0.:dd*C.z/cityEdge(i,l); if(dn>C.z+60.) continue;
     float B=uCityB[i].x, W=uCityB[i].y; vec2 g=abs(l-B*floor(l/B+.5)); float sd=min(g.x,g.y);
     float dash=step(sd,.2)*step(.5,fract((g.x<g.y?l.y:l.x)/7.));
     vec3 pave=uPave*(.6+.25*v2), road=vec3(.06,.06,.065)*(.9+.2*v2);
+    // the central park swallows its inner streets
+    vec4 PR=uCityP[i]; vec2 pk0=PR.xy*B+W*.5, pk1=(PR.zw+1.)*B-W*.5;
+    bool cpark=PR.x<=PR.z&&l.x>pk0.x&&l.y>pk0.y&&l.x<pk1.x&&l.y<pk1.y;
     vec3 cc=sd<W*.5-2.2?mix(road,vec3(.85,.78,.45),dash*.8):sd<W*.5?pave*1.25:pave;
-    float pf=smoothstep(C.z+60.,C.z,dd)*(1.-smoothstep(.12,.22,slope));
+    int bk=cpark?1:sd>=W*.5?blockKind(i,ivec2(floor(l/B))):0;
+    float green=0., pf=smoothstep(C.z+60.,C.z,dn)*(1.-smoothstep(.12,.22,slope));
+    if(bk==1){
+      // park: lawns crossed by winding gravel paths, a walk around the edge, a pond in the big park
+      vec3 lawn=mix(uGrass,uGrass2,v1)*(.85+.3*v2);
+      float path=smoothstep(.07,.04,abs(gn(l/42.+vec2(float(i)*7.1,3.3))));
+      vec2 bl=cpark?min(l-pk0,pk1-l):vec2(B*.5-W*.5)-abs(l-(floor(l/B)+.5)*B);
+      path=max(path,smoothstep(2.6,2.,min(bl.x,bl.y)));
+      cc=mix(lawn,uPave*1.3*(.85+.2*v2),path); green=1.-path;
+      if(cpark){ vec2 pc=(PR.xy+PR.zw+1.)*.5*B, pr=(PR.zw-PR.xy+1.)*B*.24; float e=length((l-pc)/pr)+gn(l/18.)*.06;
+        float sh=smoothstep(1.,.88,e); cc=mix(cc,uPondC,sh); green*=1.-sh; pond=max(pond,sh*pf); }
+    } else if(bk==2){
+      // plaza: chequered paving, concentric rings and a star around the fountain
+      vec2 bl=l-(floor(l/B)+.5)*B; float rr=length(bl);
+      float tile=mod(floor(bl.x/2.5)+floor(bl.y/2.5),2.), ring=smoothstep(.3,.1,abs(fract(rr/6.)-.5));
+      float star=smoothstep(.85,1.,cos(atan(bl.y,bl.x)*8.))*step(rr,B*.32);
+      cc=uPave*(1.3+.15*tile)*(.88+.18*v2)*mix(1.,.78,max(ring*.6,star*.7));
+    }
     c=mix(c,cc,pf);
-    float along=g.x<g.y?l.y:l.x, rd=step(sd,W*.5-2.2), edge=smoothstep(W*.5-7.,W*.5-2.2,sd);
+    float along=g.x<g.y?l.y:l.x, rd=step(sd,W*.5-2.2)*(cpark?0.:1.), edge=smoothstep(W*.5-7.,W*.5-2.2,sd);
     float streak=texture(uNoise,vec3(along/45.,.55,sd/2.5)).r;
     vec3 neonC=uCityB[i].z>.5?mix(uNeonA,uNeonB,smoothstep(.42,.58,texture(uNoise,vec3(along/120.,.3,float(i)*.1)).r)):vec3(1.,.7,.4);
-    cem+=neonC*(1.-dayF())*pf*(rd*(.003+uWet*(.015+.06*edge)*(.3+streak))+(1.-rd)*.003);
+    cem+=neonC*(1.-dayF())*pf*(1.-green)*(rd*(.003+uWet*(.015+.06*edge)*(.3+streak))+(1.-rd)*.003);
+  }
+  // highways between cities, with pools of lamplight at night
+  if(uRoadN>0&&alt>.3){ vec2 rq=roadAt(p); float d=rq.x;
+    if(d<9.){
+      float along=rq.y, dash=step(d,.14)*step(.45,fract(along/14.)), edgeL=smoothstep(.16,.04,abs(d-4.05));
+      vec3 rc=vec3(.075,.075,.08)*(.85+.3*v2)*(1.-.3*uWet);
+      rc=mix(rc,vec3(.9,.78,.35),dash*.85); rc=mix(rc,vec3(.75),edgeL*.6);
+      rc=mix(rc,uPave*(.75+.3*v2),smoothstep(4.4,4.9,d));
+      float rk=(1.-smoothstep(5.7,7.5,d))*(1.-smoothstep(.5,.75,slope));
+      c=mix(c,rc,rk);
+      float pool=exp(-pow((fract(along/60.)-.5)*60.,2.)/90.);
+      cem+=uRoadLamp*(1.-dayF())*rk*(.002+pool*.035)*(1.+uWet*2.);
+    }
   }
   c*=1.-.3*uWet;
   c*=micro;
   float dif=max(dot(n,uSun),0.)*shadowAt(vW,.00008);
-  vec3 col=c*(sunLight()*dif+ambient()*(.7+.3*n.y))+cem;
+  vec3 col=c*(sunLight()*dif+ambient()*(.7+.3*n.y)+flashAt(vW,n,0.))+cem;
+  if(pond>0.){ vec3 vd=rel/dist, rv=reflect(vd,vec3(0.,1.,0.)); float fr=.04+.96*pow(1.-clamp(-vd.y,0.,1.),5.);
+    col=mix(col,skyCol(rv)*.9+sunLight()*pow(max(dot(rv,uSun),0.),200.)*2.,pond*(.25+.75*fr)); }
   if(uLava>0.){
     float cr=1.-abs(gn(p/70.)+.5*gn(p/23.+vec2(3.,1.)));
     col+=vec3(1.8,.4,.07)*pow(clamp(cr,0.,1.),30.)*(1.-smoothstep(.3,.6,slope))*uLava*smoothstep(-.3,.2,gn(p/400.+vec2(9.,4.)));
@@ -1685,6 +1873,7 @@ void main(){
   float foam=smoothstep(1.5,0.,depth)*(.5+.5*sin(depth*5.-t*1.3+texture(uNoise,vec3(p.x/7.,.5,p.y/7.)).r*8.));
   col=mix(col,(sl*.7+am)*.9,foam*.55*fade);
   if(uIce>.5){ float cr=smoothstep(.47,.5,texture(uNoise,vec3(p.x/23.,.5,p.y/23.)).r)*smoothstep(.53,.5,texture(uNoise,vec3(p.x/23.,.5,p.y/23.)).r); col=uWaterSh*(sl*.75+am*1.3)*(1.-cr*.25)+refl*.08+sl*pow(sp,40.)*.2; }
+  col+=(uIce>.5?uWaterSh*.75:uWaterSh*.25+vec3(.03))*flashAt(vW,N,0.);
   float a=uIce>.5?1.:clamp(smoothstep(0.,1.6,depth)*.75+.25,0.,1.);
   o=vec4(fogApply(col,rel,dist),a);
 }`);
@@ -1936,7 +2125,7 @@ void main(){ vec3 rel=vW-uCam; float dist=length(rel);
       c+=vC*vec3(1.,1.08,.6)*back*.55*sh;
     } else if(vF>1.5){ float bark=texture(uNoise,vec3(vW.x*.3,vW.y*.03,vW.z*.3)).r; c*=mix(1.,.72+.5*bark,near); }
   }
-  vec3 col=c*(sunLight()*dif*sh*ao+ambient()*ao*(.65+.35*n.y));
+  vec3 col=c*(sunLight()*dif*sh*ao+ambient()*ao*(.65+.35*n.y)+flashAt(vW,n,uTwoSide)*ao);
   col+=vC*vE*(.15+2.*(1.-dayF()));
   o=vec4(fogApply(col,rel,dist),1.); }`);
 const P_shPlant = program(PLANT_VS + `uniform mat4 uLVP; uniform vec3 uShO; void main(){ vec3 n; vec3 w=plantWorld(n); gl_Position=uLVP*vec4(w-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
@@ -1971,7 +2160,7 @@ void main(){ vec3 n=normalize(vN); if(dot(n,vW-uCam)>0.) n=-n;
   if(uStripes>0.&&vPart<.5) c=mix(c,uCol3*.8,smoothstep(.45,.55,abs(fract(vL.z*uStripes+sin(vL.y*4.)*.3)-.5)*2.));
   c*=vPart<1.5?vVar*(.88+.24*texture(uNoise,vL*2.3+vec3(.5)).g):1.;
   float sh=shadowAt(vW,.0002);
-  vec3 col=c*(sunLight()*max(dot(n,uSun),0.)*sh+ambient()*(.6+.4*n.y));
+  vec3 col=c*(sunLight()*max(dot(n,uSun),0.)*sh+ambient()*(.6+.4*n.y)+flashAt(vW,n,0.));
   vec3 V=normalize(uCam-vW); float fr=pow(1.-max(dot(n,V),0.),3.);
   col+=c*fr*(ambient()*1.3+sunLight()*.35*max(dot(-V,uSun),0.)*sh);
   if(vPart>3.5&&vPart<4.5) col+=sunLight()*pow(max(dot(reflect(normalize(vW-uCam),n),uSun),0.),40.)*.6;
@@ -2044,7 +2233,15 @@ function instMesh(geo) {
   { buf: ib, loc: 3, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: ib, loc: 4, size: 4, stride: 32, offset: 16, divisor: 1 }]);
   return { vao: v, vb, ib, verts: geo.length / 8, n: 0 };
 }
-function freeInstMesh(m) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); }
+function freeInstMesh(m) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); if (m.scanVao) gl.deleteVertexArray(m.scanVao); }
+// mesh extents [minX, minY, minZ, maxX, maxY, maxZ] (8 floats per vertex), used by the scanner
+function geoBox(g) {
+  const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < g.length; i += 8) for (let k = 0; k < 3; k++) { if (g[i + k] < b[k]) b[k] = g[i + k]; if (g[i + k] > b[k + 3]) b[k + 3] = g[i + k]; }
+  return b;
+}
+// distinct leg ids (1..6) in a creature mesh
+function geoLegs(g) { const s = new Set(); for (let i = 0; i < g.length; i += 8) { const li = Math.round(g[i + 7]); if (li >= 1 && li <= 6) s.add(li); } return s.size; }
 function uploadInst(m, arr) { gl.bindBuffer(gl.ARRAY_BUFFER, m.ib); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW); m.n = arr.length / 8; }
 const drawInst = m => { if (m.n) { gl.bindVertexArray(m.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, m.verts, m.n); } };
 const grassMesh = instMesh(grassGeo()), grassFarMesh = instMesh(grassGeo(true)), grassTuftMesh = instMesh(grassGeo(2)), flowerMesh = instMesh(flowerGeo());
@@ -2081,6 +2278,8 @@ function shipGeo() {
     quad(f0, f1, f2, f3, 4); quad(f3, f2, f1, f0, 4);
   }
   B.blob([0, 0, 3.12], [0.4, 0.28, 0.08], 3, 0, 0, 1);
+  // searchlight lens under the nose (id 7: lit by the flashlight toggle)
+  B.blob([0, -0.24, -2.7], [0.07, 0.045, 0.06], 1, 7, 0, 1);
   return new Float32Array(B.v);
 }
 function heroGeo() {
@@ -2101,8 +2300,14 @@ function heroGeo() {
   B.blob([0, 1.72, 0], [0.155, 0.165, 0.155], 0, 0, 0, 2);
   B.blob([0, 1.72, -0.07], [0.125, 0.095, 0.11], 2, 0, 0, 2);
   B.blob([0, 1.38, -0.15], [0.03, 0.03, 0.02], 3, 0, 0, 0);
+  // flashlight in the right hand: body (id 6) and lens (id 8) follow the right arm and only appear when switched on
+  const ta = 0.3, td = [0, -Math.cos(ta), -Math.sin(ta)], t0 = [0.3, 0.8, -0.03], t1 = vadd(t0, vmul(td, 0.2));
+  B.tube(vadd(t0, vmul(td, -0.03)), t1, 0.026, 0.034, 8, 1, 6, 6);
+  B.blob(t1, [0.036, 0.036, 0.036], 1, 8, 0, 1);
   return new Float32Array(B.v);
 }
+// right hand flashlight: tip and beam direction in the hero's frame, matching the raised arm in MODEL_VS
+const TORCH_A = 1.25, TORCH_TIP = (() => { const td = [0, -Math.cos(0.3), -Math.sin(0.3)], t = vadd([0.3, 0.8, -0.03], vmul(td, 0.24)), c = Math.cos(TORCH_A), sn = Math.sin(TORCH_A), rot = (v, piv) => [v[0], piv + (v[1] - piv) * c - v[2] * sn, (v[1] - piv) * sn + v[2] * c]; return { p: rot(t, 1.48), d: rot(td, 0) }; })();
 function modelMesh(geo) {
   const b = buffer(geo);
   return { vao: vao([{ buf: b, loc: 0, size: 3, stride: 32, offset: 0 }, { buf: b, loc: 1, size: 3, stride: 32, offset: 12 }, { buf: b, loc: 2, size: 2, stride: 32, offset: 24 }]), n: geo.length / 8 };
@@ -2131,7 +2336,7 @@ function buggyGeo() {
   quad([-0.6, 1.33, -0.57], [0.6, 1.33, -0.57], [0.68, 0.9, -0.92], [-0.68, 0.9, -0.92], 2);
   box(-0.7, 1.0, 1.05, 0.7, 1.08, 1.5, 2);
   B.tube([0.62, 1.0, 1.35], [0.75, 2.7, 1.5], 0.025, 0.015, 5, 4, 0, 0); B.blob([0.75, 2.72, 1.5], [0.07, 0.07, 0.07], 3, 0, 0, 1);
-  for (const sx of [-0.5, 0.5]) B.blob([sx, 0.8, -1.66], [0.13, 0.11, 0.06], 3, 0, 0, 1);
+  for (const sx of [-0.5, 0.5]) B.blob([sx, 0.8, -1.66], [0.13, 0.11, 0.06], 4, 7, 0, 1);
   for (const sx of [-0.6, 0.6]) B.blob([sx, 0.72, 1.48], [0.1, 0.06, 0.04], 4, 0, 0, 0);
   return new Float32Array(B.v);
 }
@@ -2149,24 +2354,36 @@ const BUGGY_WHEELS = [[-0.98, 0.46, -1.05, 1], [0.98, 0.46, -1.05, 1], [-0.98, 0
 const SHIP_COLS = [[0.78, 0.8, 0.84], [0.16, 0.18, 0.22], [0.03, 0.05, 0.08], [0.45, 0.75, 1.0], [0.95, 0.42, 0.12]];
 const HERO_COLS = [[0.88, 0.88, 0.86], [0.28, 0.3, 0.34], [0.35, 0.25, 0.08], [1.0, 0.85, 0.55], [0.95, 0.42, 0.12]];
 const MODEL_VS = `layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aM;
-uniform mat3 uRot; uniform vec3 uPos; uniform float uPhase, uWalk, uAir;
+uniform mat3 uRot; uniform vec3 uPos; uniform float uPhase, uWalk, uAir, uTorch, uSit;
 vec3 modelRel(out vec3 n){
   vec3 p=aP, nn=aN; int id=int(aM.y+.5);
-  if(id>=1&&id<=4){
-    float side=(id==1||id==3)?1.:-1.;
-    float a=id<=2?sin(uPhase)*.6*side*uWalk-uAir*(side>0.?.6:.15):-sin(uPhase)*.5*side*uWalk+uAir*.9;
-    float piv=id<=2?.98:1.48;
+  // the flashlight (6, 8) rides on the right arm (4) and is only there while switched on
+  if((id==6||id==8)&&uTorch<.5) p=vec3(.3,1.48,0.);
+  int lid=(id==6||id==8)?4:id;
+  if(lid>=1&&lid<=4){
+    float side=(lid==1||lid==3)?1.:-1.;
+    float a=lid<=2?sin(uPhase)*.6*side*uWalk-uAir*(side>0.?.6:.15):-sin(uPhase)*.5*side*uWalk+uAir*.9;
+    // seated: shins fold back at the knee, thighs swing forward level, hands reach for the wheel
+    if(uSit>0.){
+      if(lid<=2){ float b=-1.5708*uSit*smoothstep(.6,.46,p.y), cb=cos(b), sb=sin(b); vec2 k=vec2(p.y-.52,p.z-.01);
+        p.y=.52+k.x*cb-k.y*sb; p.z=.01+k.x*sb+k.y*cb; nn.yz=vec2(nn.y*cb-nn.z*sb,nn.y*sb+nn.z*cb); }
+      a=mix(a,lid<=2?1.5708:.85,uSit);
+    }
+    if(lid==4) a=mix(a,${TORCH_A}+sin(uPhase)*.06*uWalk,uTorch);
+    float piv=lid<=2?.98:1.48;
     vec2 q=vec2(p.y-piv,p.z); float c=cos(a), s=sin(a);
     p.y=piv+q.x*c-q.y*s; p.z=q.x*s+q.y*c; nn.yz=vec2(nn.y*c-nn.z*s,nn.y*s+nn.z*c);
   }
   n=uRot*nn; return uPos+uRot*p;
 }`;
-const P_model = program(MODEL_VS + `uniform mat4 uVP; out vec3 vRel; out vec3 vN; out float vPart;
-void main(){ vec3 n; vec3 r=modelRel(n); vRel=r; vN=n; vPart=aM.x; gl_Position=uVP*vec4(r,1.); }`,
-  SKY_GLSL + SHADOW_GLSL + `in vec3 vRel; in vec3 vN; in float vPart; out vec4 o;
-uniform vec3 uCam, uC0, uC1, uC2, uC3, uC4, uL, uLCol, uAmb; uniform float uSurf, uGlow;
+const P_model = program(MODEL_VS + `uniform mat4 uVP; out vec3 vRel; out vec3 vN; out float vPart; out float vId;
+void main(){ vec3 n; vec3 r=modelRel(n); vRel=r; vN=n; vPart=aM.x; vId=aM.y; gl_Position=uVP*vec4(r,1.); }`,
+  SKY_GLSL + SHADOW_GLSL + `in vec3 vRel; in vec3 vN; in float vPart; in float vId; out vec4 o;
+uniform vec3 uCam, uC0, uC1, uC2, uC3, uC4, uL, uLCol, uAmb; uniform float uSurf, uGlow, uLamp;
 void main(){ vec3 n=normalize(vN), V=normalize(-vRel); if(dot(n,V)<0.) n=-n;
   vec3 c=vPart<.5?uC0:vPart<1.5?uC1:vPart<2.5?uC2:vPart<3.5?uC3:uC4;
+  bool lens=vId>6.5;
+  if(lens) c=vec3(.62,.64,.68);
   vec3 L, lc, amb; float sh=1.;
   if(uSurf>.5){ L=uSun; lc=sunLight(); amb=ambient(); sh=shadowAt(vRel+uCam,.00015); } else { L=uL; lc=uLCol; amb=uAmb; }
   bool glass=vPart>1.5&&vPart<2.5;
@@ -2174,15 +2391,17 @@ void main(){ vec3 n=normalize(vN), V=normalize(-vRel); if(dot(n,V)<0.) n=-n;
   vec3 H=normalize(L+V); float spec=pow(max(dot(n,H),0.),glass?160.:48.)*(glass?2.:.45)*sh;
   float fr=pow(1.-max(dot(n,V),0.),4.);
   vec3 col=c*(lc*dif+amb)+lc*spec;
+  if(uSurf>.5) col+=c*flashAt(vRel+uCam,n,0.);
   if(glass){ vec3 R=reflect(-V,n); col+=(uSurf>.5?skyCol(vec3(R.x,abs(R.y),R.z)):amb*2.5+vec3(.02,.03,.05))*(.2+.8*fr); }
   col+=amb*fr*.8;
   if(vPart>2.5&&vPart<3.5) col=uC3*uGlow;
+  if(lens&&uLamp>0.) col=vec3(1.,.95,.85)*uLamp;
   if(uSurf>.5) col=fogApply(col,vRel,length(vRel));
   o=vec4(col,1.); }`);
 const P_shModel = program(MODEL_VS + `uniform mat4 uLVP; uniform vec3 uShO, uCam; void main(){ vec3 n; vec3 r=modelRel(n); gl_Position=uLVP*vec4(r+uCam-uShO,1.); }`, `out vec4 o; void main(){ o=vec4(1.); }`);
 // m: { mesh, rel (model position relative to camera), q, phase, walk, air, cols, glow }
 function drawModel(p, m) {
-  p.set('uRot', mat3FromQuat(m.q)).set('uPos', m.rel).set('uPhase', m.phase || 0).set('uWalk', m.walk || 0).set('uAir', m.air || 0);
+  p.set('uRot', mat3FromQuat(m.q)).set('uPos', m.rel).set('uPhase', m.phase || 0).set('uWalk', m.walk || 0).set('uAir', m.air || 0).set('uTorch', m.torch || 0).set('uLamp', m.lamp || 0).set('uSit', m.sit || 0);
   if (m.cols) p.set('uC0', m.cols[0]).set('uC1', m.cols[1]).set('uC2', m.cols[2]).set('uC3', m.cols[3]).set('uC4', m.cols[4]).set('uGlow', m.glow || 0);
   gl.bindVertexArray(m.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, m.mesh.n);
 }
@@ -2199,12 +2418,12 @@ function renderShipSpace(camQ) {
   gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   glState({ depth: true, write: true });
   const p = shadowUniforms(P_model.use()).set('uVP', vpFor(0.2, 4000)).set('uCam', [0, 0, 0]).set('uSurf', 0).set('uL', lt.L).set('uLCol', lt.col).set('uAmb', lt.amb);
-  drawModel(p, { mesh: shipMesh, rel, q: qmul(S.q, qaxis([0, 0, 1], S.bank || 0)), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
+  drawModel(p, { mesh: shipMesh, rel, q: qmul(S.q, qaxis([0, 0, 1], S.bank || 0)), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust, lamp: S.flash ? 2.5 : 0 });
 }
 
 // ---- distant forests: cheap billboards beyond the full-detail radius
-const FT = 384, FAR_R = 5200;
-const FAR_KIND = { conifer: 0, broad: 1, bush: 1, mushroom: 1, bulb: 1, palm: 2, crystal: 3, spiral: 4, cactus: 5, giantshroom: 1, tendril: 4, orbtree: 1, fan: 1, pillar: 3, balloon: 1 };
+const FT = 384, FAR_R = 9500;
+const FAR_KIND = { conifer: 0, broad: 1, bush: 1, mushroom: 1, bulb: 1, palm: 2, crystal: 3, spiral: 4, cactus: 5, giantshroom: 1, tendril: 4, orbtree: 1, fan: 1, pillar: 3, balloon: 1, anemone: 1 };
 const farMesh = { vao: null, ib: gl.createBuffer(), n: 0 };
 farMesh.vao = vao([{ buf: quadBuf, loc: 0, size: 2 }, { buf: farMesh.ib, loc: 1, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: farMesh.ib, loc: 2, size: 4, stride: 32, offset: 16, divisor: 1 }]);
 const P_far = program(`layout(location=0) in vec2 aC; layout(location=1) in vec4 aI; layout(location=2) in vec4 aJ;
@@ -2230,17 +2449,18 @@ void main(){
   if(m<.5) discard;
   vec3 n=normalize(vR*nl.x+vec3(0.,nl.y,0.)+vF*nl.z);
   float dif=max(dot(n,uSun),0.)*.8+.2, ao=.55+.45*y;
-  vec3 col=c*(sunLight()*dif*ao+ambient()*ao)+c*glow*(.15+2.*(1.-dayF()));
+  vec3 col=c*(sunLight()*dif*ao+ambient()*ao+flashAt(vW,n,0.)*ao)+c*glow*(.15+2.*(1.-dayF()));
   vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.);
 }`);
 function genFarTile(s, tx, tz) {
   const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 11)), out = [], N = 16, step = FT / N;
-  const sp = E.plants.filter(p => FAR_KIND[p.kind] !== undefined && p.scale[1] >= 3), ns = sp.length, w = new Float64Array(ns);
+  // tall plants and every glowing species, so night lights never pop in at the detail radius
+  const sp = E.plants.filter(p => FAR_KIND[p.kind] !== undefined && (p.scale[1] >= 3 || p.glowI > 0)), ns = sp.length, w = new Float64Array(ns);
   if (!ns) return out;
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = tx * FT + (i + r()) * step, z = tz * FT + (j + r()) * step, u = r(), u2 = r(), u3 = r(), u4 = r();
     const fm = forestM(P, x, z) * P.treeDen;
-    if (u > 0.15 + fm * 0.85) continue;
+    if (u > 0.22 + fm * 0.78) continue;
     const h = terrH(P, x, z, 1), alt = h - P.sea;
     if (alt < 0.6 || (s.civ && civBlock(s, x, z))) continue;
     const Z = { forest: fm * (1 - smooth(P.treeLine - 60, P.treeLine + 40, h)), meadow: 1 - fm, beach: 1 - smooth(5, 9, alt), rocky: 0.1,
@@ -2873,8 +3093,10 @@ function makeCreature(r, o) {
   C.size = size * C.scale;
   C.visR = C.beh === 'titan' || C.skyTitan ? 9000 : C.beh === 'flock' ? clamp(300 + C.size * 120, 400, 1500) : clamp(140 + C.size * 70, C.beh === 'swarm' ? 260 : 160, ANIM_R);
   if (C.beh === 'titan') C.w = 0;
+  const geo = new Float32Array(B.v);
+  C.box = geoBox(geo); C.legs = geoLegs(geo); C.alien = alien; C.woolly = woolly; C.titan = titan || !!C.skyTitan; C.villager = !!o.villager;
   return Object.assign(C, {
-    mesh: instMesh(new Float32Array(B.v)), c1, c2, c3: o.villager ? o.glow : kind === 'bird' && !alien ? pick(r, [[0.95, 0.65, 0.15], [0.2, 0.18, 0.15], [0.9, 0.3, 0.1]]) : vivid || titan ? hsv(r(), 0.7, 1) : [0.05, 0.04, 0.035],
+    mesh: instMesh(geo), c1, c2, c3: o.villager ? o.glow : kind === 'bird' && !alien ? pick(r, [[0.95, 0.65, 0.15], [0.2, 0.18, 0.15], [0.9, 0.3, 0.1]]) : vivid || titan ? hsv(r(), 0.7, 1) : [0.05, 0.04, 0.035],
     spots: !woolly && !o.villager && r() < (vivid ? 0.55 : 0.3) ? 1 + r() * 5 : 0, stripes: (vivid || titan) && r() < 0.35 ? 2 + r() * 6 : 0,
     glow: vivid || titan || o.villager ? 1 : 0, voice: makeVoice(r, C.size, o.villager ? ['warble', 'hoot', 'trill'] : kind === 'swarm' ? ['buzz', 'chirp', 'trill'] : null)
   });
@@ -2996,21 +3218,164 @@ function makeEcology(P, type, r) {
     if (r() < 0.4) E.creatures.push(makeCreature(r, { kind: 'jelly', titan: true, alien: true }));
     if (r() < 0.6) creatures(1, ['swimmer'], true, { sky: true });
   }
-  for (const sp of E.plants) { sp.m = instMesh(plantGeo(sp.kind, sp.seed)); sp.mh = instMesh(plantGeo(sp.kind, sp.seed, true)); }
+  // a twist shared by this world's animals, so familiar body plans still feel new
+  if (LANDABLE[type] && E.creatures.length) {
+    const tw = [], all = ['hue', 'stripes', 'spots', 'glow', 'big', 'small', 'pale', 'dark'];
+    while (tw.length < (r() < 0.55 ? 2 : 1)) { const t = pick(r, all); if (!tw.includes(t) && !(t === 'big' && tw.includes('small')) && !(t === 'small' && tw.includes('big')) && !(t === 'pale' && tw.includes('dark')) && !(t === 'dark' && tw.includes('pale'))) tw.push(t); }
+    const theme = hsv(r(), 0.55 + r() * 0.35, 0.7 + r() * 0.3), glowT = hsv(r(), 0.7, 1);
+    for (const C of E.creatures) {
+      const ground = !C.fly && C.beh !== 'flock' && C.beh !== 'swarm' && C.beh !== 'titan' && C.beh !== 'swim';
+      if (tw.includes('hue')) { C.c1 = vlerp(C.c1, vmul(theme, 0.4 + 0.6 * Math.max(...C.c1)), 0.45); C.c3 = theme; }
+      if (tw.includes('stripes') && ground) C.stripes = 2 + r() * 5;
+      if (tw.includes('spots') && ground) C.spots = 1 + r() * 4;
+      if (tw.includes('glow')) { C.glow = 1; C.c3 = glowT; }
+      if (tw.includes('pale')) { C.c1 = vlerp(C.c1, [0.92, 0.9, 0.86], 0.5); C.c2 = vlerp(C.c2, [0.8, 0.78, 0.74], 0.4); }
+      if (tw.includes('dark')) { C.c1 = vmul(C.c1, 0.45); C.c2 = vmul(C.c2, 0.5); }
+      if ((tw.includes('big') || tw.includes('small')) && ground) {
+        C.scale *= tw.includes('big') ? 1.5 : 0.65; C.size = C.size * (tw.includes('big') ? 1.5 : 0.65);
+        C.visR = clamp(140 + C.size * 70, 160, ANIM_R);
+      }
+    }
+    E.twist = tw;
+  }
+  for (const sp of E.plants) { sp.m = instMesh(plantGeo(sp.kind, sp.seed)); const hg = plantGeo(sp.kind, sp.seed, true); sp.box = geoBox(hg); sp.mh = instMesh(hg); }
   return E;
 }
-function freeEcology(E) { E.plants.forEach(sp => { freeInstMesh(sp.m); freeInstMesh(sp.mh); }); E.creatures.forEach(c => freeInstMesh(c.mesh)); }
+function freeEcology(E) { E.plants.forEach(sp => { freeInstMesh(sp.m); freeInstMesh(sp.mh); }); E.creatures.forEach(c => freeInstMesh(c.mesh)); (E.marks || []).forEach(L => freeInstMesh(L.m)); }
+
+// ---- landmarks: rare, colossal formations that give every world its own signature
+const LM_T = 1500, LM_R = 12000;
+const LM_INFO = {
+  arch: ['Arch', 'a natural stone arch'], spire: ['Needles', 'needles of weathered stone'], isle: ['Drift', 'islands adrift in the sky'],
+  bones: ['Bones', 'the bones of a long-dead colossus'], mesa: ['Table', 'a towering table mountain'], crystal: ['Spires', 'a grove of living crystal'],
+  stack: ['Stacks', 'sea stacks carved by the waves'], stones: ['Ring', 'standing stones raised by a forgotten people']
+};
+const LM_POOL = { terran: ['arch', 'spire', 'isle', 'bones', 'stones', 'mesa'], ocean: ['stack', 'stack', 'arch', 'isle', 'bones'], desert: ['arch', 'mesa', 'bones', 'spire', 'stones'], ice: ['crystal', 'spire', 'arch', 'isle', 'bones'], alien: ['isle', 'crystal', 'bones', 'arch', 'spire', 'stones'] };
+function landmarkGeo(kind, seed) {
+  const B = meshBuilder(seed), r = B.r; B.hq = 1;
+  const rubble = (n, R, s) => { for (let k = 0; k < n; k++) { const a = r() * TAU, d = R * (0.6 + r() * 0.5); B.blob([Math.cos(a) * d, 0.02, Math.sin(a) * d], [s * (0.6 + r()), s * (0.4 + r() * 0.6), s * (0.6 + r())], 2, 0.45, 0.5, 1); } };
+  if (kind === 'arch') {
+    const span = 0.6 + r() * 0.35, hgt = 0.85 + r() * 0.2, th = 0.1 + r() * 0.06, N = 22;
+    for (let i = 0; i <= N; i++) {
+      const a = Math.PI * i / N, x = Math.cos(a) * span, y = Math.sin(a) * hgt, base = 1 - Math.sin(a), rr = th * (1 + base * 0.9) * (0.85 + r() * 0.3);
+      B.blob([x, y, (r() - 0.5) * 0.04], [rr, rr * 0.9, rr * (1.5 + base * 0.6)], 2, AOy(y), 0.35, 1);
+    }
+    rubble(6, span, 0.08);
+  } else if (kind === 'spire' || kind === 'stack') {
+    const n = kind === 'stack' ? 1 + Math.floor(r() * 3) : 2 + Math.floor(r() * 4);
+    for (let c = 0; c < n; c++) {
+      const ox = c ? (r() - 0.5) * 0.7 : 0, oz = c ? (r() - 0.5) * 0.7 : 0, H = c ? 0.4 + r() * 0.55 : 1, w0 = (0.09 + r() * 0.05) * (kind === 'stack' ? 1.6 : 1), L = 10;
+      for (let k = 0; k < L; k++) { const t = k / (L - 1), rr = w0 * (1 - 0.55 * t) * (0.85 + 0.3 * Math.sin(k * 1.9 + c)); B.blob([ox + Math.sin(t * 3 + c) * 0.02, t * H, oz], [rr, H / L * 0.9, rr * (0.9 + r() * 0.2)], 2, AOy(t), 0.3, 1); }
+      if (kind === 'spire' && r() < 0.6) B.blob([ox, H + 0.02, oz], [w0 * 1.3, w0 * 0.45, w0 * 1.2], 2, 1, 0.3, 1);
+    }
+    rubble(5, 0.3, 0.07);
+  } else if (kind === 'isle') {
+    // grassy top, a craggy rock cone beneath, a few trees and dangling roots
+    B.blob([0, 0, 0], [0.5, 0.07, 0.46], 1, 0.9, 0.18, 2);
+    B.cone([0, 0, 0], [0, -1, 0], 0.75 + r() * 0.3, 0.46, 10, 2, 0.8, 0.3);
+    for (let k = 0; k < 8; k++) { const a = r() * TAU, y = -0.1 - r() * 0.4, d = (0.15 + r() * 0.25) * (1 + y); B.blob([Math.cos(a) * d, y, Math.sin(a) * d], [0.12 + r() * 0.1, 0.12 + r() * 0.12, 0.12 + r() * 0.1], 2, 0.5, 0.5, 1); }
+    for (let k = 0, n = 3 + Math.floor(r() * 5); k < n; k++) {
+      const a = r() * TAU, d = r() * 0.32, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 0.08 + r() * 0.1;
+      B.tube([x, 0.04, z], [x, 0.04 + h, z], 0.008, 0.006, 5, 0, 0.5, 0.8);
+      B.blob([x, 0.06 + h, z], [0.04 + r() * 0.03, 0.04 + r() * 0.03, 0.04 + r() * 0.03], 1, 0.9, 0.3, 1);
+    }
+    for (let k = 0; k < 7; k++) { const a = r() * TAU, d = 0.25 + r() * 0.2; let p0 = [Math.cos(a) * d, -0.05, Math.sin(a) * d]; for (let i = 0; i < 3; i++) { const p = vadd(p0, [(r() - 0.5) * 0.03, -0.06 - r() * 0.05, (r() - 0.5) * 0.03]); B.tube(p0, p, 0.006, 0.004, 4, 1, 0.6, 0.6); p0 = p; } }
+  } else if (kind === 'bones') {
+    // spine, ribcage arching from the ground, skull and horns, half sunk into the land
+    const sp = [];
+    for (let k = 0; k <= 16; k++) { const t = k / 16, p = [Math.sin(t * 2.2) * 0.04, 0.2 + Math.sin(t * Math.PI) * 0.16, (t - 0.5) * 1.3]; sp.push(p); B.blob(p, [0.035, 0.03, 0.045], 2, 0.8, 0.2, 1); }
+    for (let k = 4; k <= 11; k++) for (const sx of [-1, 1]) {
+      const p = sp[k], w = 0.2 + Math.sin(k / 16 * Math.PI) * 0.14; let prev = p;
+      for (let i = 1; i <= 7; i++) { const a = i / 7, q = [p[0] + sx * w * Math.sin(a * Math.PI * 0.5), p[1] + 0.13 * Math.sin(a * Math.PI) - p[1] * a * a, p[2] + 0.04 * a]; B.tube(prev, q, 0.014 * (1 - a * 0.4), 0.014 * (1 - a * 0.45), 5, 2, 0.8, 0.6); prev = q; }
+    }
+    const sk = vadd(sp[16], [0, 0.04, 0.12]);
+    B.blob(sk, [0.11, 0.09, 0.16], 2, 0.85, 0.15, 2); B.blob(vadd(sk, [0, -0.07, 0.08]), [0.08, 0.03, 0.12], 2, 0.6, 0.15, 1);
+    for (const sx of [-1, 1]) B.cone(vadd(sk, [sx * 0.07, 0.05, -0.02]), [sx * 0.7, 0.55, -0.4], 0.28, 0.03, 6, 2, 0.8, 1);
+    for (const [z, sx] of [[-0.25, -1], [0.2, 1], [0.35, -1]]) B.tube([sx * 0.15, 0.02, z], [sx * 0.32, 0.1, z + 0.1], 0.02, 0.016, 5, 2, 0.6, 0.8);
+  } else if (kind === 'mesa') {
+    for (let k = 0; k < 6; k++) { const t = k / 6; B.blob([0, t * 0.85 + 0.07, 0], [0.5 - t * 0.06 + (r() - 0.5) * 0.03, 0.085, 0.4 - t * 0.04], 2, AOy(t), 0.22, 2); }
+    B.blob([0, 0.95, 0], [0.43, 0.05, 0.35], 2, 1, 0.15, 2);
+    rubble(8, 0.5, 0.1);
+  } else if (kind === 'crystal') {
+    for (let i = 0, m = 6 + Math.floor(r() * 5); i < m; i++) {
+      const d = vnorm([(r() - 0.5) * 0.9, 1, (r() - 0.5) * 0.9]), len = (0.4 + r() * 0.6) * (i ? 0.85 : 1.1), rad = 0.04 + r() * 0.05;
+      const a = [(r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3], b = vadd(a, vmul(d, len));
+      B.tube(a, b, rad, rad * 0.9, 6, 3, 0.6, 1); B.cone(b, d, rad * 2.5, rad * 0.9, 6, 3, 1, 1);
+    }
+    rubble(6, 0.2, 0.08);
+  } else if (kind === 'stones') {
+    B.hq = 0;
+    const n = 7 + Math.floor(r() * 6), hs = [];
+    for (let k = 0; k < n; k++) { const a = k / n * TAU, h = 0.3 + r() * 0.25, w = 0.05 + r() * 0.03; hs.push(h); B.tube([Math.cos(a) * 0.5, -0.05, Math.sin(a) * 0.5], [Math.cos(a) * 0.5, h, Math.sin(a) * 0.5], w, w * 0.85, 4, 2, 0.4, 0.9); }
+    for (let k = 0; k < n; k += 2) if (k + 1 < n && r() < 0.6) { const a0 = k / n * TAU, a1 = (k + 1) / n * TAU, y = Math.min(hs[k], hs[k + 1]) + 0.02; B.tube([Math.cos(a0) * 0.5, y, Math.sin(a0) * 0.5], [Math.cos(a1) * 0.5, y, Math.sin(a1) * 0.5], 0.035, 0.035, 4, 2, 0.9, 0.9); }
+    B.blob([0, 0.03, 0], [0.12, 0.05, 0.08], 2, 0.6, 0.2, 1); B.blob([0, 0.1, 0], [0.03, 0.03, 0.03], 3, 1, 0.1, 1);
+  }
+  return new Float32Array(B.v);
+}
+function makeLandmarks(P, type, r) {
+  const pool = LM_POOL[type]; if (!pool) return [];
+  const kinds = [], n = r() < 0.6 ? 2 : 1;
+  while (kinds.length < n) { const k = pick(r, pool); if (!kinds.includes(k)) kinds.push(k); }
+  return kinds.map(kind => {
+    const glow = kind === 'crystal' ? (type === 'ice' ? jit(r, [0.5, 0.85, 1], 0.2) : hsv(r(), 0.6, 1)) : kind === 'stones' ? hsv(r(), 0.5, 1) : [0, 0, 0];
+    return {
+      kind, name: makeName(r) + ' ' + LM_INFO[kind][0], desc: LM_INFO[kind][1], m: instMesh(landmarkGeo(kind, (r() * 1e9) | 0)),
+      rock: kind === 'bones' ? jit(r, [0.82, 0.78, 0.68], 0.08) : jit(r, P.rock, 0.15), trunk: P.trunk, glowC: glow, leaf: kind === 'isle' ? 1 : 0,
+      glowI: kind === 'crystal' ? 1.2 : kind === 'stones' ? 0.8 : 0,
+      tints: kind === 'isle' ? [P.grass, P.grass2, P.forest].map(c => jit(r, c, 0.1)) : [[1, 1, 1], [0.92, 0.9, 0.88], [1.05, 1.02, 0.98]],
+      scale: { arch: [70, 190], spire: [80, 260], isle: [50, 170], bones: [70, 220], mesa: [150, 380], crystal: [45, 130], stack: [40, 110], stones: [25, 60] }[kind],
+      den: { arch: 0.3, spire: 0.35, isle: 0.22, bones: 0.2, mesa: 0.25, crystal: 0.35, stack: 0.8, stones: 0.2 }[kind] * (0.7 + r() * 0.6),
+      float: kind === 'isle' ? [120, 420] : null, sink: kind === 'bones' ? 0.12 : kind === 'stones' ? 0 : 0.04
+    };
+  });
+}
+function genLandmarkTile(s, tx, tz) {
+  const P = s.P, E = s.eco, out = E.marks.map(() => []), r = mulberry(hashInts(tx, tz, P.seed | 0, 1313));
+  out.obs = []; out.spots = [];
+  E.marks.forEach((L, k) => {
+    for (let n = poisson(r, L.den); n > 0; n--) {
+      const cx = (tx + 0.1 + r() * 0.8) * LM_T, cz = (tz + 0.1 + r() * 0.8) * LM_T, cl = L.kind === 'isle' || L.kind === 'stack' || L.kind === 'spire' ? 1 + Math.floor(r() * 3) : 1;
+      for (let m = 0; m < cl; m++) {
+        const sc = lerp(L.scale[0], L.scale[1], r() ** 1.5), x = cx + (m ? (r() - 0.5) * sc * 4 : 0), z = cz + (m ? (r() - 0.5) * sc * 4 : 0), rot = r() * TAU, tint = pick(r, L.tints), tv = 0.9 + r() * 0.2, fa = r();
+        const h = terrH(P, x, z, 1);
+        if (L.kind === 'stack') { if (h > P.sea - 2 || h < P.sea - 40) continue; }
+        else if (!L.float) {
+          if (h < P.sea + 3) continue;
+          const sl = Math.hypot(terrH(P, x + 25, z, 1) - terrH(P, x - 25, z, 1), terrH(P, x, z + 25, 1) - terrH(P, x, z - 25, 1)) / 50;
+          if (sl > (L.kind === 'spire' ? 0.8 : 0.35)) continue;
+        }
+        if (s.civ && (inCity(s, x, z, sc + 300) || civBlock(s, x, z) || (s.roadAll.length && roadDist(s, x, z, sc + 30) < sc * 0.8 + 20))) continue;
+        const g = terrH(P, x, z, 2);
+        const y = L.float ? Math.max(g, P.sea) + lerp(L.float[0], L.float[1], fa) : L.kind === 'stack' ? h - 2 : g - L.sink * sc - 1;
+        out[k].push(x, y, z, sc, rot, tint[0] * tv, tint[1] * tv, tint[2] * tv);
+        if (!L.float) out.obs.push({ x, z, r: sc * 0.6, top: y + sc * (L.kind === 'stones' ? 0.6 : L.kind === 'bones' ? 0.5 : 1) });
+        out.spots.push({ x, z, k });
+      }
+    }
+  });
+  return out;
+}
 
 // grass reaches far (thinner blades beyond GRASS_NEAR); plants within PLANT_HQ_R use the detailed meshes
-const TT = 96, TREE_R = 1400, GT = 12, GRASS_R = 165, GRASS_NEAR = 60, GRASS_ALT = 110, GT2 = 48, GRASS_R2 = 825, GRASS_ALT2 = 420, PLANT_HQ_R = 270, AT = 200, ANIM_R = 1200;
+const TT = 96, TREE_R = 2200, GT = 12, GRASS_R = 165, GRASS_NEAR = 60, GRASS_ALT = 110, GT2 = 48, GRASS_R2 = 825, GRASS_ALT2 = 420, PLANT_HQ_R = 340, AT = 200, ANIM_R = 1200;
 const chunkDet = size => size <= 256 ? 3 : size <= 1024 ? 2 : size <= 4096 ? 1 : 0;
 function genPlantTile(s, tx, tz) {
   const P = s.P, E = s.eco, ns = E.plants.length, out = E.plants.map(() => []), r = mulberry(hashInts(tx, tz, P.seed | 0));
   const n = 10, step = TT / n, w = new Float64Array(ns);
+  // city parks are planted with the world's own trees
+  if (!E.parkTrees) { E.parkTrees = []; E.plants.forEach((sp, k) => { if (sp.tall && sp.kind !== 'rock' && sp.kind !== 'crag') E.parkTrees.push(k); }); }
+  const nearCity = s.civ && s.civ.lv >= 2 && inCity(s, (tx + 0.5) * TT, (tz + 0.5) * TT, TT);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = tx * TT + (i + r()) * step, z = tz * TT + (j + r()) * step, u = r(), u2 = r(), u3 = r(), u4 = r(), u5 = r(), u6 = r();
     const h1 = terrH(P, x, z, 1);
     if (h1 < P.sea + 0.3) continue;
+    const city = nearCity && inCity(s, x, z, 30);
+    if (city) {
+      if (u > 0.32 || !E.parkTrees.length || !cityGreen(city, x, z, 3)) continue;
+      const k = E.parkTrees[Math.floor(u2 * E.parkTrees.length)], sp = E.plants[k], tint = sp.tints[Math.floor(u3 * sp.tints.length)], tv = 0.82 + u4 * 0.36;
+      out[k].push(x, terrH(P, x, z, 3) - sp.sink, z, lerp(sp.scale[0], sp.scale[1], Math.pow(u5, 1.5) * 0.7), u6 * TAU, tint[0] * tv, tint[1] * tv, tint[2] * tv);
+      continue;
+    }
     if (s.civ && civBlock(s, x, z)) continue;
     const slope = Math.hypot(terrH(P, x + 2.5, z, 1) - h1, terrH(P, x, z + 2.5, 1) - h1) / 2.5;
     const fm = forestM(P, x, z) * P.treeDen, alt = h1 - P.sea;
@@ -3034,7 +3399,9 @@ function genPlantTile(s, tx, tz) {
   return out;
 }
 function genGrassTile(s, tx, tz) {
-  if (inCity(s, (tx + 0.5) * GT, (tz + 0.5) * GT, 5)) return [[], []];
+  const gc = inCity(s, (tx + 0.5) * GT, (tz + 0.5) * GT, 5);
+  if (gc && !cityGreen(gc, (tx + 0.5) * GT, (tz + 0.5) * GT, 9)) return [[], []];
+  const roadNear = s.roadAll.length && roadDist(s, (tx + 0.5) * GT, (tz + 0.5) * GT, 16) < 15;
   const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 3)), g = [], f = [], N = 13, sp = GT / N, M = N + 1;
   const hl = new Float64Array(M * M);
   for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) hl[j * M + i] = terrH(P, tx * GT + i * sp, tz * GT + j * sp, 3);
@@ -3043,6 +3410,7 @@ function genGrassTile(s, tx, tz) {
     const a = hl[j * M + i], b = hl[j * M + i + 1], c = hl[(j + 1) * M + i], d = hl[(j + 1) * M + i + 1];
     const h = lerp(lerp(a, b, fx), lerp(c, d, fx), fz), slope = Math.hypot(b - a, c - a) / sp;
     if (h - P.sea < 2.2 || slope > 0.5 || h > P.snowLine - 40) { r(); r(); r(); continue; }
+    if (roadNear && roadDist(s, x, z, 7) < 6) { r(); r(); r(); continue; }
     const fm = forestM(P, x, z) * P.treeDen;
     if (r() > E.grassDen * (1 - fm * 0.45)) { r(); r(); continue; }
     if (r() < 0.06 * (1 - fm)) { const fc = E.flowerCols[Math.floor(r() * E.flowerCols.length)]; f.push(x, h - 0.03, z, 0.8 + r() * 0.6, r() * TAU, fc[0], fc[1], fc[2]); continue; }
@@ -3057,7 +3425,7 @@ function genGrassTile(s, tx, tz) {
 function genTuftTile(s, tx, tz) {
   const P = s.P, E = s.eco, r = mulberry(hashInts(tx, tz, P.seed | 0, 31)), g = [], N = 15, sp = GT2 / N, M = 9, gs = GT2 / (M - 1);
   if (E.grassDen <= 0) return [g];
-  const city = inCity(s, (tx + 0.5) * GT2, (tz + 0.5) * GT2, 45);
+  const city = inCity(s, (tx + 0.5) * GT2, (tz + 0.5) * GT2, 45), roadNear = s.roadAll.length && roadDist(s, (tx + 0.5) * GT2, (tz + 0.5) * GT2, 42) < 40;
   const hl = new Float64Array(M * M);
   for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) hl[j * M + i] = terrH(P, tx * GT2 + i * gs, tz * GT2 + j * gs, 3);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -3066,7 +3434,8 @@ function genTuftTile(s, tx, tz) {
     const a = hl[iz * M + ix], b = hl[iz * M + ix + 1], c = hl[(iz + 1) * M + ix], d = hl[(iz + 1) * M + ix + 1];
     const h = lerp(lerp(a, b, ax), lerp(c, d, ax), az), slope = Math.hypot(b - a, c - a) / gs;
     if (h - P.sea < 2.2 || slope > 0.5 || h > P.snowLine - 40) continue;
-    if (city && Math.hypot(x - city.x, z - city.z) < city.R + 30) continue;
+    if (city && cityOut(city, x, z) < 30 && !cityGreen(city, x, z, 1.5)) continue;
+    if (roadNear && roadDist(s, x, z, 7) < 6.5) continue;
     const fm = forestM(P, x, z) * P.treeDen;
     if (u > E.grassDen * (1 - fm * 0.45)) continue;
     const v1 = gn(x / 83, z / 83) * 0.5 + 0.5, v3 = gn(x / 530 + 41, z / 530 + 7) * 0.5 + 0.5;
@@ -3158,6 +3527,7 @@ function simAnimals(s, dt) {
   for (const t of s.vtiles.values()) if (t.a.people) groups.push(t.a.people);
   for (const t of s.ctiles.values()) if (t.a.agents.length) groups.push(t.a.agents);
   if (s.crowd && s.crowd.length) groups.push(s.crowd);
+  if (s.civ && s.civ.lv >= 2) for (const R of s.roadList) groups.push(roadCars(s, R));
   const turnTo = (a, tx, tz, rate, d) => { let da = Math.atan2(tx - a.x, tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da)); a.head += clamp(da, -rate * d, rate * d); return da; };
   for (const g of groups) for (const a of g) {
     const C = E.creatures[a.si], beh = C.beh, H = a.H;
@@ -3201,6 +3571,11 @@ function simAnimals(s, dt) {
     const adt = Math.min(a.acc, 0.25); a.acc = 0;
     if (a.city) {
       gridStep(s, a, C, adt, dC, walking);
+      lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, Math.min(a.walk, 1.6));
+      continue;
+    }
+    if (a.road) {
+      roadStep(s, a, C, adt, dC);
       lists[a.si].push(a.x, a.y, a.z, a.scale, a.head, a.phase, 0, Math.min(a.walk, 1.6));
       continue;
     }
@@ -3322,7 +3697,7 @@ void main(){
 }`, SKY_GLSL + `in vec3 vW; out vec4 o; uniform vec3 uCam, uBirdCol;
 void main(){ vec3 col=uBirdCol*(sunLight()*.4+ambient()); vec3 rel=vW-uCam; o=vec4(fogApply(col,rel,length(rel)),1.); }`);
 // ---- small civilizations: hamlets, villages and lone dwellings
-const VT = 1600, VIL_R = 4200;
+const VT = 1600, VIL_R = 6000;
 const CIV_KINDS = {
   terran: ['hut', 'house', 'longhouse', 'stilt', 'tower', 'tent', 'dome'],
   ocean: ['stilt', 'hut', 'house', 'dome', 'tower'],
@@ -3583,6 +3958,7 @@ function villageSite(s, vx, vz) {
   const place = (k, x, z, rot, sc) => {
     const K = cul.kinds[k], rad = K.rad * sc;
     if (inCity(s, x, z, 60)) return null;
+    if (s.roadAll.length && roadDist(s, x, z, rad + 10) < rad + 8) return null;
     if (v.b.some(b => Math.hypot(b.x - x, b.z - z) < b.rad + rad + 1.5)) return null;
     if (v.f.some(f => Math.hypot(f.x - x, f.z - z) < Math.max(f.hx, f.hz) + rad + 2)) return null;
     const [h, sl] = flat(x, z, Math.max(rad, 2)); if (!okH(h) || sl > K.slope) return null;
@@ -3640,7 +4016,8 @@ function villageSite(s, vx, vz) {
 }
 function civBlock(s, x, z) {
   if (!s.civ) return false;
-  if (inCity(s, x, z, 30)) return true;
+  const c = inCity(s, x, z, 30); if (c) return !cityGreen(c, x, z, 2);
+  if (s.roadAll.length && roadDist(s, x, z, 9) < 8) return true;
   const v = villageSite(s, Math.floor(x / VT), Math.floor(z / VT));
   for (const b of v.b) if (Math.abs(b.x - x) < b.rad + 3 && Math.abs(b.z - z) < b.rad + 3) return true;
   for (const f of v.f) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot), sn = Math.sin(f.rot); if (Math.abs(c * dx + sn * dz) < f.hx + 2 && Math.abs(-sn * dx + c * dz) < f.hz + 2) return true; }
@@ -3661,22 +4038,81 @@ function genVillageTile(s, tx, tz) {
 
 // ---- towns, cities and great cities: street grids, towers, lamps, pedestrians and traffic
 const CT = 6000, CITY_R = 16000;
+// city outline: an oval with a wandering edge, measured in the city's own street frame (u, v)
+function cityEdge(c, u, v) {
+  const a = Math.atan2(v, u) - c.sa, ca = Math.cos(a), sa = Math.sin(a);
+  return c.R / Math.sqrt(ca * ca / c.ea + sa * sa * c.ea) * (1 + c.irr * (0.55 * Math.sin(2 * a + c.ph) + 0.3 * Math.sin(3 * a + c.ph * 1.7) + 0.15 * Math.sin(5 * a + c.ph * 2.3)));
+}
+const cityN = (c, u, v) => { const d = Math.hypot(u, v); return d < 1e-6 ? 0 : d / cityEdge(c, u, v); };
+const cityUV = (c, x, z) => { const dx = x - c.x, dz = z - c.z; return [c.co * dx + c.si * dz, -c.si * dx + c.co * dz]; };
+// how far (x, z) lies outside the city's edge; negative inside
+function cityOut(c, x, z) { const [u, v] = cityUV(c, x, z), d = Math.hypot(u, v); return d < 1e-6 ? -c.R : d - cityEdge(c, u, v); }
+// blocks: 0 buildings, 1 park, 2 plaza; mirrored by blockKind() in the terrain shader
+function blockKind(c, i, j) {
+  const p = c.park; if (p && i >= p[0] && i <= p[2] && j >= p[1] && j <= p[3]) return 1;
+  if (i === c.plaza[0] && j === c.plaza[1]) return 2;
+  const h = ih(i + c.sx, j + c.sz) & 1023;
+  return h < 60 ? 1 : h < 95 ? 2 : 0;
+}
+// inside the central park, where its inner streets give way to lawns (m = margin from its outer streets)
+function inParkRect(c, u, v, m) { const p = c.park, B = c.B; return !!p && u > p[0] * B + m && u < (p[2] + 1) * B - m && v > p[1] * B + m && v < (p[3] + 1) * B - m; }
+function inPond(c, u, v, k) { const o = c.pond; if (!o) return false; const a = (u - o[0]) / (o[2] * k), b = (v - o[1]) / (o[3] * k); return a * a + b * b < 1; }
+// streets that run through the central park have been turned into lawn
+const parkStreet = (c, u, v) => inParkRect(c, u, v, 1);
+// open green ground in a city (parks, minus streets, pavements and the pond) where trees and grass may grow
+function cityGreen(c, x, z, m) {
+  const [u, v] = cityUV(c, x, z), B = c.B, h = c.SW / 2 + m;
+  if (cityN(c, u, v) > 1) return false;
+  if (inParkRect(c, u, v, h)) return !inPond(c, u, v, 1.15);
+  const i = Math.floor(u / B), j = Math.floor(v / B), du = u - i * B, dv = v - j * B;
+  if (du < h || du > B - h || dv < h || dv > B - h) return false;
+  return blockKind(c, i, j) === 1;
+}
 function cityCore(s, cx, cz) {
   const key = cx + ',' + cz; if (s.ccache.has(key)) return s.ccache.get(key);
   let c = null; const cul = s.civ;
   if (cul && cul.lv >= 2) {
     const P = s.P, r = mulberry(hashInts(cx, cz, P.seed | 0, 999)), ice = s.planet.type === 'ice';
-    if (r() < cul.cityDen) for (let t = 0; t < 10 && !c; t++) {
-      const x = (cx + 0.3 + r() * 0.4) * CT, z = (cz + 0.3 + r() * 0.4) * CT, h = terrH(P, x, z, 1, true);
-      if (h < P.sea + 6 || h > P.snowLine + (ice ? 3000 : -50)) continue;
-      if ([[220, 0], [-220, 0], [0, 220], [0, -220]].some(([dx, dz]) => Math.abs(terrH(P, x + dx, z + dz, 1, true) - h) > 30)) continue;
+    if (r() < cul.cityDen) {
       const lv = cul.lv, R = lv === 2 ? 200 + r() * 260 : lv === 3 ? 420 + r() * 600 : r() < 0.6 ? 1000 + r() * 1100 : 450 + r() * 600;
-      c = { key, x, z, R, B: 55 + r() * 30, SW: 11 + r() * 4, rot: r() * Math.PI / 2, name: makeName(r), seed: (r() * 1e9) | 0, Hc: R < 500 ? 12 + R * 0.03 : R < 1000 ? 50 + R * 0.12 : 140 + R * 0.14 };
-      // the city sits on a levelled plateau at the typical height of its site
-      let hs = h * 2, n = 2;
-      for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; hs += terrH(P, x + Math.cos(a) * R * 0.6, z + Math.sin(a) * R * 0.6, 1, true); n++; }
-      c.h0 = Math.max(hs / n, P.sea + 5);
-      P.pads = (P.pads || []).concat([{ key, x, z, R, Rb: R + Math.max(300, R * 0.5), h: c.h0 }]).sort((a, b) => a.key < b.key ? -1 : 1);
+      // some cities stretch into ovals, others sprawl with an irregular edge
+      const oval = r() < 0.45, rot = r() * Math.PI / 2;
+      const sh = { R, ea: oval ? 1.35 + r() * 0.55 : 1 + r() * 0.3, irr: oval ? 0.03 + r() * 0.06 : 0.1 + r() * 0.13, sa: r() * Math.PI, ph: r() * TAU, co: Math.cos(rot), si: Math.sin(rot) };
+      // build on the flattest of several candidate sites, and only where the land is level enough to level
+      let best = null, bestRel = 40 + R * 0.09;
+      for (let t = 0; t < 12; t++) {
+        const x = (cx + 0.25 + r() * 0.5) * CT, z = (cz + 0.25 + r() * 0.5) * CT, h = terrH(P, x, z, 1, true);
+        if (h < P.sea + 6 || h > P.snowLine + (ice ? 3000 : -50)) continue;
+        let hs = h * 2, n = 2, wet = 0; const ds = [];
+        for (let k = 0; k < 12; k++) for (const f of [0.5, 0.95]) {
+          const a = k / 12 * TAU, e = cityEdge(sh, Math.cos(a), Math.sin(a)) * f, u = Math.cos(a) * e, v = Math.sin(a) * e;
+          const hk = terrH(P, x + sh.co * u - sh.si * v, z + sh.si * u + sh.co * v, 1, true);
+          if (hk < P.sea + 3) wet++; else { ds.push(Math.abs(hk - h)); hs += hk; n++; }
+        }
+        if (wet > 5) continue;
+        // a short stretch of shore is fine (the city builds out its embankments); judge the land by its typical relief
+        ds.sort((a, b) => a - b);
+        const rel = ds[Math.floor(ds.length * 0.8)] + wet * 8;
+        if (rel < bestRel) { bestRel = rel; best = { x, z, h0: hs / n }; }
+      }
+      if (best) {
+        const { x, z } = best;
+        c = Object.assign(sh, { key, cx, cz, x, z, B: 55 + r() * 30, SW: 11 + r() * 4, rot, name: makeName(r), seed: (r() * 1e9) | 0, Hc: R < 500 ? 12 + R * 0.03 : R < 1000 ? 50 + R * 0.12 : 140 + R * 0.14 });
+        // the city sits on a levelled plateau at the typical height of its site
+        c.h0 = c.h = Math.max(best.h0, P.sea + 5);
+        c.Rmax = R * Math.sqrt(c.ea) * (1 + c.irr); c.Rb = R + Math.max(300, R * 0.5); c.RbM = c.Rmax + Math.max(300, R * 0.5);
+        // communal spaces: a central square, scattered parks and plazas, and a big park in larger cities
+        c.sx = 1000 + Math.floor(r() * 30000); c.sz = 1000 + Math.floor(r() * 30000);
+        c.plaza = [Math.floor(r() * 2) - 1, Math.floor(r() * 2) - 1]; c.park = null; c.pond = null;
+        if (R > 420) {
+          const nb = R / c.B, wi = 2 + Math.floor(r() * Math.min(4, nb * 0.15)), hj = 2 + Math.floor(r() * Math.min(2, nb * 0.1)), a = r() * TAU, d = (0.25 + r() * 0.2) * nb;
+          const i0 = Math.round(Math.cos(a) * d) - (wi >> 1), j0 = Math.round(Math.sin(a) * d) - (hj >> 1);
+          c.park = [i0, j0, i0 + wi - 1, j0 + hj - 1];
+          c.pond = [(i0 + wi / 2) * c.B, (j0 + hj / 2) * c.B, wi * c.B * 0.24, hj * c.B * 0.24];
+          if (c.plaza[0] >= c.park[0] && c.plaza[0] <= c.park[2] && c.plaza[1] >= c.park[1] && c.plaza[1] <= c.park[3]) c.plaza = [c.park[2] + 1, c.plaza[1]];
+        }
+        P.pads = (P.pads || []).concat([c]).sort((a, b) => a.key < b.key ? -1 : 1);
+      }
     }
   }
   s.ccache.set(key, c); return c;
@@ -3689,20 +4125,136 @@ function ensurePads(s) {
   const n = Math.ceil(CITY_R / CT) + 1;
   for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) cityCore(s, cx + i, cz + j);
   const list = [];
-  for (const c of s.ccache.values()) if (c && Math.hypot(c.x - s.x, c.z - s.z) < 30000) list.push({ key: c.key, x: c.x, z: c.z, R: c.R, Rb: c.R + Math.max(300, c.R * 0.5), h: c.h0 });
+  for (const c of s.ccache.values()) if (c && Math.hypot(c.x - s.x, c.z - s.z) < 30000) list.push(c);
   s.P.pads = list.sort((a, b) => a.key < b.key ? -1 : 1);
+  // every city reaches out with a single road to its nearest neighbour it can reach overland
+  for (const c of list) if (Math.hypot(c.x - s.x, c.z - s.z) < 24000) for (const o of cityNeighbours(s, c)) if (buildRoad(s, c, o)) break;
+  for (const [k, R] of s.roads) if (R && Math.hypot((R.box[0] + R.box[2]) / 2 - s.x, (R.box[1] + R.box[3]) / 2 - s.z) > 60000) s.roads.delete(k);
+  s.roadAll = [...s.roads.values()].filter(Boolean);
+  const near = R => Math.hypot(Math.max(R.box[0] - s.x, 0, s.x - R.box[2]), Math.max(R.box[1] - s.z, 0, s.z - R.box[3]));
+  s.roadList = s.roadAll.filter(R => near(R) < 20000).sort((a, b) => near(a) - near(b)).slice(0, ROAD_MAX_N);
+  uploadRoads(s); s.cdirty = true;
   cityUniforms(s);
 }
 function inCity(s, x, z, m) {
   if (!s.civ || s.civ.lv < 2) return null;
   const cx = Math.floor(x / CT), cz = Math.floor(z / CT);
-  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const c = cityCore(s, cx + i, cz + j); if (c && Math.hypot(x - c.x, z - c.z) < c.R + m) return c; }
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const c = cityCore(s, cx + i, cz + j); if (c && Math.hypot(x - c.x, z - c.z) < c.Rmax + m && cityOut(c, x, z) < m) return c; }
   return null;
+}
+// ---- highways: each city joins its nearest neighbour with one road, lit at night and driven by its vehicles
+const ROAD_SPAN = 22000, ROAD_PTS = 16, ROAD_W = 4.5, ROAD_MAX_N = 8;
+const roadTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, roadTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 1 + ROAD_PTS / 2, ROAD_MAX_N, 0, gl.RGBA, gl.FLOAT, new Float32Array((1 + ROAD_PTS / 2) * ROAD_MAX_N * 4));
+function uploadRoads(s) {
+  const W = 1 + ROAD_PTS / 2, d = new Float32Array(W * ROAD_MAX_N * 4);
+  s.roadList.forEach((R, i) => { d.set([R.box[0] - 12, R.box[1] - 12, R.box[2] + 12, R.box[3] + 12], i * W * 4); d.set(R.pts, i * W * 4 + 4); });
+  gl.bindTexture(gl.TEXTURE_2D, roadTex); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, ROAD_MAX_N, gl.RGBA, gl.FLOAT, d);
+}
+// neighbouring cities by distance (the nearest three within reach)
+function cityNeighbours(s, c) {
+  if (c.nbrs) return c.nbrs;
+  const all = [];
+  for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+    if (!i && !j) continue;
+    const o = cityCore(s, c.cx + i, c.cz + j); if (!o) continue;
+    const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < ROAD_SPAN) all.push([d, o]);
+  }
+  return (c.nbrs = all.sort((a, b) => a[0] - b[0]).slice(0, 3).map(e => e[1]));
+}
+function buildRoad(s, a, b) {
+  if (a.key > b.key) [a, b] = [b, a];
+  const key = a.key + '|' + b.key; if (s.roads.has(key)) return s.roads.get(key);
+  const P = s.P, r = mulberry(hashInts(a.cx, a.cz, b.cx, b.cz, P.seed | 0, 4747));
+  const L = Math.hypot(b.x - a.x, b.z - a.z), fx = (b.x - a.x) / L, fz = (b.z - a.z) / L, hiLim = P.snowLine + (s.planet.type === 'ice' ? 3000 : 200);
+  const edge = (c, sg) => { const [u, v] = cityUV(c, c.x + fx * sg, c.z + fz * sg); return cityEdge(c, u, v) * 0.97; };
+  const t0 = edge(a, 1), t1 = L - edge(b, -1), ph = r() * TAU, wob = (r() - 0.5) * 0.08;
+  let best = null, bc = Infinity;
+  // a gently curving line; swing wider around seas and climbs when needed
+  if (t1 - t0 > 250) for (const amp of [0, 0.07, -0.07, 0.15, -0.15, 0.25, -0.25]) {
+    const pts = new Float32Array(ROAD_PTS * 2); let cost = Math.abs(amp) * L * 0.4, ph0 = null, ok = true;
+    for (let k = 0; k <= (ROAD_PTS - 1) * 4 && ok; k++) {
+      const t = k / ((ROAD_PTS - 1) * 4), s1 = Math.sin(Math.PI * t), d = lerp(t0, t1, t), off = (amp * s1 + wob * Math.sin(TAU * t + ph) * s1) * L;
+      const x = a.x + fx * d - fz * off, z = a.z + fz * d + fx * off, h = terrH(P, x, z, 1);
+      if (h < P.sea + 1.5 || h > hiLim) ok = false;
+      if (ph0 !== null) cost += Math.abs(h - ph0) * 3; ph0 = h;
+      if (k % 4 === 0) { pts[k / 2] = x; pts[k / 2 + 1] = z; }
+    }
+    if (ok && cost < bc) { bc = cost; best = pts; }
+  }
+  let R = null;
+  if (best) {
+    const cum = [0], box = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let k = 0; k < ROAD_PTS; k++) {
+      const x = best[k * 2], z = best[k * 2 + 1];
+      box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], z); box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], z);
+      if (k) cum.push(cum[k - 1] + Math.hypot(x - best[k * 2 - 2], z - best[k * 2 - 1]));
+    }
+    R = { key, a, b, pts: best, cum, len: cum[ROAD_PTS - 1], box, cars: null, lamps: null };
+  }
+  s.roads.set(key, R); return R;
+}
+// point on a road at distance t along it: [x, z, dirX, dirZ]
+function roadPoint(R, t) {
+  let k = 0; while (k < ROAD_PTS - 2 && R.cum[k + 1] < t) k++;
+  const p = R.pts, sl = R.cum[k + 1] - R.cum[k] || 1, f = clamp((t - R.cum[k]) / sl, 0, 1);
+  return [lerp(p[k * 2], p[k * 2 + 2], f), lerp(p[k * 2 + 1], p[k * 2 + 3], f), (p[k * 2 + 2] - p[k * 2]) / sl, (p[k * 2 + 3] - p[k * 2 + 1]) / sl];
+}
+// distance from (x, z) to the nearest road centreline (only searched within m)
+function roadDist(s, x, z, m) {
+  let best = Infinity;
+  if (s.roadAll) for (const R of s.roadAll) {
+    const b = R.box; if (x < b[0] - m || x > b[2] + m || z < b[1] - m || z > b[3] + m) continue;
+    const p = R.pts;
+    for (let k = 0; k < ROAD_PTS - 1; k++) {
+      const ax = p[k * 2], az = p[k * 2 + 1], dx = p[k * 2 + 2] - ax, dz = p[k * 2 + 3] - az;
+      const h = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1), 0, 1);
+      best = Math.min(best, Math.hypot(x - ax - dx * h, z - az - dz * h));
+    }
+  }
+  return best;
+}
+function roadLamps(s, R) {
+  if (R.lamps) return R.lamps;
+  const out = [], lc = s.civ.glowC;
+  for (let t = 30, k = 0; t < R.len - 20; t += 60, k++) {
+    const [x, z, dx, dz] = roadPoint(R, t), sd = (k & 1 ? 1 : -1) * (ROAD_W + 1.4), lx = x - dz * sd, lz = z + dx * sd;
+    out.push(lx, Math.max(terrH(s.P, lx, lz, 2), s.P.sea) + 6.5, lz, 0.6, lc[0], lc[1], lc[2], 0);
+  }
+  return (R.lamps = out);
+}
+function roadCars(s, R) {
+  if (R.cars) return R.cars;
+  const E = s.eco, veh = s.civ.vehicles, r = mulberry(hashInts(R.a.cx, R.a.cz, R.b.cx, R.b.cz, 77));
+  const ground = veh.filter(si => !E.creatures[si].fly), pool = ground.length ? ground : veh;
+  R.cars = [];
+  if (pool.length) for (let k = 0, n = clamp(Math.round(R.len / 320), 4, 60); k < n; k++) {
+    const si = pick(r, pool), C = E.creatures[si], fast = C.walk > 6 ? 1.5 + r() * 0.5 : 1.1;
+    R.cars.push({ si, id: (r() * 1e9) | 0, road: R, t: r() * R.len, dir: r() < 0.5 ? 1 : -1, lane: 2.2, alt: C.fly ? C.fly[0] * 0.5 : 0, x: 0, y: 0, z: 0, head: 0, phase: r() * TAU, graze: 0, walk: 0, spd: 0, spd0: C.walk * fast * (0.85 + r() * 0.3), scale: C.scale * (0.9 + r() * 0.2), callT: 10 + r() * 30, cm: 8 });
+  }
+  for (const a of R.cars) { a.spd = a.spd0; roadStep(s, a, s.eco.creatures[a.si], 0, 1e9); }
+  return R.cars;
+}
+function roadStep(s, a, C, dt, dC) {
+  const R = a.road;
+  a.spd = lerp(a.spd, a.spd0, 1 - Math.exp(-dt * 0.8));
+  a.t += a.dir * a.spd * dt;
+  // at either city the driver swings round and heads back the other way
+  if (a.t > R.len) { a.t = R.len; a.dir = -1; } else if (a.t < 0) { a.t = 0; a.dir = 1; }
+  const [x, z, dx, dz] = roadPoint(R, a.t), fx = dx * a.dir, fz = dz * a.dir;
+  a.x = x - fz * a.lane; a.z = z + fx * a.lane;
+  const g = Math.max(terrH(s.P, a.x, a.z, dC < 80 ? 3 : 1), s.P.sea);
+  a.y = g + a.alt + (C.hover ? C.hover + Math.sin(s.t * 2 + a.id) * 0.1 : 0);
+  let dh = Math.atan2(fx, fz) - a.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); a.head += dh * (dt > 0 ? 1 - Math.exp(-dt * 3) : 1);
+  a.phase += dt * a.spd / (C.stride * a.scale) * Math.PI;
+  a.walk = a.spd / Math.max(C.walk * a.scale, 0.01);
 }
 function genCityTile(s, tx, tz) {
   const c = cityCore(s, tx, tz), out = { inst: [[], [], [], []], lamps: [], agents: [], city: c };
   if (!c) return out;
-  const P = s.P, cul = s.civ, E = s.eco, st = cul.city, r = mulberry(c.seed), B = c.B, n = Math.ceil(c.R / B) + 1, N = 2 * n + 1;
+  const P = s.P, cul = s.civ, E = s.eco, st = cul.city, r = mulberry(c.seed), B = c.B, n = Math.ceil(c.Rmax / B) + 1, N = 2 * n + 1;
   const co = Math.cos(c.rot), si = Math.sin(c.rot), W = (u, v) => [c.x + co * u - si * v, c.z + si * u + co * v];
   const nh = new Float32Array(N * N);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const [x, z] = W((i - n) * B, (j - n) * B); nh[j * N + i] = terrH(P, x, z, 1); }
@@ -3716,10 +4268,39 @@ function genCityTile(s, tx, tz) {
   // great cities: a handful of tiered mega-skyscrapers near the centre
   const mega = new Set();
   if (c.R > 1000) for (let k = 0, nm = 2 + Math.floor(r() * 5); k < nm; k++) mega.add(Math.floor((r() - 0.5) * c.R * 0.55 / B) + ',' + Math.floor((r() - 0.5) * c.R * 0.55 / B));
+  const lc = cul.glowC, inner = B - c.SW;
+  const stroll = (u, v, roam) => {
+    const si = pick(r, cul.people), C = E.creatures[si], [px, pz] = W(u, v);
+    out.agents.push({ si, id: (r() * 1e9) | 0, hx: px, hz: pz, roam, x: px, z: pz, y: 0, stale: true, head: r() * TAU, phase: r() * TAU, graze: 0, walk: 0, spd: 0, state: 'graze', t: r() * 6, tx: px, tz: pz, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 15, cm: 4 });
+  };
+  // parks and plazas: lawns and paths are painted by the terrain shader, trees grow from the plant tiles
+  const communal = (i, j, bk) => {
+    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, [x, z] = W(bu, bv), y = c.hAt(bu, bv);
+    if (bk === 2) {
+      // a fountain basin with a monument at its heart, ringed by lamps and idlers
+      const R0 = inner * (0.15 + r() * 0.07), col = jit(r, pick(r, st.walls), 0.05);
+      out.inst[1].push(x, y - 1, z, c.rot, R0 * 2, 1.9, R0 * 2, r(), col[0], col[1], col[2], 2);
+      out.inst[1].push(x, y - 1, z, c.rot, R0 * 1.72, 1.93, R0 * 1.72, r(), 0.1, 0.22, 0.3, 2);
+      out.inst[3].push(x, y + 0.6, z, c.rot, 1.6 + r() * 1.4, 7 + r() * 12, 1.6 + r() * 1.4, r(), col[0] * 0.85, col[1] * 0.85, col[2] * 0.85, 2);
+      out.lamps.push(x, y + 1.4, z, 1.4, lc[0] * 0.6 + 0.3, lc[1] * 0.6 + 0.4, lc[2] * 0.6 + 0.5, 0);
+      c.lots.set(i + ',' + j, [{ u0: bu - R0, u1: bu + R0, v0: bv - R0, v1: bv + R0, top: y + 0.9 }]);
+      for (let k = 0, nl = 4 + Math.floor(r() * 3); k < nl; k++) { const a = k / nl * TAU + 0.4, [lx, lz] = W(bu + Math.cos(a) * inner * 0.4, bv + Math.sin(a) * inner * 0.4); out.lamps.push(lx, y + 4.5, lz, 0.5, lc[0], lc[1], lc[2], 0); }
+      for (let k = 0, np = 4 + Math.floor(r() * 6); k < np; k++) { const a = r() * TAU, d = R0 + 3 + r() * inner * 0.25; stroll(bu + Math.cos(a) * d, bv + Math.sin(a) * d, inner * 0.2); }
+    } else {
+      for (let k = 0, nl = 2 + Math.floor(r() * 3); k < nl; k++) {
+        const u = bu + (r() - 0.5) * inner * 0.8, v = bv + (r() - 0.5) * inner * 0.8; if (inPond(c, u, v, 1.2)) continue;
+        const [lx, lz] = W(u, v); out.lamps.push(lx, y + 4, lz, 0.45, lc[0], lc[1], lc[2], 0);
+      }
+      for (let k = 0, np = 1 + Math.floor(r() * 4); k < np; k++) { const u = bu + (r() - 0.5) * inner * 0.7, v = bv + (r() - 0.5) * inner * 0.7; if (!inPond(c, u, v, 1.3)) stroll(u, v, inner * 0.25); }
+    }
+  };
   for (let j = -n; j < n; j++) for (let i = -n; i < n; i++) {
-    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = Math.hypot(bu, bv) / c.R;
+    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = cityN(c, bu, bv);
+    if (f > 1) continue;
+    const bk = blockKind(c, i, j);
+    if (bk) { communal(i, j, bk); continue; }
     const isMega = mega.has(i + ',' + j);
-    if (f > 1 || (!isMega && r() < 0.04 + f * 0.08)) continue;
+    if (!isMega && r() < 0.04 + f * 0.08) continue;
     const hs = [nh[(j + n) * N + i + n], nh[(j + n) * N + i + n + 1], nh[(j + n + 1) * N + i + n], nh[(j + n + 1) * N + i + n + 1]];
     const hmin = Math.min(...hs), hmax = Math.max(...hs);
     if (hmax - hmin > 30 || hmin < P.sea + 1.5) continue;
@@ -3756,24 +4337,23 @@ function genCityTile(s, tx, tz) {
   }
   c.pop = pop; c.nb = nb;
   // street lamps along both sides of every street
-  const lc = cul.glowC, off = c.SW / 2 - 1;
-  for (let k = -n; k <= n; k++) for (let t = -c.R; t <= c.R; t += 38) for (const sd of [-off, off]) for (const ax of [0, 1]) {
+  const off = c.SW / 2 - 1;
+  for (let k = -n; k <= n; k++) for (let t = -c.Rmax; t <= c.Rmax; t += 38) for (const sd of [-off, off]) for (const ax of [0, 1]) {
     const u = ax ? t : k * B + sd, v = ax ? k * B + sd : t;
-    if (Math.hypot(u, v) > c.R) continue;
+    if (cityN(c, u, v) > 1 || inParkRect(c, u, v, 2)) continue;
     const [x, z] = W(u, v), y = c.hAt(u, v) + 6;
     if (y < P.sea + 7) continue;
     const lcol = st.cyber ? pick(r, [st.n1, st.n2, lc, lc]) : lc;
     out.lamps.push(x, y, z, 0.6, lcol[0], lcol[1], lcol[2], 0);
   }
   // pedestrians and traffic on the street grid
-  const lines = []; for (let k = -n; k <= n; k++) if (Math.abs(k * B) < c.R * 0.9) lines.push(k * B);
+  const lines = []; for (let k = -n; k <= n; k++) if (Math.abs(k * B) < c.Rmax * 0.9) lines.push(k * B);
   const spawn = (si, lane, alt) => {
-    let ax = 0, line = 0, t = 0;
-    for (let k = 0; k < 8; k++) {
-      ax = r() < 0.5 ? 1 : 0; line = pick(r, lines); const lim = Math.sqrt(Math.max(c.R * c.R * 0.8 - line * line, 0)); t = (r() * 2 - 1) * lim;
-      if (r() < 0.06 + Math.exp(-((Math.hypot(line, t) / c.R * 1.9) ** 2))) break;
+    for (let k = 0; k < 10; k++) {
+      const ax = r() < 0.5 ? 1 : 0, line = pick(r, lines), t = (r() * 2 - 1) * c.Rmax, u = ax ? line : t, v = ax ? t : line, f = cityN(c, u, v);
+      if (f > 0.9 || parkStreet(c, u, v) || r() > 0.06 + Math.exp(-((f * 1.9) ** 2))) continue;
+      out.agents.push(streetAgent(s, c, si, u, v, ax, lane, alt, r)); return;
     }
-    out.agents.push(streetAgent(s, c, si, ax ? line : t, ax ? t : line, ax, lane, alt, r));
   };
   const big = c.R / 1000, np = Math.round(120 * big * big * (cul.lv === 4 ? 2.2 : 1.4) + 60), nv = Math.round(np * 0.22);
   for (let k = 0; k < np; k++) spawn(pick(r, cul.people), off - 0.4, 0);
@@ -3794,11 +4374,11 @@ function streetAgent(s, c, si, u, v, ax, lane, alt, r) {
 function crowdStep(s) {
   const cul = s.civ, E = s.eco;
   let c = null;
-  if (cul && cul.lv >= 2 && s.y - s.ground < 300) for (const k of s.cityList) if (k.hAt && Math.hypot(k.x - s.x, k.z - s.z) < k.R + 150) { c = k; break; }
+  if (cul && cul.lv >= 2 && s.y - s.ground < 300) for (const k of s.cityList) if (k.hAt && cityOut(k, s.x, s.z) < 150) { c = k; break; }
   if (c !== s.crowdCity) { s.crowd = []; s.crowdCity = c; }
   if (!c) return;
   // busy downtown, quiet outskirts
-  const dc = Math.hypot(s.x - c.x, s.z - c.z) / c.R, den = 0.05 + 0.95 * Math.exp(-((dc * 1.7) ** 2));
+  const dc = cityN(c, ...cityUV(c, s.x, s.z)), den = 0.05 + 0.95 * Math.exp(-((dc * 1.7) ** 2));
   const big = cul.lv === 4 ? 1 : cul.lv === 3 ? 0.6 : 0.3, want = { p: Math.round(1100 * big * den), v: Math.round(260 * big * (0.15 + 0.85 * den)), a: Math.round(50 * big * (0.3 + 0.7 * den)) };
   const ground = cul.vehicles.filter(si => !E.creatures[si].fly), air = cul.vehicles.filter(si => E.creatures[si].fly);
   const fw = [-Math.sin(s.yaw), -Math.cos(s.yaw)], co = Math.cos(c.rot), si = Math.sin(c.rot);
@@ -3806,9 +4386,10 @@ function crowdStep(s) {
     for (let k = 0; k < 6; k++) {
       const ang = Math.random() * TAU, rr = 30 + Math.sqrt(Math.random()) * 200, dx = Math.cos(ang) * rr, dz = Math.sin(ang) * rr;
       if (a && rr < 120 && (dx * fw[0] + dz * fw[1]) / rr > 0.3) continue;
-      const wx = s.x + dx - c.x, wz = s.z + dz - c.z, u = co * wx + si * wz, v = -si * wx + co * wz, d = Math.hypot(u, v);
-      if (d > c.R * 0.9 || Math.random() > 0.12 + 0.88 * Math.exp(-((d / c.R * 1.8) ** 2))) continue;
+      const wx = s.x + dx - c.x, wz = s.z + dz - c.z, u = co * wx + si * wz, v = -si * wx + co * wz, d = cityN(c, u, v);
+      if (d > 0.9 || Math.random() > 0.12 + 0.88 * Math.exp(-((d * 1.8) ** 2))) continue;
       const su = Math.round(u / c.B) * c.B, sv = Math.round(v / c.B) * c.B, ax = Math.abs(u - su) < Math.abs(v - sv) ? 1 : 0;
+      if (parkStreet(c, ax ? su : u, ax ? v : sv)) continue;
       const na = streetAgent(s, c, si2, ax ? su : u, ax ? v : sv, ax, lane, alt, Math.random);
       if (a) { Object.assign(a, na); return a; }
       return na;
@@ -3846,7 +4427,7 @@ function gridStep(s, a, C, dt, dC, walking) {
     if (ax) a.v = a.next; else a.u = a.next;
     const opts = [a.dir, (a.dir + 1) % 4, (a.dir + 3) % 4], du = [B, 0, -B, 0], dv = [0, B, 0, -B];
     let nd = Math.random() < 0.6 ? a.dir : opts[Math.random() < 0.5 ? 1 : 2];
-    const okD = d => Math.hypot(a.u + du[d], a.v + dv[d]) < c.R * 0.92;
+    const okD = d => cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2);
     if (!okD(nd)) nd = opts.find(okD) ?? (a.dir + 2) % 4;
     a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B);
     if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
@@ -3864,7 +4445,7 @@ function gridStep(s, a, C, dt, dC, walking) {
 // highest roof under (x, z), or -Infinity on streets and open ground
 function cityTop(s, x, z) {
   for (const c of s.cityList) {
-    const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz > c.R * c.R) continue;
+    const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz > c.Rmax * c.Rmax) continue;
     const co = Math.cos(c.rot), si = Math.sin(c.rot), u = co * dx + si * dz, v = -si * dx + co * dz;
     const lots = c.lots && c.lots.get(Math.floor(u / c.B) + ',' + Math.floor(v / c.B));
     if (lots) for (const l of lots) if (u > l.u0 && u < l.u1 && v > l.v0 && v < l.v1) return l.top;
@@ -3925,7 +4506,7 @@ void main(){ vec3 n=normalize(vN); vec3 rel=vW-uCam; float dist=length(rel), nig
   float wm=uKind<2.5?mix(mxy,.33,far)*step(gf+1.,fy)*step(fy,H-1.)*vert:0.;
   float h=hh(vec3(id,seed*91.+face)), lit=mix(step(h,mix(.05,.6,night)),mix(.05,.6,night),far)*wm;
   float dif=max(dot(n,uSun),0.)*shadowAt(vW,.0003);
-  vec3 col=base*(sunLight()*dif+ambient()*(.55+.45*n.y));
+  vec3 col=base*(sunLight()*dif+ambient()*(.55+.45*n.y)+flashAt(vW,n,0.));
   vec3 glass=vec3(.035,.045,.06)*(sunLight()*.25+ambient()*1.4)+sunLight()*pow(max(dot(reflect(rel/dist,n),uSun),0.),30.)*.4;
   col=mix(col,glass,wm*.9);
   float h2=fract(h*7.);
@@ -3935,7 +4516,7 @@ void main(){ vec3 n=normalize(vN); vec3 rel=vW-uCam; float dist=length(rel), nig
   if(gf>0.&&isW>.5&&fy<gf+.35){
     float sx=fract(u/6.), sid=floor(u/6.), sh=hh(vec3(sid,seed*53.+face,7.));
     vec3 shopC=uCyber>.5?(sh<.35?uN1:sh<.7?uN2:uWin):mix(uWin,vec3(1.,.92,.8),sh);
-    if(fy<.7) col=base*.3*(sunLight()*dif+ambient());
+    if(fy<.7) col=base*.3*(sunLight()*dif+ambient()+flashAt(vW,n,0.));
     else if(fy<3.5){ float gl=step(.08,sx)*step(sx,.92), door=step(.42,sx)*step(sx,.58)*step(fy,2.7);
       vec3 inside=shopC*(.3+.7*sh)*(.25+1.6*night);
       col=mix(col,glass*.7+inside*.7,gl); col=mix(col,vec3(.02)+inside*.2,door); }
@@ -3964,10 +4545,13 @@ void main(){ vec3 rel=aI.xyz-uCam; float d=length(rel); rel.y-=dot(rel.xz,rel.xz
 const lampBuf = gl.createBuffer();
 const lampVAO = vao([{ buf: quadBuf, loc: 0, size: 2 }, { buf: lampBuf, loc: 1, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: lampBuf, loc: 2, size: 4, stride: 32, offset: 16, divisor: 1 }]);
 let lampN = 0;
+const flashBuf = gl.createBuffer();
+const flashVAO = vao([{ buf: quadBuf, loc: 0, size: 2 }, { buf: flashBuf, loc: 1, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: flashBuf, loc: 2, size: 4, stride: 32, offset: 16, divisor: 1 }]);
 function rebuildCity(s) {
   const parts = [[], [], [], []], lamps = [];
   s.cityList = [];
   for (const t of s.ctiles.values()) { const a = t.a; if (!a.city) continue; s.cityList.push(a.city); for (let k = 0; k < 4; k++) parts[k].push(a.inst[k]); lamps.push(a.lamps); }
+  for (const R of s.roadList) lamps.push(roadLamps(s, R));
   const flat = arrs => { let n = 0; for (const x of arrs) n += x.length; const o = new Float32Array(n); let p = 0; for (const x of arrs) { o.set(x, p); p += x.length; } return o; };
   cityMeshes.forEach((M, k) => { const d = flat(parts[k]); gl.bindBuffer(gl.ARRAY_BUFFER, M.ib); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); M.n = d.length / 12; });
   const L = flat(lamps); gl.bindBuffer(gl.ARRAY_BUFFER, lampBuf); gl.bufferData(gl.ARRAY_BUFFER, L, gl.DYNAMIC_DRAW); lampN = L.length / 8;
@@ -3975,8 +4559,11 @@ function rebuildCity(s) {
 }
 function cityUniforms(s) {
   const near = s.P.pads.map(p => s.ccache.get(p.key)).filter(Boolean).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z)).slice(0, 16).sort((a, b) => a.key < b.key ? -1 : 1);
-  s.cityU.fill(0); s.cityB.fill(0);
-  near.forEach((c, i) => { s.cityU.set([c.x, c.z, c.R, c.rot], i * 4); s.cityB.set([c.B, c.SW, s.civ.city.cyber ? 1 : 0, c.h0], i * 4); });
+  s.cityU.fill(0); s.cityB.fill(0); s.cityS.fill(0); s.cityP.fill(0); s.cityQ.fill(0);
+  near.forEach((c, i) => {
+    s.cityU.set([c.x, c.z, c.R, c.rot], i * 4); s.cityB.set([c.B, c.SW, s.civ.city.cyber ? 1 : 0, c.h0], i * 4);
+    s.cityS.set([c.ea, c.sa, c.irr, c.ph], i * 4); s.cityP.set(c.park || [1, 0, 0, 0], i * 4); s.cityQ.set([c.sx, c.sz, c.plaza[0], c.plaza[1]], i * 4);
+  });
 }
 function drawCity(p) { cityMeshes.forEach((M, k) => { if (!M.n) return; p.set('uKind', k); gl.bindVertexArray(M.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, M.verts, M.n); }); }
 
@@ -4011,7 +4598,9 @@ function makeSurface(planet, sys, entryDir) {
     pt: 0, cruiseDur: 55 + r() * 35, walkDur: 70 + r() * 50, walked: false, walkV: 0, sideV: 0, bob: 0, wT: 3, wState: 'stand',
     ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null,
     ttiles: new Map(), vtiles: new Map(), vcache: new Map(), vdirty: false, vrebuildT: 0, titans: [], seenV: new Set(), civ: null,
-    ctiles: new Map(), ccache: new Map(), cityList: [], cityU: new Float32Array(64), cityB: new Float32Array(64), cdirty: false
+    ctiles: new Map(), ccache: new Map(), cityList: [], cityU: new Float32Array(64), cityB: new Float32Array(64), cdirty: false,
+    cityS: new Float32Array(64), cityP: new Float32Array(64), cityQ: new Float32Array(64), roads: new Map(), roadAll: [], roadList: [], rollU: 0, bank: 0,
+    flP: new Float32Array(8), flD: new Float32Array(8), flC: new Float32Array(6), flGlow: [], torchK: 0, scanned: new Set()
   };
   s.cloudCov = (P.sCloud ?? P.cloud) * 0.9; s.home = [sx, sz]; if (P.gas) s.walked = true;
   {
@@ -4022,14 +4611,16 @@ function makeSurface(planet, sys, entryDir) {
     s.rain = 0; s.flash = 0; s.cov = s.cloudCov;
   }
   s.eco = makeEcology(P, planet.type, mulberry(hashInts(planet.seed, 4242)));
+  s.eco.marks = makeLandmarks(P, planet.type, mulberry(hashInts(planet.seed, 8181)));
+  s.ltiles = new Map(); s.lmObs = []; s.lmSpots = [];
   if (planet.civ) s.civ = makeCulture(P, planet.type, mulberry(hashInts(planet.seed, 6262)), s.eco, planet.civLv || 0);
-  P.pads = []; P.cityU = s.cityU; P.cityB = s.cityB;
+  P.pads = []; P.cityU = s.cityU; P.cityB = s.cityB; P.cityS = s.cityS;
   ensurePads(s);
   if (s.eco.floater) for (let i = 0; i < 7; i++) s.floaters.push({ x: sx, y: g0, z: sz, head: 0, ph: i * 1.7, sc: 10, t: -1 });
   return s;
 }
 function freeSurface(s) {
-  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear(); s.ctiles.clear(); s.ccache.clear();
+  s.tiles.clear(); s.gtiles.clear(); s.atiles.clear(); s.ftiles.clear(); s.ttiles.clear(); s.vtiles.clear(); s.vcache.clear(); s.ctiles.clear(); s.ccache.clear(); s.ltiles.clear();
   cityMeshes.forEach(M => M.n = 0); lampN = 0;
   if (s.civ) s.civ.kinds.forEach(K => freeInstMesh(K.m));
   freeEcology(s.eco); grassMesh.n = grassFarMesh.n = grassTuftMesh.n = flowerMesh.n = floaterMesh.n = farMesh.n = 0;
@@ -4081,14 +4672,16 @@ function updateSurfaceWorld(s, dt) {
     // city soundscape: louder downtown and near the ground
     let tr = 0, cr = 0;
     if (s.civ && s.civ.lv >= 2 && P.pads.length) {
-      let best = null, bd = 1e9; for (const c of P.pads) { const d = Math.hypot(s.x - c.x, s.z - c.z) / c.R; if (d < bd) { bd = d; best = c; } }
+      let best = null, bd = 1e9; for (const c of P.pads) { if (Math.hypot(s.x - c.x, s.z - c.z) > c.RbM + 3000) continue; const d = cityN(c, ...cityUV(c, s.x, s.z)); if (d < bd) { bd = d; best = c; } }
+      if (best) {
       const inside = smooth(1 + 1200 / best.R, 0.6, bd), den = 0.08 + 0.92 * Math.exp(-((bd * 1.6) ** 2)), low = smooth(900, 60, s.y - s.ground), lvK = [0, 0, 0.5, 0.8, 1][s.civ.lv];
       tr = inside * low * lvK * (0.35 + 0.65 * den); cr = inside * smooth(80, 5, s.y - s.ground) * lvK * den;
+      }
     }
     Music.city(tr, cr, s.civ && (s.civ.alien || s.civ.city.cyber));
   }
   weatherStep(s, dt);
-  if (tileSet(s.tiles, TT, TREE_R, s.x, s.z, 6, (tx, tz) => genPlantTile(s, tx, tz))) s.dirty = true;
+  if (tileSet(s.tiles, TT, TREE_R, s.x, s.z, 10, (tx, tz) => genPlantTile(s, tx, tz))) s.dirty = true;
   const hqOn = s.y - s.ground < 300;
   if (hqOn !== s.hqOn) { s.hqOn = hqOn; s.dirty = true; }
   s.rebuildT -= dt;
@@ -4097,7 +4690,7 @@ function updateSurfaceWorld(s, dt) {
     const [near, far] = splitTiles(s.tiles, TT, s.x, s.z, hqOn ? PLANT_HQ_R : -1);
     E.plants.forEach((sp, k) => { uploadInst(sp.mh, catF(near.map(t => t.a[k]))); uploadInst(sp.m, catF(far.map(t => t.a[k]))); });
   }
-  if (tileSet(s.ftiles, FT, FAR_R, s.x, s.z, 3, (tx, tz) => [genFarTile(s, tx, tz)])) s.fdirty = true;
+  if (tileSet(s.ftiles, FT, FAR_R, s.x, s.z, 6, (tx, tz) => [genFarTile(s, tx, tz)])) s.fdirty = true;
   s.frebuildT -= dt;
   if (s.fdirty && s.frebuildT <= 0) { s.fdirty = false; s.frebuildT = 0.5; uploadInst(farMesh, mergeTiles(s.ftiles, 0)); }
   // grass & flowers only near the ground
@@ -4134,7 +4727,7 @@ function updateSurfaceWorld(s, dt) {
       if (s.cdirty) { s.cdirty = false; rebuildCity(s); }
       crowdStep(s);
       for (const c of s.cityList) {
-        if (s.seenV.has(c.key) || Math.hypot(c.x - s.x, c.z - s.z) > c.R + 300 || s.y - s.ground > 2500) continue;
+        if (s.seenV.has(c.key) || cityOut(c, s.x, s.z) > 300 || s.y - s.ground > 2500) continue;
         s.seenV.add(c.key);
         const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = c.pop > 1e6 ? (c.pop / 1e6).toFixed(1) + ' million' : Math.round(c.pop / 1000) * 1000 + '';
         showLoc(c.name, kind + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + (s.civ.others === 1 ? ' and another people' : s.civ.others > 1 ? ' and ' + s.civ.others + ' other peoples' : '') + ' \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
@@ -4142,6 +4735,17 @@ function updateSurfaceWorld(s, dt) {
     }
   }
   simAnimals(s, dt);
+  // landmarks: colossal formations far across the land, named the first time they are reached
+  if (E.marks.length) {
+    if (tileSet(s.ltiles, LM_T, LM_R, s.x, s.z, 2, (tx, tz) => genLandmarkTile(s, tx, tz))) {
+      E.marks.forEach((L, k) => uploadInst(L.m, mergeTiles(s.ltiles, k)));
+      s.lmObs = []; s.lmSpots = []; for (const t of s.ltiles.values()) { s.lmObs.push(...t.a.obs); s.lmSpots.push(...t.a.spots); }
+    }
+    if (s.y - s.ground < 1500) for (const o of s.lmSpots) {
+      const L = E.marks[o.k]; if (s.seenV.has('lm' + o.k) || Math.hypot(o.x - s.x, o.z - s.z) > 500 + L.scale[1]) continue;
+      s.seenV.add('lm' + o.k); showLoc(L.name, L.desc + ' \u00b7 ' + s.planet.name); break;
+    }
+  }
   // sky creatures drifting around the camera's path
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   if (s.floaters.length) {
@@ -4193,11 +4797,11 @@ function collectChunks(s, fwd) {
 function surfaceSkyUniforms(p, s) {
   const P = s.P;
   p.set('uSun', s.sun).set('uSkyTint', P.sky).set('uSunCol', s.sys.star.light).set('uSunI', 1.9).set('uFogD', (P.fogD || 1 / 30000) * (1 + 3.5 * s.rain)).set('uView', 30000)
-    .set('uOver', s.rain * 0.85).set('uFlash', s.flash);
+    .set('uOver', s.rain * 0.85).set('uFlash', s.flash).set('uFlP', s.flP).set('uFlD', s.flD).set('uFlC', s.flC);
   return p;
 }
 const terrUniforms = (p, P) => p.set('uTOff', [P.ox, P.oz]).set('uTCont', P.cont).set('uTBase', P.base).set('uTMount', P.mount).set('uTHill', P.hill)
-  .set('uTStyle', [P.terrace || 0, P.spike || 0, P.canyon || 0, P.dune || 0]).set('uTCrater', P.crater || 0).set('uCity', P.cityU).set('uCityB', P.cityB);
+  .set('uTStyle', [P.terrace || 0, P.spike || 0, P.canyon || 0, P.dune || 0]).set('uTCrater', P.crater || 0).set('uCity', P.cityU).set('uCityB', P.cityB).set('uCityS', P.cityS);
 function renderShadowMap(s, time, chunks, fwd, cam, models) {
   shadow.on = 0;
   if (s.sun[1] < 0.05) return;
@@ -4216,6 +4820,7 @@ function renderShadowMap(s, time, chunks, fwd, cam, models) {
   }
   const pp = P_shPlant.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', TREE_R);
   for (const sp of s.eco.plants) { pp.set('uSway', sp.sway); drawInst(sp.m); drawInst(sp.mh); }
+  if (s.eco.marks.length) { pp.set('uFadeR', LM_R).set('uSway', 0); for (const L of s.eco.marks) drawInst(L.m); }
   if (s.civ) { pp.set('uFadeR', VIL_R).set('uSway', 0); for (const K of s.civ.kinds) drawInst(K.m); }
   if (s.cityList.length) drawCity(P_shCity.use().set('uLVP', shadow.lvp).set('uShO', shadow.o));
   const ap = P_shAnimal.use().set('uLVP', shadow.lvp).set('uShO', shadow.o).set('uCam', cam).set('uTime', time).set('uFadeR', ANIM_R);
@@ -4229,6 +4834,7 @@ function renderSurface(s, time, camQ, cam) {
   const P = s.P, E = s.eco;
   const day = smooth(-0.2, 0.04, s.sun[1]), agl = s.y - s.ground, walking = s.phase === 'walk';
   const fwd = qfwd(camQ), chunks = collectChunks(s, fwd), models = surfaceModels(s);
+  updateFlashlights(s, cam, camQ);
   renderShadowMap(s, time, chunks, fwd, cam, models);
   gl.bindFramebuffer(gl.FRAMEBUFFER, post.hdr.fb); gl.viewport(0, 0, post.w, post.h);
   // night sky: the real galaxy, rotating with the planet
@@ -4239,20 +4845,26 @@ function renderSurface(s, time, camQ, cam) {
   }
   const tanY = Math.tan(view.fov / 2);
   glState({ blend: 'premult' });
+  const fx = P.skyFx, ang = s.t * TAU / 720, moon = new Float32Array(12), moonC = new Float32Array(9);
+  if (fx) fx.moons.forEach((m, i) => { moon.set([...qrot(qaxis(s.axis, -ang * m.k), m.dir), m.rad], i * 4); moonC.set(m.col, i * 3); });
   surfaceSkyUniforms(P_sky.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), s).set('uCamRot', mat3FromQuat(camQ)).set('uTan', [tanY * view.aspect, tanY])
-    .set('uCam', cam).set('uTime', time).set('uCloudCov', s.cov).set('uCloudH', s.cloudH).set('uAir', P.air ?? 1).set('uCloudVar', s.wx.var).set('uCloudTint', s.wx.tint);
+    .set('uCam', cam).set('uTime', time).set('uCloudCov', s.cov).set('uCloudH', s.cloudH).set('uAir', P.air ?? 1).set('uCloudVar', s.wx.var).set('uCloudTint', s.wx.tint)
+    .set('uRingN', s.axis).set('uRingR', fx && fx.ring ? [fx.ring.in, fx.ring.out, fx.ring.op] : [0, 0, 0]).set('uRingC', fx && fx.ring ? fx.ring.col : [0, 0, 0])
+    .set('uMoon', moon).set('uMoonC', moonC).set('uAurA', fx && fx.aurora ? [...fx.aurora.c1, fx.aurora.I] : [0, 0, 0, 0]).set('uAurB', fx && fx.aurora ? fx.aurora.c2 : [0, 0, 0])
+    .set('uVeil', fx && fx.veil ? [...fx.veil.col, fx.veil.I] : [0, 0, 0, 0]);
   fsDraw();
   const vp = vpFor(walking || S.tp ? 0.08 : clamp(agl * 0.02, 0.1, 0.5), 40000);
   gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   // terrain
   glState({ depth: true, write: true });
-  const tp = shadowUniforms(surfaceSkyUniforms(terrUniforms(P_terr.use().tex('uNoise', noiseTex, gl.TEXTURE_3D), P), s));
+  const tp = shadowUniforms(surfaceSkyUniforms(terrUniforms(P_terr.use().tex('uNoise', noiseTex, gl.TEXTURE_3D).tex('uRoads', roadTex), P), s));
   tp.set('uVP', vp).set('uCam', cam).set('uCurv', s.curv)
     .set('uGrass', P.grass).set('uGrass2', P.grass2).set('uForest', P.forest).set('uSand', P.sand).set('uRock', P.rock).set('uSnow', P.snow)
     .set('uSea', P.sea).set('uSnowLine', P.snowLine).set('uTreeLine', P.treeLine).set('uTreeDen', P.treeDen)
     .set('uPat', P.pat || [0, 0, 0, 60]).set('uAlt', P.alt || [0, 0, 0]).set('uStrA', P.strA || [0, 0, 0]).set('uStrB', P.strB || [0, 0, 0])
     .set('uGas', P.gas || 0).set('uG1', P.g1).set('uG2', P.g2).set('uG3', P.g3).set('uLava', P.lava || 0)
-    .set('uCity', s.cityU).set('uCityB', s.cityB).set('uPave', s.civ ? s.civ.pave : [0.4, 0.4, 0.4])
+    .set('uCity', s.cityU).set('uCityB', s.cityB).set('uCityS', s.cityS).set('uCityP', s.cityP).set('uCityQ', s.cityQ).set('uPave', s.civ ? s.civ.pave : [0.4, 0.4, 0.4])
+    .set('uPondC', P.iceSea ? vmul(P.water, 0.7) : vmul(P.waterShallow, 0.3)).set('uRoadLamp', s.civ ? s.civ.glowC : [1, 0.7, 0.4]).set('uRoadN', s.roadList.length)
     .set('uWet', s.rain).set('uNeonA', s.civ ? s.civ.city.n1 : [1, 0, 1]).set('uNeonB', s.civ ? s.civ.city.n2 : [0, 1, 1]);
   gl.bindVertexArray(terrMesh.vao);
   for (const c of chunks) {
@@ -4265,6 +4877,11 @@ function renderSurface(s, time, camQ, cam) {
   const ppAgain = () => shadowUniforms(pp.use().tex('uNoise', noiseTex, gl.TEXTURE_3D));
   pp.set('uFadeR', TREE_R).set('uBias', 0.00025).set('uTwoSide', 0).set('uGlowC', [0, 0, 0]).set('uLeaf', 1);
   for (const sp of E.plants) { pp.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', P.rock).set('uGlowI', sp.glowI).set('uLeaf', sp.kind === 'rock' || sp.kind === 'crag' || sp.kind === 'crystal' ? 0 : 1); drawInst(sp.m); drawInst(sp.mh); }
+  if (E.marks.length) {
+    pp.set('uFadeR', LM_R).set('uSway', 0).set('uBias', 0.0004);
+    for (const L of E.marks) { pp.set('uTrunk', L.trunk).set('uRockC', L.rock).set('uGlowI', L.glowI).set('uGlowC', L.glowC).set('uLeaf', L.leaf); drawInst(L.m); }
+    pp.set('uGlowC', [0, 0, 0]).set('uBias', 0.00025);
+  }
   pp.set('uLeaf', 0);
   if (s.civ) {
     pp.set('uFadeR', VIL_R).set('uSway', 0);
@@ -4314,6 +4931,14 @@ function renderSurface(s, time, camQ, cam) {
     glState({ depth: true, blend: 'add' });
     P_lamp.use().set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1 - day).set('uVpx', [post.w, post.h]);
     gl.bindVertexArray(lampVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, lampN);
+  }
+  // a soft glare around each lit lamp of the flashlight, headlamps, searchlight or scanner
+  const fg = []; for (let i = 0; i < s.flGlow.length; i += 3) if (s.flGlow[i + 1] > 0) { const c = s.flGlow[i + 2], m = Math.max(...c); fg.push(...s.flGlow[i], s.flGlow[i + 1], c[0] / m, c[1] / m, c[2] / m, 0); }
+  if (fg.length && (day < 0.97 || (S.scan && S.scan.holding))) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, flashBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(fg), gl.DYNAMIC_DRAW);
+    glState({ depth: true, blend: 'add' });
+    P_lamp.use().set('uVP', vp).set('uCam', cam).set('uCurv', s.curv).set('uPx', view.pxScale).set('uTime', time).set('uNight', 1.2 * (1 - day) + 0.15).set('uVpx', [post.w, post.h]);
+    gl.bindVertexArray(flashVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, fg.length / 8);
   }
   if (floaterMesh.n && E.floater) {
     glState({ depth: true, blend: 'premult' });
@@ -4487,6 +5112,36 @@ const Music = {
     E.bf.frequency.setTargetAtTime(180 + rpm * 700 + level * 500, t, 0.08);
     E.bg.gain.setTargetAtTime(level * 0.075, t, level ? 0.1 : 0.3); E.tg.gain.setTargetAtTime(rough * 0.45, t, 0.15);
   },
+  // scanner: a very low, pulsing hum that rises a little as the scan progresses (level 0 = off)
+  scan(level, prog) {
+    if (!this.ctx) return;
+    const C = this.ctx, t = C.currentTime;
+    if (!this.scn) {
+      if (!level) return;
+      const g = C.createGain(); g.gain.value = 0; g.connect(this.sfx);
+      const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240; f.Q.value = 2.5; f.connect(g);
+      const am = C.createGain(); am.gain.value = 0.6; am.connect(f);
+      const o1 = C.createOscillator(); o1.type = 'sine'; o1.frequency.value = 52; o1.connect(am);
+      const o2 = C.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 78; const g2 = C.createGain(); g2.gain.value = 0.35; o2.connect(g2); g2.connect(am);
+      const lfo = C.createOscillator(); lfo.frequency.value = 6; const lg = C.createGain(); lg.gain.value = 0.4; lfo.connect(lg); lg.connect(am.gain);
+      o1.start(); o2.start(); lfo.start();
+      this.scn = { g, f, o1, o2, lfo, next: 0, on: false };
+    }
+    const N = this.scn;
+    if (!level && !N.on) return;
+    if (level && N.on && t < N.next) return; N.next = t + 0.05; N.on = !!level;
+    N.g.gain.setTargetAtTime(level * 0.16, t, level ? 0.08 : 0.12);
+    if (level) { const f0 = 48 + prog * 24; N.o1.frequency.setTargetAtTime(f0, t, 0.1); N.o2.frequency.setTargetAtTime(f0 * 1.5, t, 0.1); N.lfo.frequency.setTargetAtTime(5 + prog * 10, t, 0.1); N.f.frequency.setTargetAtTime(200 + prog * 280, t, 0.1); }
+  },
+  scanDone() {
+    if (!this.ctx) return;
+    const C = this.ctx, t = C.currentTime;
+    for (const [f, d] of [[98, 0], [147, 0.13]]) {
+      const o = C.createOscillator(), g = C.createGain(); o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(0.14, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0005, t + d + 0.7);
+      o.connect(g); g.connect(this.sfx); g.connect(this.sfxRev); o.start(t + d); o.stop(t + d + 0.75);
+    }
+  },
   rainLevel(l) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, E = this.eng; if (t < E.rainNext) return; E.rainNext = t + 0.25;
@@ -4608,7 +5263,7 @@ const S = {
   sys: null, star: null, goal: null, queue: [],
   look: { yaw: 0, pitch: 0, idle: 0 }, fade: 1, fadeCol: [0, 0, 0], fadeT: 0,
   speedMul: 1, autoMul: 1, galStay: 0, maxStay: 2, hostG: null, resScale: 1,
-  tp: true, camDist: 16, walkDist: 4.2, thrust: 0.2, warpT: -1, sel: null
+  tp: true, camDist: 16, walkDist: 4.2, thrust: 0.2, warpT: -1, sel: null, flash: false
 };
 const SPEED_CAP = 80000;
 const visitedStars = new Set(), visitedNeb = new Set();
@@ -4871,11 +5526,15 @@ function flyStep(dt) {
     let q = S.q;
     if (k.KeyA || k.ArrowLeft) q = qmul(q, qaxis([0, 1, 0], turn));
     if (k.KeyD || k.ArrowRight) q = qmul(q, qaxis([0, 1, 0], -turn));
-    if (k.ArrowUp || k.KeyE) q = qmul(q, qaxis([1, 0, 0], turn));
-    if (k.ArrowDown || k.KeyQ) q = qmul(q, qaxis([1, 0, 0], -turn));
+    if (k.ArrowUp) q = qmul(q, qaxis([1, 0, 0], turn));
+    if (k.ArrowDown) q = qmul(q, qaxis([1, 0, 0], -turn));
+    if (k.KeyQ) q = qmul(q, qaxis([0, 0, 1], turn));
+    if (k.KeyE) q = qmul(q, qaxis([0, 0, 1], -turn));
     S.q = qnorm(q);
     const boost = k.ShiftLeft || k.ShiftRight, R = speedRange();
-    if (k.KeyW) { S.v = Math.max(S.v, R.min) * Math.exp((boost ? 2.2 : 0.8) * dt); S.thrust = boost ? 1 : 0.6; }
+    // Space is the opposite of boost: ease the ship down to a halt
+    if (k.Space) { S.v *= Math.exp(-2.2 * dt); if (S.v < R.min * 0.2) S.v = 0; S.thrust = 0.05; }
+    else if (k.KeyW) { S.v = Math.max(S.v, R.min) * Math.exp((boost ? 2.2 : 0.8) * dt); S.thrust = boost ? 1 : 0.6; }
     else if (k.KeyS) { S.v *= Math.exp(-2.2 * dt); if (S.v < R.min * 0.2) S.v = 0; S.thrust = 0.05; }
     else S.thrust = S.v > 0 ? 0.25 : 0.08;
     if (k.KeyX) S.v *= Math.exp(-8 * dt);
@@ -4931,7 +5590,7 @@ function surfStep(dt) {
   const ang = s.t * TAU / 720;
   s.sun = qrot(qaxis(s.axis, -ang), s.sun0);
   s.spaceQ = qmul(s.Q0, qaxis(s.axis, ang));
-  const H = (x, z) => { let m = Math.max(terrH(P, x, z, 2), P.sea, cityTop(s, x, z)); for (const t of s.titans) if (Math.hypot(x - t.x, z - t.z) < t.r) m = Math.max(m, t.top); return m; };
+  const H = (x, z) => { let m = Math.max(terrH(P, x, z, 2), P.sea, cityTop(s, x, z)); for (const t of s.titans) if (Math.hypot(x - t.x, z - t.z) < t.r) m = Math.max(m, t.top); for (const o of s.lmObs) if (Math.abs(x - o.x) < o.r && Math.abs(z - o.z) < o.r) m = Math.max(m, o.top); return m; };
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   const g0 = terrH(P, s.x, s.z, 3);
   s.ground = Math.max(g0, P.sea);
@@ -4940,8 +5599,12 @@ function surfStep(dt) {
   if (s.phase !== 'ascend') S.fade = Math.max(0, S.fade - dt * (s.phase === 'descend' ? 0.3 : 1.2));
   if (!S.auto && s.phase === 'descend') { s.phase = 'cruise'; s.pt = 0; }
   if (!S.auto && s.phase === 'cruise') { manualSurfFlight(s, dt); return; }
+  s.qOn = false;
+  // autopilot, landing and take-off level the wings out of any manual roll
+  if (s.rollU) { s.rollU = Math.atan2(Math.sin(s.rollU), Math.cos(s.rollU)) * Math.exp(-dt * 1.5); if (Math.abs(s.rollU) < 1e-3) s.rollU = 0; }
   const landOK = g0 > P.sea + 0.8 && Math.hypot(terrH(P, s.x + 3, s.z, 1) - terrH(P, s.x - 3, s.z, 1), terrH(P, s.x, s.z + 3, 1) - terrH(P, s.x, s.z - 3, 1)) / 6 < 0.35
-    && (!S.auto || s.pt > 40 || forestM(P, s.x, s.z) * P.treeDen < 0.35) && cityTop(s, s.x, s.z) === -Infinity;
+    && (!S.auto || s.pt > 40 || forestM(P, s.x, s.z) * P.treeDen < 0.35) && cityTop(s, s.x, s.z) === -Infinity
+    && !(s.bug && Math.hypot(s.bug.x - s.x, s.bug.z - s.z) < 8);
   if (!S.auto && s.phase === 'landing' && landOK) {
     const k = keys;
     const yt = ((k.KeyA || k.ArrowLeft) ? 0.35 : 0) - ((k.KeyD || k.ArrowRight) ? 0.35 : 0);
@@ -4983,7 +5646,7 @@ function surfStep(dt) {
       let hx = s.x + rt[0] * 5, hz = s.z + rt[2] * 5;
       if (terrH(P, hx, hz, 3) < P.sea + 0.4) { hx = s.x - rt[0] * 5; hz = s.z - rt[2] * 5; }
       s.x = hx; s.z = hz; s.footY = terrH(P, hx, hz, 3); s.y = s.footY + 1.7; s.heroYaw = s.yaw; s.vyJ = 0; s.air = false;
-      s.phase = 'walk'; s.pt = 0; s.walkV = 0; s.speed = 0; s.roll = 0; s.pitch = -0.12; s.wState = 'stand'; s.wT = 4; S.look.yaw = S.look.pitch = 0; Music.step('thud', 1);
+      s.phase = 'walk'; s.pt = 0; s.walkV = 0; s.speed = 0; s.roll = s.rollU = s.bank = 0; s.pitch = -0.12; s.wState = 'stand'; s.wT = 4; S.look.yaw = S.look.pitch = 0; Music.step('thud', 1);
       toast(S.auto ? 'Landed · press W A S D to walk yourself' : 'Landed · W A S D walk · Shift run · Space jump · L to fly');
     }
   } else if (s.phase === 'takeoff') {
@@ -5001,31 +5664,52 @@ function surfStep(dt) {
   s.x += fw[0] * s.speed * dt; s.z += fw[2] * s.speed * dt;
   const pT = s.phase === 'ascend' ? 0.4 : s.phase === 'landing' ? -0.05 : Math.atan2(s.vy, Math.max(s.speed, 5)) * 0.7 - 0.09 - (s.phase === 'descend' ? 0.25 * (1 - smooth(0, 14, s.t)) : 0);
   s.pitch = lerp(s.pitch, pT, 1 - Math.exp(-dt * 1.2));
-  s.roll = lerp(s.roll, s.yawRate * 1.6, 1 - Math.exp(-dt * 1.2));
+  s.bank = lerp(s.bank || 0, s.yawRate * 1.6, 1 - Math.exp(-dt * 1.2));
+  s.roll = (s.rollU || 0) + s.bank;
   S.thrust = s.phase === 'landing' ? 0.3 : 0.55;
   Music.mood('surface', 0.05 + clamp(s.speed / 300, 0, 0.25));
 }
+// hand-flown over a planet, the ship keeps a full orientation quaternion just like in space;
+// yaw / pitch / roll are read back from it (Y·X·Z) for everything else that steers by angles
+const surfQ0 = s => qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch)), qaxis([0, 0, 1], s.rollU || 0));
+function surfQSync(s) {
+  const f = qfwd(s.q), u = qup(s.q);
+  s.pitch = Math.asin(clamp(f[1], -1, 1)); s.yaw = Math.atan2(-f[0], -f[2]);
+  const r0 = [Math.cos(s.yaw), 0, -Math.sin(s.yaw)], u0 = vcross(r0, f);
+  s.rollU = Math.atan2(-vdot(u, r0), vdot(u, u0));
+}
+function surfQOn(s) { if (!s.qOn) { s.q = surfQ0(s); s.qOn = true; } }
 function manualSurfFlight(s, dt) {
-  const k = keys, P = s.P, boost = k.ShiftLeft || k.ShiftRight;
-  const yt = ((k.KeyA || k.ArrowLeft) ? 0.75 : 0) - ((k.KeyD || k.ArrowRight) ? 0.75 : 0);
-  s.yawRate = lerp(s.yawRate, yt, 1 - Math.exp(-dt * 3));
-  s.yaw += s.yawRate * dt;
-  s.pitchV = lerp(s.pitchV || 0, (((k.ArrowUp || k.KeyE) ? 0.9 : 0) - ((k.ArrowDown || k.KeyQ) ? 0.9 : 0)), 1 - Math.exp(-dt * 5));
-  s.pitch = clamp(s.pitch + s.pitchV * dt, -1.25, 1.25);
-  if (k.KeyW) s.speed = Math.min(s.speed + (boost ? 220 : 35) * dt, boost ? 1600 : 260);
+  const k = keys, P = s.P, boost = k.ShiftLeft || k.ShiftRight, sm = 1 - Math.exp(-dt * 6);
+  surfQOn(s);
+  // the same turn rates as in space: A/D yaw, arrows pitch, Q/E roll, all about the ship's own axes
+  s.yawIn = lerp(s.yawIn || 0, ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0), sm);
+  s.pitchV = lerp(s.pitchV || 0, (k.ArrowUp ? 1 : 0) - (k.ArrowDown ? 1 : 0), sm);
+  s.rollV = lerp(s.rollV || 0, (k.KeyQ ? 1 : 0) - (k.KeyE ? 1 : 0), sm);
+  const turn = 0.9 * dt;
+  let q = qmul(qmul(qmul(s.q, qaxis([0, 1, 0], s.yawIn * turn)), qaxis([1, 0, 0], s.pitchV * turn)), qaxis([0, 0, 1], s.rollV * turn));
+  if (k.Space) s.speed = Math.max(5.6, s.speed * Math.exp(-1.2 * dt) - 18 * dt);
+  else if (k.KeyW) s.speed = Math.min(s.speed + (boost ? 220 : 35) * dt, boost ? 1600 : 260);
   else if (s.speed > 260) s.speed = lerp(s.speed, 260, 1 - Math.exp(-dt * 0.7));
   if (k.KeyS) s.speed = Math.max(0, s.speed - 70 * dt);
   if (k.KeyX) s.speed *= Math.exp(-5 * dt);
   // never quite hover: idle drift of about 20 km/h
   s.speed = Math.max(s.speed, 5.6);
-  const cp = Math.cos(s.pitch);
+  // skimming the ground lifts the nose instead of ploughing in
+  let f = qfwd(q);
+  if (s.y < s.ground + 6 && f[1] < 0) { const ax = vcross(f, [0, 1, 0]), l = vlen(ax); if (l > 1e-4) q = qmul(qaxis(vmul(ax, 1 / l), -Math.asin(f[1]) * (1 - Math.exp(-dt * 4))), q); }
+  s.q = qnorm(q); f = qfwd(s.q);
+  surfQSync(s);
   s.climb = lerp(s.climb || 0, 0, 1 - Math.exp(-dt * 4));
-  s.x += -Math.sin(s.yaw) * cp * s.speed * dt; s.z += -Math.cos(s.yaw) * cp * s.speed * dt;
-  s.vy = Math.sin(s.pitch) * s.speed + s.climb;
+  s.x += f[0] * s.speed * dt; s.z += f[2] * s.speed * dt;
+  s.vy = f[1] * s.speed + s.climb;
   s.y += s.vy * dt;
-  if (s.y < s.ground + 2.5) { s.y = s.ground + 2.5; if (s.pitch < 0) s.pitch = lerp(s.pitch, 0, 1 - Math.exp(-dt * 4)); }
-  s.roll = lerp(s.roll, s.yawRate * 0.9, 1 - Math.exp(-dt * 2));
-  S.thrust = k.KeyW ? (boost ? 1 : 0.6) : 0.15 + 0.2 * Math.min(s.speed / 200, 1);
+  if (s.y < s.ground + 2.5) s.y = s.ground + 2.5;
+  s.yawRate = s.yawIn * 0.9;
+  // the hull banks into turns (as in space); the view itself does not
+  s.bank = lerp(s.bank || 0, clamp(s.yawIn * 0.9 * 1.2, -0.7, 0.7), 1 - Math.exp(-dt * 2.5));
+  s.roll = s.rollU + s.bank;
+  S.thrust = k.Space ? 0.05 : k.KeyW ? (boost ? 1 : 0.6) : 0.15 + 0.2 * Math.min(s.speed / 200, 1);
   const agl = s.y - s.ground;
   S.fade = Math.max(S.fade, smooth(1700, 2900, agl)); S.fadeCol = skyDisplayColor(P, s.sys.star.light, Math.asin(clamp(s.sun[1], -1, 1)));
   if (agl > 1200 && !s.hintUp) { s.hintUp = true; toast('Keep climbing to leave the atmosphere'); }
@@ -5033,6 +5717,7 @@ function manualSurfFlight(s, dt) {
   Music.mood('surface', 0.05 + clamp(s.speed / 600, 0, 0.3));
 }
 function walkStep(s, dt) {
+  s.torchK = lerp(s.torchK || 0, S.flash && !s.driving ? 1 : 0, 1 - Math.exp(-dt * 6));
   if (s.driving) { driveStep(s, dt); return; }
   const P = s.P, k = keys, manual = !S.auto;
   let fin = 0, side = 0;
@@ -5057,8 +5742,11 @@ function walkStep(s, dt) {
     if (nh > P.sea + 0.3 && ((nh - g0) / step < 1.1 || s.air) && cityTop(s, nx, nz) < nh + 0.5) { s.x = nx; s.z = nz; }
     else if (!manual) { s.yaw += dt * 1.6; s.walkV *= 0.9; }
   }
+  // slide around the parked ship and the buggy rather than walking through them
+  { const [cx, cz, hit] = pushOut(shipObs(s).concat(bugObs(s)), s.x, s.z, 0.35); if (hit) { s.x = cx; s.z = cz; if (!manual) s.yaw += dt * 1.6; } }
+  s.dragTurnT = Math.max(0, (s.dragTurnT || 0) - dt);
   const mv = Math.hypot(vx, vz), g = terrH(P, s.x, s.z, 3);
-  const turning = manual && Math.abs(s.turnV || 0) > 0.05;
+  const turning = manual && (Math.abs(s.turnV || 0) > 0.05 || s.dragTurnT > 0);
   if (mv > 0.2 || turning) { let da = (s.walkV < -0.2 || mv <= 0.2 ? s.yaw : Math.atan2(-vx, -vz)) - s.heroYaw; da = Math.atan2(Math.sin(da), Math.cos(da)); s.heroYaw += da * (1 - Math.exp(-dt * 10)); }
   if (s.air) { s.vyJ -= 9.8 * dt; s.footY += s.vyJ * dt; if (s.footY <= g) { s.footY = g; s.air = false; s.vyJ = 0; Music.step(groundKind(s), 1.6); } }
   else s.footY = lerp(s.footY, g, 1 - Math.exp(-dt * 20));
@@ -5071,6 +5759,53 @@ function walkStep(s, dt) {
   if (!manual && !drag) s.pitch = lerp(s.pitch, (S.tp ? -0.18 : -0.06) + Math.sin(s.t * 0.13) * 0.06, 1 - Math.exp(-dt * 0.5));
 }
 function heroJump() { if (surf && surf.phase === 'walk' && !surf.air && !surf.driving) { surf.air = true; surf.vyJ = 4.6; } }
+// ---- simple ground collisions between the traveller, the buggy and the parked ship
+// footprints as boxes in each vehicle's own frame (x right, z back; front is -z)
+const SHIP_BOX = [[-1.2, -3.3, 1.2, 3.2], [-3.6, -0.6, 3.6, 2.2]], BUGGY_BOX = [[-1.25, -1.8, 1.25, 1.6]];
+const shipObs = s => s.park ? [{ x: s.park.x, z: s.park.z, yaw: s.park.yaw, boxes: SHIP_BOX }] : [];
+const bugObs = s => s.bug && !s.driving ? [{ x: s.bug.x, z: s.bug.z, yaw: s.bug.yaw, boxes: BUGGY_BOX }] : [];
+// distance from (x, z) to the nearest footprint (0 inside)
+function obsDist(obs, x, z) {
+  let best = Infinity;
+  for (const o of obs) {
+    const c = Math.cos(o.yaw), sn = Math.sin(o.yaw), dx = x - o.x, dz = z - o.z, lx = c * dx - sn * dz, lz = sn * dx + c * dz;
+    for (const [x0, z0, x1, z1] of o.boxes) best = Math.min(best, Math.hypot(lx - clamp(lx, x0, x1), lz - clamp(lz, z0, z1)));
+  }
+  return best;
+}
+// push a circle of radius r at (x, z) out of the footprints: [x, z, hit]
+function pushOut(obs, x, z, r) {
+  let hit = false;
+  for (const o of obs) {
+    const c = Math.cos(o.yaw), sn = Math.sin(o.yaw);
+    for (const [x0, z0, x1, z1] of o.boxes) {
+      const dx = x - o.x, dz = z - o.z, lx = c * dx - sn * dz, lz = sn * dx + c * dz;
+      const qx = clamp(lx, x0, x1), qz = clamp(lz, z0, z1), ex = lx - qx, ez = lz - qz, d = Math.hypot(ex, ez);
+      if (d >= r) continue;
+      let nx = lx, nz = lz;
+      if (d > 1e-6) { nx = qx + ex / d * r; nz = qz + ez / d * r; }
+      else { const m = [lx - x0, x1 - lx, lz - z0, z1 - lz], k = m.indexOf(Math.min(...m)); if (k === 0) nx = x0 - r; else if (k === 1) nx = x1 + r; else if (k === 2) nz = z0 - r; else nz = z1 + r; }
+      x = o.x + c * nx + sn * nz; z = o.z - sn * nx + c * nz; hit = true;
+    }
+  }
+  return [x, z, hit];
+}
+// which vehicle the traveller is standing next to (for E)
+function nearVehicle(s) {
+  if (!s || s.phase !== 'walk' || s.driving) return null;
+  const ds = obsDist(shipObs(s), s.x, s.z), db = obsDist(bugObs(s), s.x, s.z);
+  if (Math.min(ds, db) > 2.2) return null;
+  return ds <= db ? 'ship' : 'buggy';
+}
+function useVehicle() {
+  const s = surf;
+  if (!s || s.phase !== 'walk') return;
+  if (s.driving) { toggleBuggy(); return; }
+  const v = nearVehicle(s);
+  if (v === 'ship') startTakeoff();
+  else if (v === 'buggy') toggleBuggy();
+  else toast('Walk up to the ship or the buggy, then press E');
+}
 const bugQ = b => qmul(qmul(qaxis([0, 1, 0], b.yaw), qaxis([1, 0, 0], b.pitch)), qaxis([0, 0, 1], b.roll));
 function bugOrient(s, b) {
   const c = Math.cos(b.yaw), sn = Math.sin(b.yaw), P = s.P;
@@ -5088,16 +5823,17 @@ function toggleBuggy() {
     let hx = b.x + rx * 2.2, hz = b.z + rz * 2.2;
     if (terrH(P, hx, hz, 3) < P.sea + 0.3) { hx = b.x - rx * 2.2; hz = b.z - rz * 2.2; }
     s.driving = false; s.x = hx; s.z = hz; s.footY = terrH(P, hx, hz, 3); s.y = s.footY + 1.7; s.yaw = s.heroYaw = b.yaw; s.walkV = s.sideV = 0; s.air = false; b.v = 0;
-    Music.buggy(0, 0, 0); toast('Out of the buggy \u00b7 B to drive again');
+    Music.buggy(0, 0, 0); toast('Out of the buggy \u00b7 E or B to drive again');
     return;
   }
   if (!s.bug || Math.hypot(s.bug.x - s.x, s.bug.z - s.z) > 25) {
     let x = s.x - Math.sin(s.yaw) * 4, z = s.z - Math.cos(s.yaw) * 4;
     if (terrH(P, x, z, 3) < P.sea + 0.3 || cityTop(s, x, z) > -1e9) { x = s.x; z = s.z; }
+    [x, z] = pushOut(shipObs(s), x, z, 2.3);
     s.bug = { x, z, y: terrH(P, x, z, 3) + 4, yaw: s.yaw, v: 0, vy: 0, air: true, steer: 0, pitch: 0, roll: 0, spin: 0, wh: [0, 0, 0, 0] };
   }
   s.driving = true; s.walkV = 0; s.pitch = 0;
-  toast('Moon buggy \u00b7 W gas \u00b7 S brake / reverse \u00b7 A D steer \u00b7 Shift boost \u00b7 B step out');
+  toast('Moon buggy \u00b7 W gas \u00b7 S brake / reverse \u00b7 A D steer \u00b7 Shift boost \u00b7 E step out');
 }
 function driveStep(s, dt) {
   const P = s.P, k = keys, b = s.bug, boost = k.ShiftLeft || k.ShiftRight, vmax = boost ? 38 : 24;
@@ -5111,9 +5847,14 @@ function driveStep(s, dt) {
     b.v -= 9.8 * Math.sin(b.pitch) * dt * 0.55;
   }
   b.steer = lerp(b.steer, steerIn * 0.5 / (1 + Math.abs(b.v) * 0.06), 1 - Math.exp(-dt * 5));
-  if (!b.air) b.yaw += b.v * Math.tan(b.steer) / 2.1 * dt;
+  // full grip on the ground, a little air control on jumps
+  b.yaw += b.v * Math.tan(b.steer) / 2.1 * dt * (b.air ? 0.3 : 1);
   const nx = b.x - Math.sin(b.yaw) * b.v * dt, nz = b.z - Math.cos(b.yaw) * b.v * dt, nh = terrH(P, nx, nz, 3);
-  if (nh < P.sea + 0.2 || cityTop(s, nx, nz) > nh + 0.5) { if (Math.abs(b.v) > 5) Music.step('thud', Math.min(Math.abs(b.v) / 18, 1.3)); b.v *= -0.25; }
+  // the buggy's body as three circles along its length, so it bumps off the parked ship
+  const so = shipObs(s), fx = -Math.sin(b.yaw), fz = -Math.cos(b.yaw);
+  const touches = (x, z) => so.length && [-1.0, 0, 1.0].some(t => obsDist(so, x + fx * t, z + fz * t) < 1.15);
+  const hitShip = touches(nx, nz) && !touches(b.x, b.z);
+  if (nh < P.sea + 0.2 || cityTop(s, nx, nz) > nh + 0.5 || hitShip) { if (Math.abs(b.v) > 5) Music.step('thud', Math.min(Math.abs(b.v) / 18, 1.3)); b.v *= -0.25; }
   else { b.x = nx; b.z = nz; }
   const o = bugOrient(s, b);
   if (b.air) {
@@ -5121,7 +5862,13 @@ function driveStep(s, dt) {
     if (b.y <= o.gy) { if (b.vy < -3) Music.step('thud', Math.min(-b.vy / 8, 1.4)); b.y = o.gy; b.air = false; b.vy = 0; }
   } else {
     const vyT = (o.gy - b.y) / Math.max(dt, 1e-3);
-    if (Math.abs(b.v) > 6 && vyT < b.vy - 9.8 * dt * 1.3) { b.air = true; b.y += b.vy * dt; }
+    // leave the ground only when it truly falls away (a crest or a drop), not on the small ripples of a slope
+    let launch = false;
+    if (Math.abs(b.v) > 8 && vyT < b.vy - 9.8 * dt * 1.3) {
+      const T = 0.18, ax = b.x - Math.sin(b.yaw) * b.v * T, az = b.z - Math.cos(b.yaw) * b.v * T;
+      launch = b.y + b.vy * T - 4.9 * T * T - Math.max(terrH(P, ax, az, 2), P.sea) > 0.45;
+    }
+    if (launch) { b.air = true; b.y += b.vy * dt; }
     else { b.vy = lerp(b.vy, vyT, 0.5); b.y = o.gy; }
   }
   const kk = 1 - Math.exp(-dt * (b.air ? 1 : 10));
@@ -5168,7 +5915,7 @@ function surfaceCamera(s, lookQ) {
   if (s.phase === 'walk') {
     if (s.driving) {
       const b = s.bug, bq = bugQ(b);
-      if (!S.tp) { const q = qmul(qmul(bq, qaxis([1, 0, 0], s.pitch)), lookQ); return { q, pos: vadd([b.x, b.y, b.z], qrot(bq, [0, 1.75, 0.35])) }; }
+      if (!S.tp) { const q = qmul(qmul(bq, qaxis([1, 0, 0], s.pitch)), lookQ); return { q, pos: vadd([b.x, b.y, b.z], qrot(bq, [0, 1.9, 0.4])) }; }
       const q = qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], -0.2 + s.pitch * 0.5)), lookQ);
       const pos = vadd([b.x, b.y + 1.2, b.z], qrot(q, [0, 1.3, 4.5 + S.walkDist * 0.9]));
       pos[1] = Math.max(pos[1], terrH(P, pos[0], pos[2], 3) + 0.6);
@@ -5178,6 +5925,14 @@ function surfaceCamera(s, lookQ) {
     if (!S.tp) return { q, pos: [s.x, s.y, s.z] };
     const pos = vadd([s.x, s.footY + 1.55, s.z], qrot(q, [0.45, 0.3, S.walkDist]));
     pos[1] = Math.max(pos[1], terrH(P, pos[0], pos[2], 3) + 0.4);
+    return { q, pos };
+  }
+  // flown by hand the view follows the ship's full orientation, rolls and loops included, as in space
+  if (s.qOn && s.phase === 'cruise' && !S.auto) {
+    const q = qmul(s.q, lookQ);
+    if (!S.tp) return { q, pos: [s.x, s.y, s.z] };
+    const D = S.camDist, pos = vadd([s.x, s.y, s.z], qrot(q, [0, D * 0.16 + 1.2, D]));
+    pos[1] = Math.max(pos[1], Math.max(terrH(P, pos[0], pos[2], 2), P.sea) + 1.2);
     return { q, pos };
   }
   if (!S.tp) return { q: qmul(surfCamQ(s), lookQ), pos: [s.x, s.y, s.z] };
@@ -5191,18 +5946,331 @@ function surfaceModels(s) {
   const out = [], night = 1 - smooth(-0.2, 0.05, s.sun[1]);
   if (s.bug && Math.hypot(s.bug.x - s.x, s.bug.z - s.z) < 2500) {
     const b = s.bug, bq = bugQ(b), bp = [b.x, b.y, b.z];
-    out.push({ mesh: buggyMesh, w: bp, q: bq, cols: BUGGY_COLS, glow: (0.4 + 2.6 * night) * (s.driving ? 1 : 0.35) });
+    out.push({ mesh: buggyMesh, w: bp, q: bq, cols: BUGGY_COLS, glow: (0.4 + 2.6 * night) * (s.driving ? 1 : 0.35), lamp: S.flash && s.driving ? 7 : 0 });
     BUGGY_WHEELS.forEach(([lx, ly, lz, front], i) => {
       const sus = clamp((b.wh[i] || b.y) - b.y - (lz < 0 ? 1.05 : -1.05) * Math.sin(b.pitch) - lx * Math.sin(b.roll), -0.22, 0.22) * (b.air ? 0 : 1) - (b.air ? 0.12 : 0);
       out.push({ mesh: wheelMesh, w: vadd(bp, qrot(bq, [lx, ly + sus, lz])), q: qmul(qmul(bq, qaxis([0, 1, 0], front ? b.steer : 0)), qaxis([1, 0, 0], -b.spin)), cols: BUGGY_COLS, glow: 0 });
     });
-    if (s.driving && S.tp) out.push({ mesh: heroMesh, w: vadd(bp, qrot(bq, [0, 0.42, 0.42])), q: bq, cols: HERO_COLS, glow: 0.6 + 2 * night, phase: 0, walk: 0, air: 0 });
+    if (s.driving && S.tp) out.push({ mesh: heroMesh, w: vadd(bp, qrot(bq, [0, 0.26, 0.42])), q: bq, cols: HERO_COLS, glow: 0.6 + 2 * night, phase: 0, walk: 0, air: 0, sit: 1 });
   }
   if (s.phase === 'walk') {
     if (s.park) out.push({ mesh: shipMesh, w: [s.park.x, s.park.y, s.park.z], q: qaxis([0, 1, 0], s.park.yaw), cols: SHIP_COLS, glow: 0.15 });
-    if (S.tp && !s.driving) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * night, phase: s.walkPhase, walk: clamp((s.walkAnim ?? s.speed) / 3.5, 0, 1.5), air: s.air ? 1 : 0 });
-  } else if (S.tp) out.push({ mesh: shipMesh, w: [s.x, s.y, s.z], q: surfCamQ(s), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
+    if (S.tp && !s.driving) out.push({ mesh: heroMesh, w: [s.x, s.footY, s.z], q: qaxis([0, 1, 0], s.heroYaw), cols: HERO_COLS, glow: 0.6 + 2 * night, phase: s.walkPhase, walk: clamp((s.walkAnim ?? s.speed) / 3.5, 0, 1.5), air: s.air ? 1 : 0, torch: s.torchK || 0, lamp: S.flash ? 6 : 0 });
+  } else if (S.tp) out.push({ mesh: shipMesh, w: [s.x, s.y, s.z], q: surfCamQ(s), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust, lamp: S.flash ? 2.5 : 0 });
   return out;
+}
+// active spotlights for this frame: the hand flashlight on foot, two headlamps in the buggy, or the ship's searchlight
+function updateFlashlights(s, cam, camQ) {
+  s.flP.fill(0); s.flD.fill(0); s.flGlow = [];
+  const put = (i, p, d, pow, cw, size, col) => { col = col || [1, 0.94, 0.84]; s.flP.set([...p, pow], i * 4); s.flD.set([...vnorm(d), cw], i * 4); s.flC.set(col, i * 3); s.flGlow.push(p, size, col); };
+  // the scanner: a red beam from the traveller onto the creature or plant being scanned
+  const sc = S.scan;
+  if (sc && sc.holding && s.phase === 'walk' && !s.driving) {
+    const c = scanCentre(sc.tgt), p = S.tp ? [s.x, s.footY + 1.45, s.z] : vadd(cam, qrot(camQ, [0.18, -0.25, -0.3])), d = vsub(c, p), dl = vlen(d);
+    const cw = clamp(Math.cos(Math.atan2(sc.tgt.rad * 1.4, dl)), 0.85, 0.997), k = 0.75 + 0.35 * Math.sin(S.t * 14);
+    put(1, p, d, dl * dl * 0.9 + 20, cw, S.tp ? 0.07 : 0, [3.0 * k, 0.75 * k, 0.55 * k]);
+  }
+  if (!S.flash) return;
+  if (s.phase === 'walk' && s.driving) {
+    const b = s.bug, bq = bugQ(b);
+    for (const [i, sx] of [[0, -0.5], [1, 0.5]]) put(i, vadd([b.x, b.y, b.z], qrot(bq, [sx, 0.8, -1.75])), qrot(bq, [sx * 0.04, -0.035, -1]), 420, 0.87, 0.28);
+  } else if (s.phase === 'walk') {
+    if (S.tp) { const hq = qaxis([0, 1, 0], s.heroYaw); put(0, vadd([s.x, s.footY, s.z], qrot(hq, TORCH_TIP.p)), qrot(hq, TORCH_TIP.d), 110, 0.9, 0.12); }
+    else put(0, vadd(cam, qrot(camQ, [0.28, -0.32, -0.35])), qrot(camQ, [-0.02, -0.04, -1]), 110, 0.9, 0);
+  } else {
+    const q = surfCamQ(s);
+    put(0, vadd([s.x, s.y, s.z], qrot(q, [0, -0.3, -2.85])), qrot(q, [0, -0.06, -1]), 40000, 0.87, S.tp ? 0.05 : 0);
+  }
+}
+
+// ============================================================================
+//  SCANNER: hold the left mouse on a creature or plant while on foot to catalogue it
+// ============================================================================
+const SCAN_R = 75, SCAN_T = 1.3;
+// camera ray through a screen point (CSS pixels) from the last rendered surface view
+function scanRay(cx, cy) {
+  const c = S.surfCam; if (!c) return null;
+  const t = Math.tan(view.fov / 2), x = (cx / canvas.clientWidth * 2 - 1) * t * view.aspect, y = (1 - cy / canvas.clientHeight * 2) * t;
+  return { o: c.pos, d: qrot(c.q, vnorm([x, y, -1])) };
+}
+// ray against a vertical capsule standing at (ax, ay, az) of height h and radius r: distance along the ray, or Infinity
+function rayCapsule(o, d, ax, ay, az, h, r) {
+  const wx = o[0] - ax, wy = o[1] - ay, wz = o[2] - az, b = d[1], dw = d[0] * wx + d[1] * wy + d[2] * wz, den = 1 - b * b;
+  let t = den > 1e-6 ? (b * wy - dw) / den : 0, sv = clamp(wy + t * b, 0, h);
+  t = Math.max(sv * b - dw, 0); sv = clamp(wy + t * b, 0, h);
+  const px = wx + t * d[0], py = wy + t * d[1] - sv, pz = wz + t * d[2];
+  return px * px + py * py + pz * pz < r * r ? t : Infinity;
+}
+const scanKey = t => t.type === 'animal' ? 'a' + t.si : 'p' + t.k;
+function scanCentre(t) {
+  if (t.type === 'animal') { const b = t.C.box, k = t.a.scale; return [t.a.x, t.a.y + (b[1] + b[4]) * 0.5 * k, t.a.z]; }
+  return [t.x, t.y + t.sp.box[4] * t.sc * 0.5, t.z];
+}
+// the nearest wild creature or plant under the cursor, within scanner range
+function scanPick(s, cx, cy) {
+  const ray = scanRay(cx, cy); if (!ray) return null;
+  const { o, d } = ray, E = s.eco; let best = null, bt = SCAN_R + 15;
+  const near = (x, z) => Math.abs(x - s.x) < SCAN_R && Math.abs(z - s.z) < SCAN_R && Math.hypot(x - s.x, z - s.z) < SCAN_R;
+  const tryA = a => {
+    const C = E.creatures[a.si]; if (!C || !C.box || C.villager || !near(a.x, a.z)) return;
+    const k = a.scale, b = C.box, rad = Math.max(b[3] - b[0], b[5] - b[2]) * 0.5 * k, h = (b[4] - b[1]) * k;
+    const t = rayCapsule(o, d, a.x, a.y + b[1] * k, a.z, h, Math.max(rad * 0.75, 0.3));
+    if (t < bt) { bt = t; best = { type: 'animal', a, si: a.si, C, rad: Math.max(rad, h * 0.5) }; }
+  };
+  for (const t of s.atiles.values()) for (const a of t.a) tryA(a);
+  for (const t of s.ttiles.values()) for (const a of t.a) tryA(a);
+  E.plants.forEach((sp, k) => {
+    if (sp.kind === 'rock' || sp.kind === 'crag' || !sp.box) return;
+    const bx = sp.box, hh = bx[4], rr = Math.max(bx[3] - bx[0], bx[5] - bx[2]) * 0.5;
+    for (const t of s.tiles.values()) {
+      if (Math.hypot((t.tx + 0.5) * TT - s.x, (t.tz + 0.5) * TT - s.z) > SCAN_R + TT) continue;
+      const arr = t.a[k];
+      for (let i = 0; i < arr.length; i += 8) {
+        const x = arr[i], z = arr[i + 2]; if (!near(x, z)) continue;
+        const sc = arr[i + 3], tt = rayCapsule(o, d, x, arr[i + 1], z, hh * sc, Math.max(rr * sc * 0.6, 0.2));
+        if (tt < bt) { bt = tt; best = { type: 'plant', k, sp, x, y: arr[i + 1], z, sc, rot: arr[i + 4], tint: [arr[i + 5], arr[i + 6], arr[i + 7]], rad: Math.max(rr * sc, hh * sc * 0.5) }; }
+      }
+    }
+  });
+  return best;
+}
+// ---- catalogue entries: names, measurements and traits, all derived from the species' own shape and behaviour
+function colourName(c) {
+  const mx = Math.max(c[0], c[1], c[2]), mn = Math.min(c[0], c[1], c[2]), sat = mx > 1e-4 ? (mx - mn) / mx : 0;
+  if (sat < 0.2) return mx > 0.72 ? 'white' : mx > 0.42 ? 'grey' : mx > 0.18 ? 'slate' : 'black';
+  let h = mx === c[0] ? (c[1] - c[2]) / (mx - mn) : mx === c[1] ? 2 + (c[2] - c[0]) / (mx - mn) : 4 + (c[0] - c[1]) / (mx - mn);
+  h = (h * 60 + 360) % 360;
+  let n = h < 14 ? 'red' : h < 32 ? (mx < 0.55 ? 'brown' : 'orange') : h < 48 ? (mx < 0.5 ? 'brown' : 'amber') : h < 66 ? (mx < 0.5 ? 'olive' : 'golden')
+    : h < 90 ? 'lime' : h < 150 ? 'green' : h < 185 ? 'teal' : h < 205 ? 'cyan' : h < 245 ? 'blue' : h < 275 ? 'indigo' : h < 300 ? 'violet' : h < 330 ? 'magenta' : h < 348 ? 'pink' : 'red';
+  if (mx < 0.28 && n !== 'brown') n = 'dark ' + n; else if (sat < 0.4 && mx > 0.6) n = 'pale ' + n;
+  return n;
+}
+const fmtLen = m => m < 1 ? Math.max(1, Math.round(m * 100)) + ' cm' : m < 10 ? m.toFixed(1) + ' m' : Math.round(m).toLocaleString('en') + ' m';
+const fmtMass = kg => kg < 1 ? Math.max(1, Math.round(kg * 1000)) + ' g' : kg < 1000 ? (kg < 10 ? kg.toFixed(1) : Math.round(kg)) + ' kg' : (kg < 10000 ? (kg / 1000).toFixed(1) : Math.round(kg / 1000).toLocaleString('en')) + ' t';
+const fmtAge = y => y < 1 ? 'a few months' : y < 2 ? 'about a year' : 'about ' + Math.round(y).toLocaleString('en') + ' years';
+const cap1 = t => t[0].toUpperCase() + t.slice(1);
+const A_NOUN = {
+  quad: ['grazer', 'strider', 'runner', 'browser'], tripod: ['tristrider', 'stalkleg'], giant: ['longneck', 'highbrowser'], biped: ['stalker', 'hopper', 'walker'],
+  crab: ['sidecrab', 'shellwalker'], roller: ['roller', 'wheelback'], stilt: ['stiltwalker', 'wader'], swimmer: ['finback', 'leaper'], burrower: ['burrower', 'peeper'],
+  bird: ['songbird', 'flitter', 'lark'], swarm: ['swarmling', 'drifter'], blob: ['ooze', 'wobbler'], serpent: ['serpent', 'slitherer'], flyer: ['glider', 'broadwing'],
+  hydra: ['hydra', 'manyhead'], eyewalker: ['eyewalker', 'watcher'], centipede: ['manyfoot', 'crawler'], jelly: ['sky jelly', 'floatbell'], stacker: ['totem crawler', 'stacker'],
+  spider: ['weaver', 'spinner'], manta: ['sky manta', 'windray'], snail: ['shellcreeper', 'snail'], hoop: ['hoopling', 'ringroller'], skywhale: ['sky whale', 'cloud whale'],
+  skyserpent: ['sky serpent', 'wind dragon'], kite: ['kite', 'sailwing'], dragonfly: ['darter', 'glasswing'], balloonbeast: ['balloon beast', 'gasbag']
+};
+const A_PLAN = {
+  giant: 'long-necked browser of the treetops', tripod: 'three-legged strider on tall jointed legs', biped: 'walks upright on two legs', crab: 'armoured, scuttles sideways',
+  roller: 'curls into a wheel to travel', stilt: 'wades on long stilt legs', swimmer: 'lives in the sea and leaps clear of the waves', burrower: 'lives in burrows and peeks out to watch',
+  swarm: 'drifts in glittering swarms', blob: 'boneless, wobbles as it moves', serpent: 'legless, slithers through the grass', flyer: 'broad-winged glider',
+  hydra: 'many-headed, each head with its own mind', eyewalker: 'a single great eye carried on legs', centipede: 'a long body carried on many legs', jelly: 'floats on the wind trailing tendrils',
+  stacker: 'a tower of stacked body segments', spider: 'eight legs, strings silk between the trees', manta: 'glides through the air on wide fins', snail: 'carries a spiral shell',
+  hoop: 'rolls along as a living hoop', skywhale: 'drifts high above like a whale', skyserpent: 'ripples through the sky on frilled fins', kite: 'rides the wind like a kite',
+  dragonfly: 'darts on four glassy wings', balloonbeast: 'floats on gas-filled bladders'
+};
+const A_DIET = {
+  spider: 'hunts small creatures', serpent: 'hunts small creatures', centipede: 'hunts small creatures', hydra: 'hunts small creatures',
+  jelly: 'filters drifting spores from the air', manta: 'filters drifting spores from the air', skywhale: 'filters drifting spores from the air', skyserpent: 'filters drifting spores from the air', kite: 'filters drifting spores from the air',
+  bird: 'seeds and insects', flyer: 'seeds and insects', dragonfly: 'smaller insects', swimmer: 'plankton and small fish', swarm: 'nectar and pollen'
+};
+const A_VOICE = { moo: ['low', 'lowing calls'], hoot: ['hollow', 'hooting calls'], chirp: ['bright', 'chirping calls'], warble: ['soft', 'warbling song'], buzz: ['steady', 'buzzing hum'], trill: ['rippling', 'trill'] };
+const WINGED = { bird: 1, flyer: 1, kite: 1, dragonfly: 1, manta: 1 }, FLOATY = { jelly: 1, balloonbeast: 1, skywhale: 1, skyserpent: 1, manta: 1, kite: 1 };
+const P_NOUN = {
+  conifer: ['needle pine', 'spirefir', 'cone tree'], broad: ['broadleaf', 'canopy tree', 'shade oak'], bush: ['shrub', 'thicketbush'], palm: ['palm', 'fan palm'],
+  cactus: ['cactus', 'spinebarrel'], mushroom: ['cap', 'toadstool'], giantshroom: ['giant mushroom', 'umbrella cap'], crystal: ['crystal growth', 'glasscluster'],
+  bulb: ['lantern stalk', 'bulb plant'], spiral: ['corkscrew', 'spiral stalk'], tendril: ['tendril weed', 'wavestem'], orbtree: ['orb tree', 'lantern tree'],
+  fan: ['fan frond', 'sailfrond'], pillar: ['pillar plant', 'spine column'], anemone: ['ground anemone', 'frill flower'], balloon: ['balloon plant', 'float pod']
+};
+const P_PLAN = {
+  conifer: 'evergreen, with tiered boughs of needles', broad: 'a broad crown of leafy clusters', bush: 'a low, dense shrub', palm: 'a tall bending trunk crowned with fronds',
+  cactus: 'a ribbed, water-storing stem with arms', mushroom: 'a fungus: a fleshy cap on a pale stalk', giantshroom: 'a colossal fungus with a wide spotted cap',
+  crystal: 'a mineral organism of growing crystal shafts', bulb: 'a slender stalk hung with glowing bulbs', spiral: 'a stem twisting in a tight spiral',
+  tendril: 'waving tendrils, each tipped with a bead', orbtree: 'branches bearing glowing orbs', fan: 'a single great fan of fronds', pillar: 'a twisted column with spiked leaves',
+  anemone: 'frilled petals that sway like a sea anemone', balloon: 'buoyant pods on a slender stem'
+};
+const P_PART = { conifer: 'needles', broad: 'leaves', bush: 'leaves', palm: 'fronds', cactus: 'skin', mushroom: 'cap', giantshroom: 'cap', crystal: 'facets', bulb: 'bulbs', spiral: 'stem', tendril: 'tendrils', orbtree: 'orbs', fan: 'fronds', pillar: 'spikes', anemone: 'frills', balloon: 'pods' };
+const P_FACT = {
+  conifer: ['keeps its needles through the coldest winters', 'cones crack open only after fires', 'its resin smells of pepper and pine'],
+  broad: ['drops winged seeds that spin as they fall', 'birds nest high in its crown', 'its bark peels in thin papery curls', 'bears small sweet fruit once a year'],
+  bush: ['berries ripen in late summer', 'small creatures shelter beneath it', 'its leaves fold up at night'],
+  palm: ['fruit hangs in heavy clusters below the crown', 'bends low in storms but rarely breaks'],
+  cactus: ['stores water for years without rain', 'blooms for a single night each season', 'its spines catch the morning dew'],
+  mushroom: ['releases clouds of spores at dawn', 'grows in rings on damp ground'], giantshroom: ['its cap shelters whole herds from the rain', 'spores drift for kilometres on the wind', 'rings like a great drum when tapped'],
+  crystal: ['grows a few millimetres each year', 'its facets hum softly in the wind', 'feeds on minerals and starlight'], bulb: ['bulbs swell with light as night falls', 'seeds float away inside tiny bubbles'],
+  spiral: ['turns slowly to follow the sun', 'each twist marks a year of growth'], tendril: ['tendrils curl around anything that brushes past', 'the beads glow when touched'],
+  orbtree: ['orbs ripen from green to gold', 'fallen orbs keep glowing for days'], fan: ['opens its fan wide at sunrise', 'its fronds rustle like paper'],
+  pillar: ['sheds its spikes each spring like antlers', 'its hollow core whistles in strong wind'], anemone: ['frills snap shut at a touch', 'sways even when there is no wind'],
+  balloon: ['ripe pods lift off and drift away', 'its pods hold a lighter-than-air gas']
+};
+const P_ZONE = { forest: 'grows in forests', meadow: 'dots open meadows', beach: 'loves sandy shores', rocky: 'clings to rocky slopes', high: 'grows on high ground', any: 'found almost everywhere' };
+const P_TRUNK = { conifer: 0.07, broad: 0.1, palm: 0.08, giantshroom: 0.14, pillar: 0.16, orbtree: 0.09, bulb: 0.08, mushroom: 0.13, cactus: 0.18, spiral: 0.1, fan: 0.07 };
+const P_FILL = { conifer: 0.008, broad: 0.006, bush: 0.03, palm: 0.01, cactus: 0.25, mushroom: 0.05, giantshroom: 0.005, crystal: 0.05, bulb: 0.01, spiral: 0.02, tendril: 0.01, orbtree: 0.006, fan: 0.01, pillar: 0.04, anemone: 0.05, balloon: 0.005 };
+const P_GROW = { conifer: 0.35, broad: 0.45, bush: 0.25, palm: 0.6, cactus: 0.04, mushroom: 3, giantshroom: 1.2, crystal: 0.015, bulb: 0.8, spiral: 0.5, tendril: 1, orbtree: 0.4, fan: 0.5, pillar: 0.2, anemone: 0.5, balloon: 1.5 };
+const boxVol = b => Math.max(b[3] - b[0], 0.01) * Math.max(b[4] - b[1], 0.01) * Math.max(b[5] - b[2], 0.01);
+// species-level entry, identical every time the same species is scanned on this world
+function scanSpecies(s, t) {
+  const key = scanKey(t); s.scanCache = s.scanCache || new Map();
+  if (s.scanCache.has(key)) return s.scanCache.get(key);
+  const animal = t.type === 'animal', r = mulberry(hashInts(s.P.seed | 0, animal ? t.si : t.k, animal ? 5151 : 6161));
+  const word = () => makeName(r).replace(/-\d+$/, ''), pw = s.planet.name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '') || 'astra';
+  const latin = word() + pick(r, animal ? ['us', 'ops', 'odon', 'ax', 'ion', 'ia'] : ['ia', 'um', 'is', 'ella', 'anthus', 'phyta']) + ' ' + pw + pick(r, ['ensis', 'i', 'ica', 'ana']);
+  const f = []; let e;
+  if (animal) {
+    const C = t.C, k = C.kind, b = C.beh, h = C.herd || [1, 1];
+    const noun = C.titan ? (C.fly ? 'sky titan' : 'titan') : k === 'quad' && C.woolly ? 'woolback' : k === 'bird' && C.soar ? 'soarer' : pick(r, A_NOUN[k] || ['creature']);
+    f.push(C.titan && !C.fly ? 'a walking mountain, its back grown over with plants' : k === 'quad' ? (C.legs === 6 ? 'six' : 'four') + '-legged ' + (C.woolly ? 'woolly grazer' : 'grazer') : k === 'bird' ? (C.soar ? 'soars for hours on rising air' : 'small, quick-winged bird') : A_PLAN[k] || 'a creature of unknown habits');
+    const base = colourName(C.c1), mark = c => { const n = colourName(c); return n === base ? 'darker' : n; };
+    f.push(base + ' ' + (C.woolly ? 'fleece' : k === 'bird' ? 'plumage' : FLOATY[k] ? 'skin' : 'hide') + (C.stripes ? ' with ' + mark(C.c3) + ' stripes' : C.spots ? ' with ' + mark(C.c2) + ' spots' : ''));
+    f.push(b === 'flow' ? 'migrates in vast herds of up to ' + h[1].toLocaleString('en') : b === 'flock' ? 'flies in flocks of ' + h[0] + '–' + h[1] : b === 'swarm' ? 'gathers in swarms of up to ' + h[1].toLocaleString('en')
+      : b === 'fly' ? 'cruises ' + Math.round(C.fly[0]) + '–' + Math.round(C.fly[1]) + ' m above the ground' + (h[1] > 1 ? ', in groups of up to ' + h[1] : '')
+        : b === 'swim' ? 'surfaces to breathe, sometimes leaps' : b === 'burrow' ? 'ducks into its burrow when approached' : b === 'titan' ? 'wanders alone for centuries'
+          : h[1] <= 1 ? 'solitary' : 'grazes in herds of ' + h[0] + '–' + h[1]);
+    if (b !== 'burrow' && b !== 'titan') f.push(C.shy > 0.8 ? 'skittish, flees when approached' : C.shy <= 0.05 ? 'unafraid of travellers' : 'wary but tolerant of visitors');
+    f.push('diet: ' + (A_DIET[k] || pick(r, ['grasses and leaves', 'roots and tubers', 'grasses, mosses and fallen fruit'])));
+    if (C.voice) { const v = A_VOICE[C.voice.kind] || ['soft', 'calls']; f.push('voice: ' + (C.voice.f0 < 140 ? 'deep' : C.voice.f0 > 900 ? 'high' : v[0]) + ' ' + v[1]); }
+    if (C.glow && C.c3) f.push(colourName(C.c3) + ' markings glow after dusk');
+    // species weight at its typical size, and a lifespan that grows with it
+    const mass = boxVol(C.box) * C.scale ** 3 * (FLOATY[k] ? 0.02 : WINGED[k] ? 0.06 : k === 'serpent' || k === 'centipede' ? 0.3 : 0.22) * 1000;
+    e = { title: word() + ' ' + noun, latin, feats: f.map(cap1), life: clamp(Math.round((2 + Math.pow(mass, 0.25) * 4) * (0.7 + r() * 0.6) * (C.titan ? 12 : 1)), 1, 9000), mass };
+  } else {
+    const sp = t.sp, k = sp.kind;
+    let zb = 'any', zw = -1; for (const z in sp.zones) if (sp.zones[z] > zw) { zw = sp.zones[z]; zb = z; }
+    f.push(P_PLAN[k] || 'a plant of unknown kind');
+    f.push(colourName(sp.tints[0]) + ' ' + (P_PART[k] || 'leaves'));
+    f.push(P_ZONE[zb] || P_ZONE.any);
+    if (sp.glowI > 0) f.push('glows softly after dusk'); else if (sp.sway > 0.02) f.push('sways with every breeze');
+    const facts = (P_FACT[k] || ['a common sight on this world']).slice();
+    f.push(facts.splice(Math.floor(r() * facts.length), 1)[0]);
+    if (facts.length && r() < 0.5) f.push(pick(r, facts));
+    e = { title: word() + ' ' + pick(r, P_NOUN[k] || ['plant']), latin, feats: f.map(cap1) };
+  }
+  e.key = key; s.scanCache.set(key, e); return e;
+}
+// measurements of the individual being scanned, with its species' range for comparison
+function scanRows(t, sp) {
+  const rows = [];
+  if (t.type === 'animal') {
+    const C = t.C, a = t.a, b = C.box, k = a.scale, rel = k / C.scale, lo = C.titan ? 0.8 : 0.85, hi = C.titan ? 1.2 : 1.15;
+    const H = (b[4] - b[1]) * k, L = (b[5] - b[2]) * k, W = (b[3] - b[0]) * k;
+    rows.push(['Height', fmtLen(H), 'usually ' + fmtLen(H / rel * lo) + '–' + fmtLen(H / rel * hi)]);
+    rows.push(WINGED[C.kind] ? ['Wingspan', fmtLen(W)] : ['Length', fmtLen(Math.max(L, W))]);
+    rows.push(['Weight', fmtMass(sp.mass * rel ** 3)]);
+    const air = C.beh === 'fly' || C.beh === 'flock' || C.beh === 'swarm';
+    rows.push(['Top speed', Math.max(1, Math.round((air ? C.walk * Math.sqrt(k) * 1.6 : C.run * k) * 3.6)).toLocaleString('en') + ' km/h']);
+    rows.push(['Lifespan', fmtAge(sp.life)]);
+    rows.push(['This one', (rel < 0.92 ? 'young' : rel > 1.08 ? 'large adult' : 'adult') + ' · ' + (a.state === 'flee' ? 'fleeing' : air ? 'in flight' : C.beh === 'swim' ? 'swimming' : a.state === 'graze' ? 'grazing' : 'wandering')]);
+  } else {
+    const p = t.sp, b = p.box, k = t.sc, H = b[4] * k, spread = Math.max(b[3] - b[0], b[5] - b[2]) * k, f = (k - p.scale[0]) / Math.max(p.scale[1] - p.scale[0], 1e-3);
+    rows.push(['Height', fmtLen(H), 'usually ' + fmtLen(b[4] * p.scale[0]) + '–' + fmtLen(b[4] * p.scale[1])]);
+    rows.push(['Spread', fmtLen(spread)]);
+    if (P_TRUNK[p.kind]) rows.push([p.kind === 'cactus' ? 'Girth' : p.kind === 'mushroom' || p.kind === 'giantshroom' ? 'Stalk' : 'Trunk', fmtLen(P_TRUNK[p.kind] * k) + ' across']);
+    rows.push(['Weight', fmtMass(boxVol(b) * k ** 3 * (P_FILL[p.kind] || 0.01) * (p.kind === 'crystal' ? 2600 : p.kind === 'balloon' ? 50 : p.kind.includes('shroom') || p.kind === 'mushroom' ? 450 : 650))]);
+    rows.push(['Age', fmtAge(H / (P_GROW[p.kind] || 0.4))]);
+    rows.push(['This one', f < 0.25 ? 'young' : f > 0.85 ? 'ancient' : 'mature']);
+  }
+  return rows;
+}
+// ---- scan flow
+function scanBegin(t) {
+  const s = surf, sp = scanSpecies(s, t);
+  S.scan = { tgt: t, prog: 0, holding: true, done: false, known: s.scanned.has(sp.key) };
+  S.scanView = { tgt: t, phase: 0, head: 0.5 };
+  $('tip').style.display = 'none';
+  const el = $('scan');
+  let h = '<div class="sv" id="scanView"><div class="st"></div><b class="x" title="Close (Esc)">&times;</b></div><div class="si">';
+  h += '<div class="h" data-at=".2" data-t="' + sp.title + '" data-ph="' + (t.type === 'animal' ? 'Unknown creature' : 'Unknown plant') + '"></div>';
+  h += '<div class="d" data-at=".3"><i>' + sp.latin + '</i> &middot; ' + s.planet.name + '</div>';
+  scanRows(t, sp).forEach(([k, v, x], i) => { h += '<div class="r" data-at="' + (0.35 + i * 0.07).toFixed(2) + '"><span>' + k + '</span><b>' + v + (x ? ' <small>' + x + '</small>' : '') + '</b></div>'; });
+  h += '<div class="f">' + sp.feats.map((f, i) => '<div data-at="' + (0.8 + i * 0.03).toFixed(2) + '">' + f + '</div>').join('') + '</div><div class="bar"><i></i></div></div>';
+  el.innerHTML = h; el.style.display = 'block';
+  el.querySelector('.x').onclick = () => scanClose();
+  scanPanelUpdate();
+}
+function scanPanelUpdate() {
+  const sc = S.scan, el = $('scan'); if (!sc) return;
+  const p = sc.prog, ti = el.querySelector('.h');
+  el.querySelector('.st').textContent = sc.done ? (sc.known ? 'CATALOGUED' : 'SCAN COMPLETE') : 'SCANNING ' + Math.floor(p * 100) + '%';
+  el.querySelectorAll('[data-at]').forEach(d => d.classList.toggle('hid', p < +d.dataset.at));
+  ti.textContent = p < 0.2 ? ti.dataset.ph : ti.dataset.t;
+  el.querySelector('.bar i').style.width = (p * 100) + '%';
+}
+function scanRelease() { const sc = S.scan; if (!sc) return; if (!sc.done) scanClose(); else sc.holding = false; }
+function scanClose() { S.scan = null; S.scanView = null; $('scan').style.display = 'none'; Music.scan(0, 0); }
+function scanAnimRate(t) {
+  if (t.type !== 'animal') return 0;
+  const C = t.C, b = C.beh;
+  return b === 'flock' ? (C.flapHz || 6) : b === 'swarm' ? 22 : b === 'fly' ? (C.pitch ? 1.2 : 5 + 6 / t.a.scale) * (C.flapK || 1) : b === 'burrow' ? 1.3 : C.walk / Math.max(C.stride, 0.05) * Math.PI;
+}
+function scanStep(dt) {
+  const s = surf, ok = S.mode === 'surface' && s && s.phase === 'walk' && !s.driving;
+  if (!ok) { if (S.scan || S.scanView) scanClose(); return; }
+  if (S.scanView) { const v = S.scanView; v.phase += dt * scanAnimRate(v.tgt); v.head += dt * 0.35; }
+  const sc = S.scan;
+  if (!sc || !sc.holding) { Music.scan(0, 0); return; }
+  const c = scanCentre(sc.tgt);
+  if (Math.hypot(c[0] - s.x, c[2] - s.z) > SCAN_R * 1.4) { toast('Out of scanner range'); scanClose(); return; }
+  sc.prog = Math.min(1, sc.prog + dt / (sc.known ? SCAN_T * 0.5 : SCAN_T));
+  Music.scan(1, sc.prog);
+  if (sc.prog >= 1) { sc.holding = false; sc.done = true; s.scanned.add(scanKey(sc.tgt)); Music.scan(0, 0); Music.scanDone(); }
+  scanPanelUpdate();
+}
+function scanHoverAt(cx, cy) {
+  const s = surf, tip = $('tip'), t = S.scan && S.scan.holding ? null : scanPick(s, cx, cy);
+  S.scanHover = t;
+  if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; return; }
+  const known = s.scanned.has(scanKey(t)) ? scanSpecies(s, t) : null;
+  tip.innerHTML = '<b>' + (known ? known.title : t.type === 'animal' ? 'Unknown creature' : 'Unknown plant') + '</b><br><span>hold left mouse to scan</span>';
+  tip.style.display = 'block'; tip.style.left = (cx + 16) + 'px'; tip.style.top = (cy + 12) + 'px'; canvas.style.cursor = 'crosshair';
+}
+// ---- live preview: the scanned creature or plant, animated, drawn into the panel window
+const scanIB = gl.createBuffer(), scanZero = new Float32Array(8);
+let scanTarget = null;
+function scanVao(m) {
+  if (!m.scanVao) m.scanVao = vao([{ buf: m.vb, loc: 0, size: 3, stride: 32, offset: 0 }, { buf: m.vb, loc: 1, size: 3, stride: 32, offset: 12 }, { buf: m.vb, loc: 2, size: 2, stride: 32, offset: 24 },
+  { buf: scanIB, loc: 3, size: 4, stride: 32, offset: 0, divisor: 1 }, { buf: scanIB, loc: 4, size: 4, stride: 32, offset: 16, divisor: 1 }]);
+  return m.scanVao;
+}
+// tone-mapped model over a dark scanner grid; while scanning, a red sweep reveals true colours from the ground up
+const P_scanComp = program(FS_VS, `in vec2 vUV; uniform sampler2D uT; uniform float uProg, uTime; out vec4 o;
+vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); }
+void main(){ vec4 t=texture(uT,vUV); vec3 c=pow(aces(t.rgb*1.1),vec3(1./2.2));
+  vec2 g=abs(fract(vUV*vec2(14.,9.))-.5); float grid=smoothstep(.46,.5,max(g.x,g.y));
+  vec3 bg=vec3(.02,.025,.045)+vec3(.35,.06,.04)*grid*.22+vec3(.1,.02,.02)*(1.-length(vUV-.5)*1.4);
+  float L=dot(c,vec3(.3,.55,.15)); vec3 holo=vec3(1.,.28,.2)*(.18+L*1.1)*(.85+.15*sin(vUV.y*260.+uTime*8.));
+  vec3 col=mix(bg,vUV.y<uProg?c:holo,t.a);
+  col+=vec3(1.,.3,.2)*smoothstep(.014,0.,abs(vUV.y-uProg))*step(uProg,.999)*.8;
+  o=vec4(col,1.); }`);
+function renderScanPreview(s) {
+  const v = S.scanView, el = $('scanView'); if (!v || !el || document.body.classList.contains('hideui')) return;
+  const rc = el.getBoundingClientRect(); if (rc.width < 8 || rc.height < 8) return;
+  const sc = canvas.width / canvas.clientWidth, w = Math.round(rc.width * sc), h = Math.round(rc.height * sc);
+  if (!scanTarget || scanTarget.w !== w || scanTarget.h !== h) { if (scanTarget) scanTarget.free(); scanTarget = target(w, h, true); }
+  const t = v.tgt, animal = t.type === 'animal', box = animal ? t.C.box : t.sp.box, k = animal ? t.a.scale : t.sc;
+  // frame the whole model, turning slowly on its own axis
+  const rx = Math.max(Math.abs(box[0]), Math.abs(box[3]), Math.abs(box[2]), Math.abs(box[5])) * k, hy = (box[4] - box[1]) * k * 0.5, cy = (box[1] + box[4]) * 0.5 * k;
+  const R = Math.max(Math.hypot(rx, hy), 0.05), fov = 0.62, D = R / Math.sin(fov / 2) * 0.9, dir = vnorm([0, 0.3, 1]);
+  const cam = vadd([0, cy, 0], vmul(dir, D)), vp = mul4(perspective(fov, w / h, Math.max(D - R * 1.6, D * 0.02), D + R * 1.6), viewFromQuat(qlook(vmul(dir, -1), [0, 1, 0])));
+  gl.bindFramebuffer(gl.FRAMEBUFFER, scanTarget.fb); gl.viewport(0, 0, w, h);
+  gl.clearColor(0, 0, 0, 0); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  glState({ depth: true, write: true });
+  const inst = animal ? new Float32Array([0, 0, 0, k, v.head, v.phase, 0, t.C.beh === 'burrow' ? 0 : 1]) : new Float32Array([0, 0, 0, k, v.head, ...t.tint]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, scanIB); gl.bufferData(gl.ARRAY_BUFFER, inst, gl.DYNAMIC_DRAW);
+  // steady studio daylight, whatever the time on the planet
+  const lit = p => shadowUniforms(surfaceSkyUniforms(p, s)).set('uShOn', 0).set('uSun', vnorm([0.45, 0.8, 0.55])).set('uSunCol', [1, 0.97, 0.92]).set('uSunI', 1.9)
+    .set('uOver', 0).set('uFlash', 0).set('uFogD', 0).set('uView', 1e9).set('uFlP', scanZero).set('uVP', vp).set('uCam', cam).set('uCurv', 0).set('uTime', S.t);
+  if (animal) {
+    const C = t.C, p = lit(P_animal.use().tex('uNoise', noiseTex, gl.TEXTURE_3D)).set('uFadeR', 1e9);
+    p.set('uHipY', C.hipY).set('uNeckY', C.neckY).set('uNeckZ', C.neckZ).set('uGrazeA', C.grazeA).set('uCol1', C.c1).set('uCol2', C.c2).set('uCol3', C.c3)
+      .set('uSpots', C.spots).set('uGlowA', C.glow).set('uStripes', C.stripes).set('uWave', C.wave).set('uWaveK', C.waveK).set('uSquash', C.squash).set('uRoll', C.roll).set('uPitch', C.pitch);
+    gl.bindVertexArray(scanVao(C.mesh)); gl.drawArraysInstanced(gl.TRIANGLES, 0, C.mesh.verts, 1);
+  } else {
+    const sp = t.sp, p = lit(P_plant.use().tex('uNoise', noiseTex, gl.TEXTURE_3D)).set('uFadeR', 1e9).set('uFadeIn', 0).set('uBias', 0.00025).set('uTwoSide', 0).set('uGlowC', [0, 0, 0]);
+    p.set('uSway', sp.sway).set('uTrunk', sp.trunk).set('uRockC', s.P.rock).set('uGlowI', sp.glowI).set('uLeaf', sp.kind === 'crystal' ? 0 : 1);
+    gl.bindVertexArray(scanVao(sp.mh)); gl.drawArraysInstanced(gl.TRIANGLES, 0, sp.mh.verts, 1);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(Math.round(rc.left * sc), canvas.height - Math.round(rc.top * sc) - h, w, h);
+  glState({});
+  P_scanComp.use().tex('uT', scanTarget.tex).set('uProg', S.scan ? S.scan.prog : 1).set('uTime', S.t); fsDraw();
+  gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
 // ---- per-frame update
@@ -5247,6 +6315,7 @@ function update(dt) {
     surfStep(dt);
     if (surf) updateSurfaceWorld(surf, dt);
   }
+  scanStep(dt);
   engineSound(dt);
 }
 
@@ -5259,7 +6328,7 @@ function render() {
   view.fov = 1.05 + warp * 0.55; view.pxScale = post.h / 2 / Math.tan(view.fov / 2);
   let exposure = 1;
   if (S.mode === 'surface' && surf) {
-    const c = surfaceCamera(surf, lookQ); setView(c.q);
+    const c = surfaceCamera(surf, lookQ); setView(c.q); S.surfCam = c;
     renderSurface(surf, S.t, c.q, c.pos);
     exposure = lerp(2.4, 0.9, smooth(-0.2, 0.1, surf.sun[1]));
   } else {
@@ -5270,6 +6339,7 @@ function render() {
     if (S.tp && S.started) renderShipSpace(cq);
   }
   postProcess(exposure, S.fade, S.fadeCol, S.t, warp);
+  if (S.scanView && S.mode === 'surface' && surf) renderScanPreview(surf);
 }
 
 // ---- picking
@@ -5302,10 +6372,10 @@ function travelTo(t) {
   toast((jump ? 'Jumping to ' : 'Travelling to ') + selName(t));
 }
 function spaceJump() {
-  if (S.mode === 'surface') { heroJump(); return; }
+  if (S.mode === 'surface') { toast('Climb out of the atmosphere to make a hyperspace jump'); return; }
   let t = jumpDest(S.sel) ? S.sel : null;
   if (!t) { const c = pickAt(post.w / 2, post.h / 2, 140 * post.h / 1080); if (c && jumpDest(c)) t = c; }
-  if (!t) { toast('Click a star, planet or galaxy — then Space to jump'); return; }
+  if (!t) { toast('Click a star, planet or galaxy — then J to jump'); return; }
   S.sel = t; S.queue = []; S.goal = goJump(t, { manual: !S.auto }); S.auto = true; syncButtons();
 }
 function nextDestination() {
@@ -5318,17 +6388,36 @@ function nextDestination() {
 
 // ---- input
 let drag = null;
-canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), look: e.button === 2 }; canvas.classList.add('drag'); });
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), look: e.button === 2 }; canvas.classList.add('drag');
+  // on foot, pressing on a creature or plant starts the scanner
+  if (e.button === 0 && S.started && !S.paused && S.mode === 'surface' && surf && surf.phase === 'walk' && !surf.driving) { const t = scanPick(surf, e.clientX, e.clientY); if (t) scanBegin(t); }
+});
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointermove', e => {
   if (!drag) { hoverAt(e.clientX, e.clientY); return; }
+  // a steady hold keeps scanning; moving away turns it back into a normal drag
+  if (S.scan && S.scan.holding) { if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 10) { drag.x = e.clientX; drag.y = e.clientY; return; } scanClose(); }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
   const k = 0.0035;
-  S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0;
+  if (drag.look) { S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0; return; }
+  // left drag steers the craft (screen-relative, so it follows any roll), otherwise it looks around
+  if (S.mode === 'surface' && surf && !S.auto && surf.phase === 'cruise') {
+    surfQOn(surf); surf.q = qnorm(qmul(surf.q, qmul(qaxis([0, 1, 0], -dx * k), qaxis([1, 0, 0], -dy * k)))); surfQSync(surf);
+    surf.roll = surf.rollU + (surf.bank || 0);
+  }
+  // on foot, left drag turns the traveller (so W walks wherever you drag) and tilts the view
+  else if (S.mode === 'surface' && surf && !S.auto && surf.phase === 'walk' && !surf.driving) {
+    surf.yaw -= dx * k; surf.pitch = clamp(surf.pitch - dy * k, -1.2, 1.0);
+    if (dx) surf.dragTurnT = 0.2;
+  }
+  else if (!S.auto && S.mode !== 'surface') S.q = qnorm(qmul(S.q, qmul(qaxis([0, 1, 0], -dx * k), qaxis([1, 0, 0], -dy * k))));
+  else { S.look.yaw -= dx * k; S.look.pitch = clamp(S.look.pitch - dy * k, -1.4, 1.4); S.look.idle = 0; }
 });
 canvas.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
 canvas.addEventListener('pointerup', e => {
   canvas.classList.remove('drag');
+  if (S.scan && S.scan.holding) scanRelease();
   if (drag && !drag.look && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6 && performance.now() - drag.t < 450 && S.started) {
     const sc = canvas.width / canvas.clientWidth, t = pickAt(e.clientX * sc, e.clientY * sc);
     if (t) travelTo(t);
@@ -5344,11 +6433,11 @@ canvas.addEventListener('wheel', e => {
 function setAuto(v) {
   S.auto = v; syncButtons();
   if (v) { S.goal = null; if (S.mode !== 'surface') { S.queue = []; if (S.mode === 'system') planSystem(); } S.v = Math.max(Math.abs(S.v), 1e-9); toast('Autopilot engaged'); }
-  else toast(surf && surf.phase === 'walk' ? 'On foot · W S walk · A D turn · Shift run · Space jump · B buggy · L fly' : 'Manual · W thrust · Shift boost · S brake · O autopilot');
+  else toast(surf && surf.phase === 'walk' ? 'On foot · W S walk · drag to steer · Space jump · E get in · B buggy · F light · L fly' : 'Manual · W thrust · Shift boost · Space slow down · Q E roll · drag to steer · O autopilot');
 }
 function togglePause() {
   S.paused = !S.paused; $('pause').style.display = S.paused ? 'flex' : 'none'; $('bPause').classList.toggle('on', S.paused);
-  if (Music.ctx && S.paused) { Music.eng.next = Music.eng.rainNext = Music.eng.cityNext = 0; Music.engine(0, 0, 0); Music.rainLevel(0); Music.buggy(0, 0, 0); Music.city(0, 0); }
+  if (Music.ctx && S.paused) { Music.eng.next = Music.eng.rainNext = Music.eng.cityNext = 0; Music.engine(0, 0, 0); Music.rainLevel(0); Music.buggy(0, 0, 0); Music.city(0, 0); Music.scan(0, 0); }
 }
 function centerView() {
   S.look.yaw = S.look.pitch = 0; S.look.idle = 0;
@@ -5357,13 +6446,20 @@ function centerView() {
 }
 function toggleView() { S.tp = !S.tp; $('bView').classList.toggle('on', S.tp); toast(S.tp ? 'Third-person view' : 'First-person view'); }
 window.addEventListener('keydown', e => {
-  if (e.repeat && !/^(Key[WASDQEX]|Arrow|Shift)/.test(e.code)) return;
+  if (e.repeat && !/^(Key[WASDQEX]|Arrow|Shift|Space)/.test(e.code)) return;
   keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
   if (!S.started) return;
   if (e.code === 'KeyP') { togglePause(); return; }
-  if (S.paused && !/^(KeyH|KeyM|KeyF|Slash)$/.test(e.code)) return;
+  if (S.paused && !/^(KeyH|KeyM|KeyF|Enter|NumpadEnter|Slash)$/.test(e.code)) return;
+  const onFoot = S.mode === 'surface' && surf && surf.phase === 'walk';
   if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
-  if (e.code === 'Space') { e.preventDefault(); spaceJump(); }
+  // Space: jump on foot, otherwise take the controls and slow the craft down
+  if (e.code === 'Space' && !e.repeat) { if (onFoot) heroJump(); else if (S.auto && S.goal?.kind !== 'jump') setAuto(false); }
+  if (e.code === 'KeyJ') spaceJump();
+  if (e.code === 'Escape' && S.scanView) scanClose();
+  // E on the ground: get into the ship or buggy you are standing next to, or out of the buggy
+  if (e.code === 'KeyE' && !e.repeat && onFoot) useVehicle();
   if (e.code === 'KeyO') setAuto(!S.auto);
   if (e.code === 'KeyC') centerView();
   if (e.code === 'KeyB') toggleBuggy();
@@ -5372,7 +6468,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') toggleMarks();
   if (e.code === 'KeyH') document.body.classList.toggle('hideui');
   if (e.code === 'KeyM') toggleMusic();
-  if (e.code === 'KeyF') toggleFull();
+  if (e.code === 'KeyF') toggleFlash();
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') toggleFull();
   if (e.key === '?' || e.code === 'Slash') toggleHelp();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -5381,6 +6478,12 @@ function syncButtons() { $('bMusic').classList.toggle('on', Music.on); }
 function toggleMusic() { Music.toggle(); syncButtons(); toast(Music.on ? 'Music on' : 'Music off'); }
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
+function toggleFlash() {
+  S.flash = !S.flash; $('bFlash').classList.toggle('on', S.flash);
+  const what = S.mode !== 'surface' || !surf ? 'Searchlight' : surf.phase !== 'walk' ? 'Searchlight' : surf.driving ? 'Headlamps' : 'Flashlight';
+  toast(what + (S.flash ? ' on' : ' off'));
+}
+$('bFlash').onclick = () => { if (S.started) toggleFlash(); };
 $('bCenter').onclick = () => centerView();
 $('bPause').onclick = () => { if (S.started) togglePause(); };
 $('bBuggy').onclick = () => toggleBuggy();
@@ -5416,10 +6519,11 @@ function updateInfo(dt) {
     sp = surf.driving ? 'moon buggy \u00b7 ' + Math.round(surf.speed * 3.6) + ' km/h' : surf.phase === 'walk' ? 'on foot \u00b7 ' + (surf.speed * 3.6).toFixed(1) + ' km/h' : Math.round(surf.speed * 3.6) + ' km/h \u00b7 ' + agl + ' m';
     tgt = surf.planet.name;
   }
-  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 S brake \u00b7 A D steer \u00b7 B step out' : surf && surf.phase === 'walk' ? 'on foot \u00b7 B buggy \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost';
+  const nv = surf && nearVehicle(surf);
+  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 S brake \u00b7 A D steer \u00b7 E step out' : surf && surf.phase === 'walk' ? (nv === 'ship' ? 'E board the ship \u00b7 ' : nv === 'buggy' ? 'E drive the buggy \u00b7 ' : '') + 'on foot \u00b7 B buggy \u00b7 F light \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost \u00b7 Space slow';
   if (!S.auto && S.sel && S.mode !== 'surface' && jumpDest(S.sel)) {
     const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'sun' ? [0, 0, 0] : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
-    tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'Space to jump · ' + hint;
+    tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'J to jump · ' + hint;
   }
   $('info').innerHTML = (tgt ? tgt.replace(/</g, '') + '<br>' : '') + sp + '<br>' + hint;
   const bl = $('bLand'), onSurf = S.mode === 'surface' && surf;
@@ -5544,6 +6648,8 @@ $('syslist').addEventListener('click', e => {
 function hoverAt(cx, cy) {
   const now = performance.now(); if (now - hoverT < 70) return; hoverT = now;
   const tip = $('tip');
+  if (S.started && S.mode === 'surface' && surf && surf.phase === 'walk' && !surf.driving) { scanHoverAt(cx, cy); return; }
+  S.scanHover = null;
   const sc = canvas.width / canvas.clientWidth, t = S.started && S.mode !== 'surface' ? pickAt(cx * sc, cy * sc) : null;
   if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; hidePreview(); return; }
   if (t.type === 'star') showPreview(t.o); else hidePreview();
