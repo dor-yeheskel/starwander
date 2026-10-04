@@ -23,6 +23,8 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #bar button{background:rgba(10,14,28,.35);border:1px solid rgba(255,255,255,.18);color:#dfe7ff;border-radius:20px;padding:7px 13px;font-size:12px;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(6px);transition:background .3s,border-color .3s}
 #bar button:hover{background:rgba(60,80,140,.4)}
 #bar button.on{border-color:rgba(150,200,255,.75);box-shadow:0 0 12px rgba(120,170,255,.35)}
+#bar button.busy{border-color:rgba(255,190,110,.85);color:#ffd9a8;animation:busy 1.4s ease-in-out infinite}
+@keyframes busy{0%,100%{box-shadow:0 0 6px rgba(255,170,90,.25)}50%{box-shadow:0 0 16px rgba(255,170,90,.7)}}
 #help{position:fixed;top:64px;right:18px;width:300px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 18px 14px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
 #help b{color:#a9c4ff;font-weight:500}
 #help div:not(.s){padding-left:86px;text-indent:-86px}
@@ -2462,7 +2464,7 @@ function renderShipSpace(camQ) {
   gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   glState({ depth: true, write: true });
   const p = shadowUniforms(P_model.use()).set('uVP', vpFor(0.2, 4000)).set('uCam', [0, 0, 0]).set('uSurf', 0).set('uL', lt.L).set('uLCol', lt.col).set('uAmb', lt.amb);
-  drawModel(p, { mesh: shipMesh, rel, q: qmul(S.q, qaxis([0, 0, 1], S.bank || 0)), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust, lamp: S.flash ? 2.5 : 0 });
+  drawModel(p, { mesh: shipMesh, rel, q: qmul(S.q, qaxis([0, 0, 1], S.bank || 0)), cols: SHIP_COLS, glow: 0.5 + 3.5 * S.thrust });
 }
 
 // ---- distant forests: cheap billboards beyond the full-detail radius
@@ -2540,6 +2542,14 @@ function herdFor(r, size) {
   return opts[0][0];
 }
 // expressive faces on the front (+z) of an ellipsoid head. parts: 4 white, 5 dark, 6 blush, 1 skin
+// a proper eye: white ball (unless white=false), optional coloured iris, a dark pupil looking along dir and a glint
+function eyeball(B, c, rad, dir, aux, iris, white) {
+  const d = vnorm(dir), up = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], side = vnorm(vcross(up, d)), u2 = vcross(d, side);
+  if (white !== false) B.blob(c, [rad, rad, rad], 4, aux, 0, 1);
+  if (iris !== undefined && iris !== null) B.blob(vadd(c, vmul(d, rad * 0.5)), [rad * 0.62, rad * 0.62, rad * 0.62], iris, aux, 0, 1);
+  B.blob(vadd(c, vmul(d, rad * 0.8)), [rad * 0.36, rad * 0.36, rad * 0.36], 5, aux, 0, 1);
+  B.blob(vadd(c, vadd(vmul(d, rad * 0.97), vadd(vmul(u2, rad * 0.3), vmul(side, rad * 0.18)))), [rad * 0.12, rad * 0.12, rad * 0.12], 4, aux, 0, 0);
+}
 function addFace(B, r, hc, R3, alien, aux, eyesN) {
   const [rx, ry, rz] = R3, s = Math.min(rx, ry);
   const at = (x, y, inset) => vadd(hc, [x, y, rz * Math.sqrt(Math.max(1 - (x / rx) ** 2 - (y / ry) ** 2, 0.03)) - inset]);
@@ -2765,7 +2775,7 @@ function makeCreature(r, o) {
     const hc = vadd(nt, [0, hs * 0.1, hs * 0.45]);
     B.blob(hc, [hs * 0.42, hs * 0.42, hs * 0.78], 1, 7, 0.1);
     for (const sx of [-1, 1]) {
-      B.blob(vadd(hc, [sx * hs * 0.36, hs * 0.14, hs * 0.32]), [hs * 0.08, hs * 0.08, hs * 0.08], 2, 7, 0, 0);
+      B.blob(vadd(hc, [sx * hs * 0.36, hs * 0.14, hs * 0.32]), [hs * 0.08, hs * 0.08, hs * 0.08], 2, 7, 0, 0); eyeball(B, vadd(hc, [sx * hs * 0.36, hs * 0.14, hs * 0.32]), hs * 0.08, [sx * 0.5, 0.1, 1], 7, null, false);
       if (r() < 0.5 || alien) B.cone(vadd(hc, [sx * hs * 0.22, hs * 0.3, -hs * 0.15]), vnorm([sx * 0.35, 1, -0.4]), hs * (0.4 + r() * 0.9), hs * 0.07, 5, 2, 7, 7);
       else B.cone(vadd(hc, [sx * hs * 0.3, hs * 0.25, -hs * 0.2]), vnorm([sx, 0.5, -0.3]), hs * 0.45, hs * 0.13, 4, 1, 7, 7);
     }
@@ -2798,7 +2808,7 @@ function makeCreature(r, o) {
     const hc = vadd(nt, [0, bh * 0.05, bh * 0.1]);
     B.blob(hc, [bh * 0.2, bh * 0.2, bh * 0.28], 1, 7, 0.05);
     B.cone(vadd(hc, [0, 0, bh * 0.22]), [0, -0.15, 1], bh * (0.25 + r() * 0.5), bh * 0.07, 5, 2, 7, 7);
-    for (const sx of [-1, 1]) B.blob(vadd(hc, [sx * bh * 0.14, bh * 0.07, bh * 0.1]), [bh * 0.04, bh * 0.04, bh * 0.04], 2, 7, 0, 0);
+    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * bh * 0.14, bh * 0.07, bh * 0.1]), [bh * 0.04, bh * 0.04, bh * 0.04], 2, 7, 0, 0); eyeball(B, vadd(hc, [sx * bh * 0.14, bh * 0.07, bh * 0.1]), bh * 0.04, [sx * 0.6, 0.1, 1], 7, null, false); }
     if (alien || r() < 0.4) for (let k = 0; k < 3; k++) B.cone(vadd(hc, [0, bh * 0.15, -bh * 0.1]), [(k - 1) * 0.4, 1, -0.6], bh * (0.4 + r() * 0.4), bh * 0.04, 4, alien ? 3 : 1, 7, 7);
     for (let k = 0, n = 3 + Math.floor(r() * 3); k < n; k++) { const a = (k / (n - 1 || 1) - 0.5) * 1.2; B.cone([0, legL + bh * 0.4, -L * 0.45], [Math.sin(a), 0.6 + r() * 0.5, -1], L * (0.3 + r() * 0.4), L * 0.05, 4, 1, 8, 8); }
     Object.assign(C, { hipY: legL, neckY: sh[1], neckZ: sh[2], grazeA: 1.0, walk: 1 + H, run: 4 + H * 4, stride: legL * 1.4, shy: 1.3, height: nt[1], rad: L * 0.5 });
@@ -2817,7 +2827,7 @@ function makeCreature(r, o) {
       const s0 = [sx * L * 0.3, by, L * 0.3], s1 = [sx * L * 0.45, by + L * 0.1, L * 0.62];
       B.tube(s0, s1, L * 0.06, L * 0.05, 5, 1, 7, 7);
       B.blob(vadd(s1, [0, L * 0.02, L * 0.12]), [L * 0.15, L * 0.1, L * 0.22], 0, 7, 0.1, 1);
-      const es = [sx * L * 0.12, by + L * 0.38, L * 0.32]; B.tube([sx * L * 0.1, by + bh * 0.3, L * 0.28], es, L * 0.025, L * 0.02, 4, 1, 7, 7); B.blob(es, [L * 0.05, L * 0.05, L * 0.05], 2, 7, 0, 0);
+      const es = [sx * L * 0.12, by + L * 0.38, L * 0.32]; B.tube([sx * L * 0.1, by + bh * 0.3, L * 0.28], es, L * 0.025, L * 0.02, 4, 1, 7, 7); eyeball(B, es, L * 0.05, [sx * 0.3, 0.15, 1], 7, 2);
     }
     Object.assign(C, { hipY: by, neckY: by, neckZ: L * 0.3, grazeA: 0.6, walk: 0.6 + L, run: 3 + L * 3, stride: L, side: true, beach: true, shy: 1.5, height: by + bh, rad: L });
     C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L;
@@ -2850,7 +2860,7 @@ function makeCreature(r, o) {
     for (const sx of [-1, 1]) {
       B.tri(prev, [sx * R * 1.5, 0, prev[2] - R * 0.9], [sx * R * 0.3, 0, prev[2] - R * 0.2], n, n, n, 0, 9, 9, 9);
       B.tri([sx * R * 0.8, -R * 0.3, L * 0.12], [sx * R * 2.1, -R * 0.6, -L * 0.02], [sx * R * 0.8, -R * 0.3, -L * 0.04], n, n, n, 0, 0, 0, 0);
-      B.blob([sx * R * 0.7, R * 0.15, L * 0.28], [R * 0.1, R * 0.1, R * 0.1], 2, 0, 0, 0);
+      B.blob([sx * R * 0.7, R * 0.15, L * 0.28], [R * 0.1, R * 0.1, R * 0.1], 2, 0, 0, 0); eyeball(B, [sx * R * 0.7, R * 0.15, L * 0.28], R * 0.1, [sx, 0.1, 0.5], 0, null, false);
     }
     if (alien) for (let k = 0; k < 10; k++) { const z = L * (0.3 - k * 0.06); for (const sx of [-1, 1]) B.blob([sx * R * 0.8, R * 0.2, z], [R * 0.08, R * 0.08, R * 0.08], 3, 0, 0, 0); }
     Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 1, wave: L * 0.035, waveK: TAU / L * 0.8, walk: 1 + L * 0.08, run: 3 + L * 0.2, stride: L * 0.5, beh: 'swim', shy: 0, herd: [1, 4], depth: R * 2.5, jumpH: R * 3, height: R, rad: L * 0.5 });
@@ -2863,7 +2873,7 @@ function makeCreature(r, o) {
     for (let i = 1; i <= 6; i++) { const t = i / 6, p = [0, -L + t * L * 1.6, 0]; B.tube(prev, p, R, R * (1 - t * 0.1), 7, i % 2 ? 0 : 1, 9, 9); prev = p; }
     const hc = vadd(prev, [0, R * 0.6, R * 0.3]);
     B.blob(hc, [R * 1.2, R * 1.1, R * 1.3], 0, 9, 0.05, 1);
-    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * R * 0.6, R * 0.35, R * 0.9]), [R * 0.28, R * 0.28, R * 0.2], 2, 9, 0, 0); B.cone(vadd(hc, [sx * R * 0.6, R * 0.8, -R * 0.2]), [sx * 0.5, 1, -0.3], R * (1 + r() * 1.5), R * 0.25, 4, 1, 9, 9); }
+    for (const sx of [-1, 1]) { B.blob(vadd(hc, [sx * R * 0.6, R * 0.35, R * 0.9]), [R * 0.28, R * 0.28, R * 0.2], 2, 9, 0, 0); eyeball(B, vadd(hc, [sx * R * 0.6, R * 0.35, R * 0.9]), R * 0.21, [sx * 0.3, 0.1, 1], 9, null, false); B.cone(vadd(hc, [sx * R * 0.6, R * 0.8, -R * 0.2]), [sx * 0.5, 1, -0.3], R * (1 + r() * 1.5), R * 0.25, 4, 1, 9, 9); }
     Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, pitch: 2, wave: R * 0.5, waveK: 2 / L, beh: 'burrow', shy: 0, walk: 0, run: 0, depth: L * 1.05, height: L * 0.8, rad: R });
     C.herd = pick(r, [[3, 10], [8, 40], [30, 120]]); C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L;
   } else if (kind === 'bird') {
@@ -2897,7 +2907,7 @@ function makeCreature(r, o) {
     for (const sx of [-1, 1]) {
       const top = [sx * L * 0.3, L * 1.3 + r() * L * 0.3, L * 0.32];
       B.tube([sx * L * 0.18, L * 0.85, L * 0.25], top, L * 0.04, L * 0.03, 5, 1, 7, 7);
-      B.blob(top, [L * 0.1, L * 0.1, L * 0.1], 3, 7, 0, 1);
+      eyeball(B, top, L * 0.1, [sx * 0.25, 0.1, 1], 7, 3);
     }
     B.blob([0, L * 0.35, L * 0.55], [L * 0.25, L * 0.06, L * 0.08], 2, 0, 0, 1);
     Object.assign(C, { hipY: 0.01, neckY: L * 0.85, neckZ: L * 0.25, grazeA: 0.5, squash: 0.16, hop: L * 0.7, walk: 1.2 + L, run: 3.5 + L * 2, stride: L * 1.6, height: L * 1.4, rad: L * 0.6 });
@@ -2908,7 +2918,7 @@ function makeCreature(r, o) {
     let prev = [0, rad, L / 2];
     for (let i = 1; i <= N; i++) { const t = i / N, p = [0, rad * (1 - t * 0.5), L / 2 - t * L]; B.tube(prev, p, rad * (1 - (t - 1 / N) * 0.7), rad * (1 - t * 0.7), 7, i % 3 === 0 ? 1 : 0, 9, 9); prev = p; }
     B.blob([0, rad * 1.1, L / 2 + rad * 0.6], [rad * 1.2, rad, rad * 1.6], 1, 9, 0.05);
-    for (const sx of [-1, 1]) B.blob([sx * rad * 0.7, rad * 1.7, L / 2 + rad * 1.2], [rad * 0.25, rad * 0.25, rad * 0.25], 2, 9, 0, 0);
+    for (const sx of [-1, 1]) { B.blob([sx * rad * 0.7, rad * 1.7, L / 2 + rad * 1.2], [rad * 0.25, rad * 0.25, rad * 0.25], 2, 9, 0, 0); eyeball(B, [sx * rad * 0.7, rad * 1.7, L / 2 + rad * 1.2], rad * 0.25, [sx * 0.5, 0.1, 1], 9, null, false); }
     if (alien) for (let i = 2; i < N; i += 2) B.cone([0, rad * 1.7 * (1 - i / N * 0.5), L / 2 - i / N * L], [0, 1, -0.3], rad * 1.4, rad * 0.35, 4, 3, 9, 9);
     Object.assign(C, { hipY: 0.01, neckY: rad, neckZ: L / 2, grazeA: 0, wave: L * 0.06, waveK: TAU * 1.5 / L, walk: 1 + L * 0.12, run: 3 + L * 0.4, stride: L * 0.6, herd: [1, 4], height: rad * 2, rad: L * 0.5 });
     C.scale = 1 + r() * (alien ? 1.5 : 0.5); size = L * 0.5;
@@ -2922,7 +2932,7 @@ function makeCreature(r, o) {
       B.blob(b, [L * 0.05, L * 0.02, L * 0.05], 3, 10, 0, 0);
     }
     B.tube([0, 0, -L * 0.35], [0, 0, -L * 0.9], L * 0.03, L * 0.008, 4, 1, 0, 0);
-    for (const sx of [-1, 1]) B.blob([sx * L * 0.08, L * 0.05, L * 0.3], [L * 0.03, L * 0.03, L * 0.03], 2, 0, 0, 0);
+    for (const sx of [-1, 1]) { B.blob([sx * L * 0.08, L * 0.05, L * 0.3], [L * 0.03, L * 0.03, L * 0.03], 2, 0, 0, 0); eyeball(B, [sx * L * 0.08, L * 0.05, L * 0.3], L * 0.03, [sx * 0.6, 0.1, 1], 0, null, false); }
     Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, walk: 5 + L * 2, run: 9 + L * 3, stride: 1, flap: 1, beh: 'fly', fly: o.high ? [20, 90] : [3, 22], height: L * 0.2, rad: L * 0.6 });
     C.herd = pick(r, [[1, 3], [4, 14], [15, 60]]);
     C.scale = (1 + r() * (alien ? 2.5 : 1)) * (o.high ? 3 : 1); size = L * 0.6;
@@ -2976,7 +2986,7 @@ function makeCreature(r, o) {
     const hc = [0, hy + R * 0.1, L / 2 + seg * 0.7];
     B.blob(hc, [R * 1.1, R * 0.9, R], 0, 9, 0.05, 1);
     for (const sx of [-1, 1]) {
-      B.blob(vadd(hc, [sx * R * 0.55, R * 0.4, R * 0.65]), [R * 0.25, R * 0.25, R * 0.2], 2, 9, 0, 0);
+      B.blob(vadd(hc, [sx * R * 0.55, R * 0.4, R * 0.65]), [R * 0.25, R * 0.25, R * 0.2], 2, 9, 0, 0); eyeball(B, vadd(hc, [sx * R * 0.55, R * 0.4, R * 0.65]), R * 0.21, [sx * 0.5, 0.15, 1], 9, null, false);
       const at = vadd(hc, [sx * R * 0.4, R * 0.7, R * 0.4]); B.tube(at, vadd(at, [sx * R * 1.2, R * 2.5, R * 1.5]), R * 0.06, R * 0.03, 4, 1, 9, 9);
       B.cone(vadd(hc, [sx * R * 0.5, -R * 0.4, R * 0.8]), [-sx * 0.5, -0.3, 1], R * 0.7, R * 0.12, 4, 5, 9, 9);
     }
@@ -3046,7 +3056,7 @@ function makeCreature(r, o) {
     for (let i = 0, t = 9 + Math.floor(r() * 4); i < t; i++) { const a = i * 0.7, k = 1 - i * 0.075, rr = L * 0.5 * k; B.blob(vadd(sc, [0, Math.sin(a) * L * 0.32 * k, -Math.cos(a) * L * 0.32 * k]), [rr * 0.8, rr, rr], i % 2 ? 0 : 3, 0, 0.04, 1); }
     if (r() < 0.6) for (let k = 0; k < 6; k++) { const p = vadd(sc, [(r() - 0.5) * L * 0.4, L * 0.45, (r() - 0.5) * L * 0.5]); B.tube(p, vadd(p, [0, L * 0.25, 0]), L * 0.015, L * 0.01, 4, 1, 0, 0); B.blob(vadd(p, [0, L * 0.27, 0]), [L * 0.06, L * 0.05, L * 0.06], 2, 0, 0, 0); }
     const hc = [0, L * 0.35, L * 0.95];
-    for (const sx of [-1, 1]) { const tip = vadd(hc, [sx * L * 0.15, L * 0.55, L * 0.1]); B.tube(vadd(hc, [sx * L * 0.08, 0, 0]), tip, L * 0.035, L * 0.025, 5, 1, 7, 7); B.blob(tip, [L * 0.07, L * 0.07, L * 0.07], 4, 7, 0, 1); B.blob(vadd(tip, [0, 0, L * 0.05]), [L * 0.035, L * 0.035, L * 0.03], 5, 7, 0, 0); }
+    for (const sx of [-1, 1]) { const tip = vadd(hc, [sx * L * 0.15, L * 0.55, L * 0.1]); B.tube(vadd(hc, [sx * L * 0.08, 0, 0]), tip, L * 0.035, L * 0.025, 5, 1, 7, 7); eyeball(B, tip, L * 0.07, [sx * 0.2, 0.1, 1], 7); }
     Object.assign(C, { hipY: 0.01, neckY: L * 0.35, neckZ: L * 0.8, grazeA: 0.4, squash: 0.05, walk: 0.3 + L * 0.2, run: 0.8 + L * 0.5, stride: L, height: L * 1.4, rad: L, shy: 0.3 });
     C.scale = 1 + r() * (alien ? 4 : 1.5); size = L * 1.5;
   } else if (kind === 'hoop') {
@@ -3090,7 +3100,7 @@ function makeCreature(r, o) {
     const hc = [0, R * 0.3, L / 2 + R * 1.4];
     B.blob(hc, [R * 1.5, R * 1.1, R * 2.2], 1, 9, 0.05, 1);
     for (const sx of [-1, 1]) {
-      B.blob(vadd(hc, [sx * R * 0.9, R * 0.55, R * 1.0]), [R * 0.35, R * 0.35, R * 0.3], 3, 9, 0, 1);
+      B.blob(vadd(hc, [sx * R * 0.9, R * 0.55, R * 1.0]), [R * 0.35, R * 0.35, R * 0.3], 3, 9, 0, 1); eyeball(B, vadd(hc, [sx * R * 0.9, R * 0.55, R * 1.0]), R * 0.31, [sx * 0.5, 0.1, 1], 9, null, false);
       B.cone(vadd(hc, [sx * R * 0.6, R * 0.9, -R * 0.6]), [sx * 0.5, 1, -1.2], R * 4, R * 0.25, 5, 4, 9, 9);
       let w = vadd(hc, [sx * R * 0.9, -R * 0.4, R * 1.6]); for (let i = 1; i <= 4; i++) { const q = vadd(w, [sx * R * 0.8, -R * 0.3, -R * 0.8]); B.tube(w, q, R * 0.08, R * 0.05, 4, 2, 9, 9); w = q; }
     }
@@ -3101,7 +3111,7 @@ function makeCreature(r, o) {
     const L = 0.8 + r() * 1.4, n = [0, 1, 0], f = [0, 0.02, L * 0.6], b = [0, 0.02, -L * 0.6];
     for (const sx of [-1, 1]) { const w = [sx * L * 0.7, 0, 0]; B.tri(f, w, b, n, n, n, 0, 10, 10, 10); B.blob(w, [L * 0.05, L * 0.03, L * 0.05], 3, 10, 0, 0); }
     B.blob([0, L * 0.05, L * 0.2], [L * 0.1, L * 0.07, L * 0.3], 1, 0, 0, 1);
-    for (const sx of [-1, 1]) B.blob([sx * L * 0.05, L * 0.1, L * 0.42], [L * 0.04, L * 0.04, L * 0.04], 4, 0, 0, 0);
+    for (const sx of [-1, 1]) eyeball(B, [sx * L * 0.05, L * 0.1, L * 0.42], L * 0.04, [sx * 0.6, 0.2, 1], 0);
     let p0 = b; for (let i = 1; i <= 8; i++) { const p = vadd(p0, [0, -L * 0.04, -L * 0.35]); B.tube(p0, p, L * 0.02, L * 0.02, 3, i % 2 ? 2 : 3, 8, 8); B.tri(vadd(p, [-L * 0.08, 0, 0]), vadd(p, [L * 0.08, 0, 0]), vadd(p, [0, 0, -L * 0.12]), n, n, n, i % 2 ? 2 : 3, 8, 8, 8); p0 = p; }
     Object.assign(C, { hipY: 0.01, neckY: 0, neckZ: 0, grazeA: 0, flap: 1, beh: 'fly', fly: [15, 90], walk: 5 + L * 2, run: 10, stride: 1, shy: 0, herd: pick(r, [[3, 8], [6, 18]]), height: L * 0.2, rad: L, flapK: 0.5 });
     C.scale = 1 + r() * (alien ? 2 : 1); size = L;
@@ -3907,7 +3917,7 @@ function makeVehicle(r, kind, cul) {
     let li = 1;
     for (const z of [-1.6, 0, 1.6]) for (const sx of [-1, 1]) { B.tube([sx * 0.9, 2.1, z], [sx * 1.15, 1.1, z], 0.14, 0.11, 5, 5, li, li); B.tube([sx * 1.15, 1.1, z], [sx * 1.4, 0.03, z], 0.11, 0.08, 5, 5, li, li); li++; }
     driver([0, 3.55, 1.7], 0.3);
-    for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) { const hs = 0.26 + r() * 0.06; B.blob([(r() - 0.5) * 1, 3.35 + hs, 0.6 - k * 0.8], [hs * 0.85, hs, hs * 0.9], 1, 0, 0, 1); addFace(B, r, [(k % 2 ? 0.3 : -0.3), 3.35 + hs, 0.6 - k * 0.8], [hs * 0.85, hs, hs * 0.9], cul.alien, 0); }
+    for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) { const hs = 0.26 + r() * 0.06, hc = [(k % 2 ? 0.3 : -0.3) + (r() - 0.5) * 0.2, 3.35 + hs, 0.6 - k * 0.8]; B.blob(hc, [hs * 0.85, hs, hs * 0.9], 1, 0, 0, 1); addFace(B, r, hc, [hs * 0.85, hs, hs * 0.9], cul.alien, 0); }
     for (const sx of [-0.5, 0.5]) B.blob([sx, 2.6, 2.55], [0.18, 0.18, 0.1], 3, 0, 0, 0);
     Object.assign(C, { hipY: 2.1, walk: 2.8 + r(), stride: 1.4, height: 4, rad: 2.6 });
   } else {
@@ -5337,6 +5347,17 @@ const Music = {
     N.g.gain.setTargetAtTime(level * 0.16, t, level ? 0.08 : 0.12);
     if (level) { const f0 = 48 + prog * 24; N.o1.frequency.setTargetAtTime(f0, t, 0.1); N.o2.frequency.setTargetAtTime(f0 * 1.5, t, 0.1); N.lfo.frequency.setTargetAtTime(5 + prog * 10, t, 0.1); N.f.frequency.setTargetAtTime(200 + prog * 280, t, 0.1); }
   },
+  // a very soft, short tick for button presses
+  click() {
+    if (!this.ctx) return;
+    const C = this.ctx, t = C.currentTime, o = C.createOscillator(), g = C.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(700, t + 0.04);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.05);
+    o.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.06);
+    this.release(0.1, g);
+  },
+  // disconnect one-shot sound nodes once they have finished, so busy places don't pile up idle audio nodes
+  release(secs, ...nodes) { setTimeout(() => { for (const n of nodes) try { n.disconnect(); } catch (e) { } }, secs * 1000 + 250); },
   scanDone() {
     if (!this.ctx) return;
     const C = this.ctx, t = C.currentTime;
@@ -5363,12 +5384,13 @@ const Music = {
   cityOut(gain, pan) {
     const C = this.ctx, out = C.createGain(); out.gain.value = gain; let node = out;
     if (C.createStereoPanner) { const p = C.createStereoPanner(); p.pan.value = pan; out.connect(p); node = p; }
-    node.connect(this.sfx); node.connect(this.sfxRev); return out;
+    node.connect(this.sfx); node.connect(this.sfxRev); out.tail = node; return out;
   },
   horn(v, weird) {
     const C = this.ctx, t = C.currentTime + 0.02, near = Math.random() ** 2;
     const out = this.cityOut(v * (0.006 + near * 0.05), Math.random() * 1.6 - 0.8), f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900 + near * 2500; f.connect(out);
     const base = weird ? 500 + Math.random() * 700 : 330 + Math.random() * 160, beeps = Math.random() < 0.35 ? 2 : 1, L = 0.12 + Math.random() * 0.4;
+    this.release(beeps * (L + 0.09) + 0.1, f, out, out.tail);
     for (let k = 0; k < beeps; k++) {
       const t0 = t + k * (L + 0.09), g = C.createGain();
       g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(1, t0 + 0.015); g.gain.setValueAtTime(1, t0 + L); g.gain.linearRampToValueAtTime(0, t0 + L + 0.04); g.connect(f);
@@ -5387,9 +5409,11 @@ const Music = {
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * near * 0.5, t + L * 0.5); g.gain.linearRampToValueAtTime(0, t + L);
     let node = g; if (C.createStereoPanner) { const p = C.createStereoPanner(); p.pan.setValueAtTime(p0 * 0.8, t); p.pan.linearRampToValueAtTime(-p0 * 0.8, t + L); g.connect(p); node = p; }
     src.connect(f); f.connect(g); node.connect(this.sfx); src.start(t); src.stop(t + L + 0.05);
+    this.release(L + 0.1, f, g, node);
   },
   siren(v) {
     const C = this.ctx, t = C.currentTime + 0.02, L = 5 + Math.random() * 4, out = this.cityOut(v * 0.012, Math.random() * 1.4 - 0.7);
+    this.release(L + 0.1, out, out.tail);
     const o = C.createOscillator(), lfo = C.createOscillator(), lg = C.createGain(), g = C.createGain();
     o.type = 'triangle'; o.frequency.value = 780; lfo.frequency.value = 0.45 + Math.random() * 0.4; lg.gain.value = 170; lfo.connect(lg); lg.connect(o.frequency);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + L * 0.4); g.gain.linearRampToValueAtTime(0, t + L);
@@ -5413,6 +5437,7 @@ const Music = {
     let node = out;
     if (C.createStereoPanner) { const p = C.createStereoPanner(); p.pan.value = pan * 0.85; out.connect(p); node = p; }
     node.connect(this.sfx); node.connect(this.sfxRev);
+    this.release(0.1 + V.reps * V.dur * 1.5, out, node);
     const det = 0.94 + Math.random() * 0.12;
     for (let k = 0; k < V.reps; k++) {
       const t = now + 0.02 + k * V.dur * 1.5, o = C.createOscillator(), g = C.createGain();
@@ -6113,7 +6138,7 @@ function toggleLand() {
   if (!surf) return;
   if (surf.phase === 'walk') startTakeoff();
   else if (surf.phase === 'cruise') startLanding();
-  else if (surf.phase === 'landing') { surf.phase = 'cruise'; surf.pt = 0; }
+  else if (surf.phase === 'landing') { surf.phase = 'cruise'; surf.pt = 0; toast('Landing aborted'); }
 }
 const surfCamQ = s => qmul(qmul(qaxis([0, 1, 0], s.yaw), qaxis([1, 0, 0], s.pitch)), qaxis([0, 0, 1], s.roll));
 function surfaceCamera(s, lookQ) {
@@ -6746,11 +6771,14 @@ function toggleSound() { Music.toggleMute(); syncButtons(); toast(Music.muted ? 
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
 function toggleFlash() {
+  if (S.mode !== 'surface' || !surf) { toast('Lights work on a planet\u2019s surface'); return; }
   S.flash = !S.flash; $('bFlash').classList.toggle('on', S.flash);
-  const what = S.mode !== 'surface' || !surf ? 'Searchlight' : surf.phase !== 'walk' ? 'Searchlight' : surf.driving ? 'Headlamps' : 'Flashlight';
+  const what = surf.phase !== 'walk' ? 'Searchlight' : surf.driving ? 'Headlamps' : 'Flashlight';
   toast(what + (S.flash ? ' on' : ' off'));
 }
 $('bFlash').onclick = () => { if (S.started) toggleFlash(); };
+// a soft tick for every button
+$('bar').addEventListener('click', e => { if (e.target.closest('button')) Music.click(); });
 $('bCenter').onclick = () => centerView();
 $('bPause').onclick = () => { if (S.started) togglePause(); };
 $('bBuggy').onclick = () => toggleBuggy();
@@ -6796,7 +6824,10 @@ function updateInfo(dt) {
   $('info').innerHTML = (tgt ? tgt.replace(/</g, '') + '<br>' : '') + sp + '<br>' + hint;
   const bl = $('bLand'), onSurf = S.mode === 'surface' && surf;
   bl.style.display = onSurf ? '' : 'none';
-  if (onSurf) bl.textContent = surf.phase === 'walk' ? 'FLY' : 'LAND';
+  // while a landing is under way the button offers to abort it
+  if (onSurf) { const landing = surf.phase === 'landing'; bl.textContent = surf.phase === 'walk' ? 'FLY' : landing ? 'ABORT' : 'LAND'; bl.classList.toggle('busy', landing); bl.title = landing ? 'Landing… click to abort (L)' : 'Land / take off (L)'; }
+  // lights only make sense on a planet
+  $('bFlash').style.display = onSurf ? '' : 'none';
   const bb = $('bBuggy'), canDrive = onSurf && surf.phase === 'walk';
   bb.style.display = canDrive ? '' : 'none';
   if (canDrive) { bb.textContent = surf.driving ? 'STEP OUT' : 'BUGGY'; bb.classList.toggle('on', !!surf.driving); }
