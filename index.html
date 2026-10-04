@@ -4931,7 +4931,7 @@ function updateSurfaceWorld(s, dt) {
       for (const c of s.cityList) {
         if (s.seenV.has(c.key) || cityOut(c, s.x, s.z) > 300 || s.y - s.ground > 2500) continue;
         s.seenV.add(c.key);
-        const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = c.pop > 1e6 ? (c.pop / 1e6).toFixed(1) + ' million' : Math.round(c.pop / 1000) * 1000 + '';
+        const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = fmtPop(c.pop);
         showLoc(c.name, kind + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + (s.civ.others === 1 ? ' and another people' : s.civ.others > 1 ? ' and ' + s.civ.others + ' other peoples' : '') + ' \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
       }
     }
@@ -6281,6 +6281,8 @@ function colourName(c) {
   return n;
 }
 const fmtLen = m => m < 1 ? Math.max(1, Math.round(m * 100)) + ' cm' : m < 10 ? m.toFixed(1) + ' m' : Math.round(m).toLocaleString('en') + ' m';
+// a rounded headcount: "2.2 million", "26,000", "640"
+const fmtPop = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' million' : (n >= 1000 ? Math.round(n / 1000) * 1000 : Math.max(10, Math.round(n / 10) * 10)).toLocaleString('en');
 const fmtMass = kg => kg < 1 ? Math.max(1, Math.round(kg * 1000)) + ' g' : kg < 1000 ? (kg < 10 ? kg.toFixed(1) : Math.round(kg)) + ' kg' : (kg < 10000 ? (kg / 1000).toFixed(1) : Math.round(kg / 1000).toLocaleString('en')) + ' t';
 const fmtAge = y => y < 1 ? 'a few months' : y < 2 ? 'about a year' : 'about ' + Math.round(y).toLocaleString('en') + ' years';
 const cap1 = t => t[0].toUpperCase() + t.slice(1);
@@ -6422,7 +6424,7 @@ const JOBS_CITY = ['merchant', 'engineer', 'teacher', 'courier', 'musician', 'ga
 const PERSON_TRAIT = ['friendly, stops to greet travellers', 'loves telling long stories', 'hums while walking', 'collects smooth stones', 'knows every star by name', 'grows herbs by the window',
   'never misses a sunrise', 'laughs easily', 'keeps a small notebook of sketches', 'shy at first, warm once you say hello', 'always seems to be in a hurry', 'is saving up for a trip off-world'];
 function personHome(s, a) {
-  const urban = c => ({ name: c.name, kind: c.R > 1000 ? 'the great city' : c.R > 450 ? 'the city' : 'the town', urban: true });
+  const urban = c => ({ name: c.name, kind: c.R > 1000 ? 'the great city' : c.R > 450 ? 'the city' : 'the town', urban: true, city: c });
   if (a.city) return urban(a.city);
   const hx = a.hx ?? a.x, hz = a.hz ?? a.z, c = inCity(s, hx, hz, 0); if (c) return urban(c);
   const v = villageSite(s, Math.floor(hx / VT), Math.floor(hz / VT));
@@ -6439,7 +6441,11 @@ function scanPerson(s, t) {
   const f = [PLAN_DESC[plan] || PLAN_DESC.human, 'dresses in ' + colourName(C.c1) + (C.pack ? ', carries a pack' : ''), colourName(C.c2) + ' ' + (PLAN_SKIN[plan] || 'skin')];
   if (C.voice) f.push('speaks in ' + (PERSON_VOICE[C.voice.kind] || 'soft murmurs'));
   f.push(pick(r, PERSON_TRAIT));
-  if (cul && cul.others && home.urban) f.push('one of ' + (cul.others + 1) + ' peoples sharing the city');
+  // the city's population, and the other peoples who share it
+  if (home.urban && home.city && home.city.pop) {
+    const others = cul ? [...new Set(cul.plans)].filter(p => p !== plan).map(p => 'the ' + (PLAN_FOLK[p] || 'folk')) : [];
+    f.push('one of ~' + fmtPop(home.city.pop) + ' souls in ' + home.name + (others.length ? ', living alongside ' + others.join(' and ') : ''));
+  }
   const e = {
     title, latin: (cul ? cul.folk.replace(/-\d+$/, '') + ' ' : '') + (PLAN_FOLK[plan] || 'folk'), person: true, feats: f.map(cap1), key, home, plan,
     age: Math.round(lerp(life[0], life[0] + (life[1] - life[0]) * 0.8, r())), job: pick(r, jobs), idle: pick(r, ['chatting with neighbours', 'resting in the shade', 'watching the sky', 'tending a small garden'])
