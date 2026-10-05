@@ -3425,7 +3425,7 @@ function genPlantTile(s, tx, tz) {
     if (h1 < P.sea + 0.3) continue;
     const city = nearCity && inCity(s, x, z, 30);
     if (city) {
-      if (u > 0.32 || !E.parkTrees.length || !cityGreen(city, x, z, 3)) continue;
+      if (u > 0.32 || !E.parkTrees.length || !cityGreen(city, x, z, 3) || (s.roadAll.length && roadDist(s, x, z, 9) < 8)) continue;
       const k = E.parkTrees[Math.floor(u2 * E.parkTrees.length)], sp = E.plants[k], tint = sp.tints[Math.floor(u3 * sp.tints.length)], tv = 0.82 + u4 * 0.36;
       out[k].push(x, terrH(P, x, z, 3) - sp.sink, z, lerp(sp.scale[0], sp.scale[1], Math.pow(u5, 1.5) * 0.7), u6 * TAU, tint[0] * tv, tint[1] * tv, tint[2] * tv);
       continue;
@@ -4246,24 +4246,37 @@ function cityNeighbours(s, c) {
   }
   return (c.nbrs = all.sort((a, b) => a[0] - b[0]).slice(0, 3).map(e => e[1]));
 }
+// the nearest point on a real street of city c to (x, z), kept inside the city and off the central park: [x, z] or null
+function roadJoin(c, x, z) {
+  const B = c.B, [u, v] = cityUV(c, x, z); let best = null, bd = Infinity;
+  const cand = (cu, cv) => { if (cityN(c, cu, cv) > 0.93 || parkStreet(c, cu, cv)) return; const d = Math.hypot(cu - u, cv - v); if (d < bd) { bd = d; best = [cu, cv]; } };
+  for (const k of [Math.floor(u / B), Math.ceil(u / B)]) if (streetV(c, k, Math.floor(v / B))) cand(k * B, v);
+  for (const m of [Math.floor(v / B), Math.ceil(v / B)]) if (streetH(c, m, Math.floor(u / B))) cand(u, m * B);
+  if (!best) for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const k = Math.round(u / B) + i, m = Math.round(v / B) + j; if (streetV(c, k, m) || streetV(c, k, m - 1)) cand(k * B, m * B); }
+  return best && [c.x + c.co * best[0] - c.si * best[1], c.z + c.si * best[0] + c.co * best[1]];
+}
 function buildRoad(s, a, b) {
   if (a.key > b.key) [a, b] = [b, a];
   const key = a.key + '|' + b.key; if (s.roads.has(key)) return s.roads.get(key);
   const P = s.P, r = mulberry(hashInts(a.cx, a.cz, b.cx, b.cz, P.seed | 0, 4747));
   const L = Math.hypot(b.x - a.x, b.z - a.z), fx = (b.x - a.x) / L, fz = (b.z - a.z) / L, hiLim = P.snowLine + (s.planet.type === 'ice' ? 3000 : 200);
-  const edge = (c, sg) => { const [u, v] = cityUV(c, c.x + fx * sg, c.z + fz * sg); return cityEdge(c, u, v) * 0.97; };
-  const t0 = edge(a, 1), t1 = L - edge(b, -1), ph = r() * TAU, wob = (r() - 0.5) * 0.08;
+  const edge = (c, sg) => { const [u, v] = cityUV(c, c.x + fx * sg, c.z + fz * sg); return cityEdge(c, u, v); };
+  const ea = edge(a, 1), eb = edge(b, -1), t0 = ea * 0.97, t1 = L - eb * 0.97, ph = r() * TAU, wob = (r() - 0.5) * 0.08, NI = ROAD_PTS - 2;
+  // both ends turn in to meet a real street a little inside each city, so the highway joins the grid rather than ending in a block
+  const ja = roadJoin(a, a.x + fx * ea * 0.9, a.z + fz * ea * 0.9) || [a.x + fx * t0, a.z + fz * t0];
+  const jb = roadJoin(b, b.x - fx * eb * 0.9, b.z - fz * eb * 0.9) || [a.x + fx * t1, a.z + fz * t1];
   let best = null, bc = Infinity;
   // a gently curving line; swing wider around seas and climbs when needed
   if (t1 - t0 > 250) for (const amp of [0, 0.07, -0.07, 0.15, -0.15, 0.25, -0.25]) {
     const pts = new Float32Array(ROAD_PTS * 2); let cost = Math.abs(amp) * L * 0.4, ph0 = null, ok = true;
-    for (let k = 0; k <= (ROAD_PTS - 1) * 4 && ok; k++) {
-      const t = k / ((ROAD_PTS - 1) * 4), s1 = Math.sin(Math.PI * t), d = lerp(t0, t1, t), off = (amp * s1 + wob * Math.sin(TAU * t + ph) * s1) * L;
+    for (let k = 0; k <= (NI - 1) * 4 && ok; k++) {
+      const t = k / ((NI - 1) * 4), s1 = Math.sin(Math.PI * t), d = lerp(t0, t1, t), off = (amp * s1 + wob * Math.sin(TAU * t + ph) * s1) * L;
       const x = a.x + fx * d - fz * off, z = a.z + fz * d + fx * off, h = terrH(P, x, z, 1);
       if (h < P.sea + 1.5 || h > hiLim) ok = false;
       if (ph0 !== null) cost += Math.abs(h - ph0) * 3; ph0 = h;
-      if (k % 4 === 0) { pts[k / 2] = x; pts[k / 2 + 1] = z; }
+      if (k % 4 === 0) { pts[k / 2 + 2] = x; pts[k / 2 + 3] = z; }
     }
+    pts[0] = ja[0]; pts[1] = ja[1]; pts[ROAD_PTS * 2 - 2] = jb[0]; pts[ROAD_PTS * 2 - 1] = jb[1];
     if (ok && cost < bc) { bc = cost; best = pts; }
   }
   let R = null;
@@ -4275,6 +4288,8 @@ function buildRoad(s, a, b) {
       if (k) cum.push(cum[k - 1] + Math.hypot(x - best[k * 2 - 2], z - best[k * 2 - 1]));
     }
     R = { key, a, b, pts: best, cum, len: cum[ROAD_PTS - 1], box, cars: null, lamps: null };
+    // cities already built get rebuilt so their buildings make room for the new road
+    for (const c of [a, b]) if (s.ctiles.has(c.key)) { s.ctiles.delete(c.key); s.cdirty = true; }
   }
   s.roads.set(key, R); return R;
 }
@@ -4359,6 +4374,7 @@ function genCityTile(s, tx, tz) {
   const communal = (i, j, bk) => {
     const bu = (i + 0.5) * B, bv = (j + 0.5) * B, [x, z] = W(bu, bv), y = c.hAt(bu, bv);
     if (bk === 2) {
+      if (onRoad(x, z, inner * 0.45 + 6)) return;
       // a fountain basin with a monument at its heart, ringed by lamps and idlers
       const R0 = inner * (0.15 + r() * 0.07), col = jit(r, pick(r, st.walls), 0.05);
       out.inst[1].push(x, y - 1, z, c.rot, R0 * 2, 1.9, R0 * 2, r(), col[0], col[1], col[2], 2);
@@ -4377,6 +4393,8 @@ function genCityTile(s, tx, tz) {
     }
   };
   const nhAt = (i, j) => nh[clamp(j + n, 0, N - 1) * N + clamp(i + n, 0, N - 1)];
+  // keep buildings, fountains and lamps off the highway where it turns in to meet the streets
+  const onRoad = (x, z, m) => s.roadAll.length > 0 && roadDist(s, x, z, m) < m;
   const single = (i, j) => {
     const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = cityN(c, bu, bv);
     const isMega = mega.has(i + ',' + j);
@@ -4387,6 +4405,7 @@ function genCityTile(s, tx, tz) {
     const inner = B - c.SW, m = c.SW / 2, sub = f < 0.25 ? 1 : r() < 0.5 ? 2 : 4;
     if (isMega) {
       const [x, z] = W(bu, bv), y = hmin - 2, w0 = inner * 0.94, h = 380 + r() * 760, kind = st.tall[1] > st.tall[0] || r() < 0.4 ? 1 : 0, col = jit(r, pick(r, st.walls), 0.06);
+      if (onRoad(x, z, w0 * 0.71 + 6)) return;
       let top = y, first = true;
       for (const [w, th] of [[w0, h * 0.42], [w0 * 0.74, h * 0.33], [w0 * 0.5, h * 0.25]]) { out.inst[kind].push(x, top, z, c.rot, w, th + (first ? 2 : 0), w, r(), col[0], col[1], col[2], (st.neon ? 1 : 0) + (first ? 0 : 2)); top += th + (first ? 2 : 0); first = false; if (st.cyber || r() < 0.5) out.lamps.push(x, top, z, 3.5, 1, 0.12, 0.08, 1); }
       out.inst[3].push(x, top, z, c.rot, w0 * 0.16, h * 0.16, w0 * 0.16, r(), col[0] * 0.8, col[1] * 0.8, col[2] * 0.8, 2); top += h * 0.16;
@@ -4406,6 +4425,7 @@ function genCityTile(s, tx, tz) {
       const kind = pickW(h > 45 ? st.tall : st.low), cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, [x, z] = W(cu, cv), y = hmin - 2;
       const round = kind > 0, sw = round ? Math.min(lw, ld) * (0.8 + r() * 0.2) : lw * (0.75 + r() * 0.25), sd = round ? sw : ld * (0.75 + r() * 0.25);
       const hh = kind === 2 ? Math.min(h, sw * 0.9) : h, col = jit(r, pick(r, st.walls), 0.08);
+      if (onRoad(x, z, Math.hypot(sw, sd) / 2 + 6)) continue;
       out.inst[kind].push(x, y, z, c.rot, sw, hh + 2, sd, r(), col[0], col[1], col[2], st.neon ? 1 : 0);
       let top = y + hh + 2;
       if (kind < 2 && h > 30 && r() < st.capP) { const ch = sw * (0.4 + r() * 0.9); out.inst[st.cap].push(x, top, z, c.rot, sw * 0.7, ch, sd * 0.7, r(), col[0] * 0.8, col[1] * 0.8, col[2] * 0.8, 2); top += ch; }
@@ -4424,6 +4444,7 @@ function genCityTile(s, tx, tz) {
     if (inside.length < blocks.length) { for (const [i, j] of inside) single(i, j); return; }
     const m = c.SW / 2, u0 = i0 * B + m, u1 = (i1 + 1) * B - m, v0 = j0 * B + m, v1 = (j1 + 1) * B - m;
     const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, wu = u1 - u0, wv = v1 - v0, wm = Math.min(wu, wv), f = cityN(c, cu, cv);
+    if (onRoad(...W(cu, cv), Math.hypot(wu, wv) / 2 + 6)) { for (const [i, j] of inside) single(i, j); return; }
     const hs = []; for (let j = j0; j <= j1 + 1; j++) for (let i = i0; i <= i1 + 1; i++) hs.push(nhAt(i, j));
     const hmin = Math.min(...hs); if (Math.max(...hs) - hmin > 40 || hmin < P.sea + 1.5) return;
     const y = hmin - 2, col = jit(r, pick(r, st.walls), 0.07), neon = st.neon ? 1 : 0, list = [];
@@ -4496,7 +4517,7 @@ function genCityTile(s, tx, tz) {
     if (cityN(c, u, v) > 1 || inParkRect(c, u, v, 2)) continue;
     if (ax ? !streetH(c, k, Math.floor(t / B)) : !streetV(c, k, Math.floor(t / B))) continue;
     const [x, z] = W(u, v), y = c.hAt(u, v) + 6;
-    if (y < P.sea + 7) continue;
+    if (y < P.sea + 7 || onRoad(x, z, 6)) continue;
     const lcol = st.cyber ? pick(r, [st.n1, st.n2, lc, lc]) : lc;
     out.lamps.push(x, y, z, 0.6, lcol[0], lcol[1], lcol[2], 0);
   }
