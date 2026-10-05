@@ -5395,6 +5395,12 @@ const Music = {
     const tn = C.createBufferSource(); tn.buffer = nb; tn.loop = true; tn.playbackRate.value = 1.3;
     E.tf = C.createBiquadFilter(); E.tf.type = 'bandpass'; E.tf.frequency.value = 380; E.tf.Q.value = 0.6;
     E.tg = C.createGain(); E.tg.gain.value = 0; tn.connect(E.tf); E.tf.connect(E.tg); E.tg.connect(this.sfx); tn.start();
+    // buggy boost: a rising turbo whine over a rush of intake air
+    E.tw = C.createOscillator(); E.tw.type = 'triangle'; E.tw.frequency.value = 900;
+    E.twg = C.createGain(); E.twg.gain.value = 0; E.tw.connect(E.twg); E.twg.connect(this.sfx); E.tw.start();
+    const ta = C.createBufferSource(); ta.buffer = wb; ta.loop = true; ta.playbackRate.value = 0.9;
+    E.taf = C.createBiquadFilter(); E.taf.type = 'bandpass'; E.taf.frequency.value = 900; E.taf.Q.value = 0.8;
+    E.tag = C.createGain(); E.tag.gain.value = 0; ta.connect(E.taf); E.taf.connect(E.tag); E.tag.connect(this.sfx); ta.start();
     E.bugNext = 0;
     // city: traffic rumble with tyre hiss, and a murmuring crowd (noise shaped by a syllable-rate wobble)
     const ct = C.createBufferSource(); ct.buffer = nb; ct.loop = true; ct.playbackRate.value = 0.7;
@@ -5482,14 +5488,19 @@ const Music = {
     if (kind === 'rock' || kind === 'thud' || kind === 'boom') { const o = C.createOscillator(), og = C.createGain(), L = kind === 'boom' ? 1.5 : 0.15; o.frequency.setValueAtTime(kind === 'boom' ? 55 : kind === 'thud' ? 90 : 160, t); o.frequency.exponentialRampToValueAtTime(kind === 'boom' ? 24 : 45, t + L * 0.8); og.gain.setValueAtTime(v * (kind === 'boom' ? 0.9 : 0.5), t); og.gain.exponentialRampToValueAtTime(0.0005, t + L); o.connect(og); og.connect(this.sfx); o.start(t); o.stop(t + L + 0.05); }
     src.start(t, Math.random() * 0.8); src.stop(t + K[3] + 0.05);
   },
-  // moon buggy: level 0..1 (0 = off), rpm 0..1, rough 0..1 (tyres on terrain)
-  buggy(level, rpm, rough) {
+  // moon buggy: level 0..1 (0 = off), rpm 0..1, rough 0..1 (tyres), boost 0..1 (Shift held), acc = acceleration in m/s² (negative when braking)
+  buggy(level, rpm, rough, boost, acc) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, E = this.eng; if (level > 0 && t < E.bugNext) return; E.bugNext = t + 0.06;
-    const f = 34 + rpm * 85 + level * 6;
-    E.b1.frequency.setTargetAtTime(f, t, 0.08); E.b2.frequency.setTargetAtTime(f * 1.51, t, 0.08); E.bl.frequency.setTargetAtTime(6 + rpm * 14, t, 0.1);
-    E.bf.frequency.setTargetAtTime(180 + rpm * 700 + level * 500, t, 0.08);
-    E.bg.gain.setTargetAtTime(level * 0.075, t, level ? 0.1 : 0.3); E.tg.gain.setTargetAtTime(rough * 0.45, t, 0.15);
+    boost = boost || 0; acc = acc || 0;
+    // like the ship: the engine strains louder and higher while it pulls hard, and falls away while slowing
+    const push = clamp(acc / 8, -1, 1), f = (34 + rpm * 85 + level * 6) * (1 + boost * 0.18 + Math.max(push, 0) * 0.08);
+    E.b1.frequency.setTargetAtTime(f, t, 0.08); E.b2.frequency.setTargetAtTime(f * 1.51, t, 0.08); E.bl.frequency.setTargetAtTime(6 + rpm * 14 + boost * 6, t, 0.1);
+    E.bf.frequency.setTargetAtTime(180 + rpm * 700 + level * 500 + boost * 650 + Math.max(push, 0) * 300, t, 0.08);
+    E.bg.gain.setTargetAtTime(level * 0.075 * (1 + boost * 0.45 + Math.max(push, 0) * 0.25 - Math.max(-push, 0) * 0.3), t, level ? 0.1 : 0.3);
+    E.tg.gain.setTargetAtTime(rough * 0.45 * (1 + Math.max(-push, 0) * 0.8), t, 0.15);
+    E.tw.frequency.setTargetAtTime(700 + rpm * 1500 + boost * 500, t, 0.12); E.twg.gain.setTargetAtTime(boost * level * (0.006 + rpm * 0.01), t, boost ? 0.25 : 0.12);
+    E.taf.frequency.setTargetAtTime(600 + rpm * 1800, t, 0.15); E.tag.gain.setTargetAtTime(boost * level * (0.05 + Math.max(push, 0) * 0.08), t, boost ? 0.2 : 0.15);
   },
   // scanner: a very low, pulsing hum that rises a little as the scan progresses (level 0 = off)
   scan(level, prog) {
@@ -6278,7 +6289,8 @@ function driveStep(s, dt) {
   // engine through gears, plus tyre rumble
   const av = Math.abs(b.v), gs = [0, 6, 12, 19, 27, 40];
   let g = 0; while (g < 4 && av > gs[g + 1]) g++;
-  Music.buggy(0.55 + 0.45 * thr, clamp((av - gs[g]) / (gs[g + 1] - gs[g]), 0, 1) * 0.8 + g * 0.05, b.air ? 0 : Math.min(av / 22, 1));
+  if (dt > 0) b.acc = lerp(b.acc || 0, (av - (b.av0 ?? av)) / dt, 1 - Math.exp(-dt * 5)); b.av0 = av;
+  Music.buggy(0.55 + 0.45 * thr, clamp((av - gs[g]) / (gs[g + 1] - gs[g]), 0, 1) * 0.8 + g * 0.05, b.air ? 0 : Math.min(av / 22, 1), boost && thr && !b.air ? 1 : 0, b.acc);
 }
 function groundKind(s) {
   const P = s.P, t = s.planet.type, h = s.footY;
