@@ -128,6 +128,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div><b>E</b>get in / out of a ship or buggy beside you</div>
   <div><b>Hold click</b>scan a creature, person or plant</div>
   <div><b>B / L</b>buggy / fly from anywhere</div>
+  <div><b>Buggy</b>W gas &middot; <b style="width:auto">Shift</b> up to 120 km/h &middot; <b style="width:auto">Space</b> brake</div>
   <div class="s">Anywhere</div>
   <div><b>F</b>light on / off</div>
   <div><b>Right drag</b>look around &middot; <b style="width:auto">Wheel</b> zoom</div>
@@ -1744,7 +1745,15 @@ void main(){
   gl_Position=uVP*vec4(rel,1.);
 }`, NOISE_GLSL + TERR_GLSL + SKY_GLSL + SHADOW_GLSL + `in vec3 vW; in vec3 vN; out vec4 o;
 uniform vec3 uCam, uGrass, uGrass2, uForest, uSand, uRock, uSnow, uAlt, uStrA, uStrB, uG1, uG2, uG3, uPave, uNeonA, uNeonB, uPondC, uRoadLamp; uniform float uSea, uSnowLine, uTreeLine, uTreeDen, uGas, uLava, uWet; uniform vec4 uPat;
-uniform vec4 uCityP[16], uCityQ[16]; uniform highp sampler2D uRoads; uniform int uRoadN;
+uniform vec4 uCityP[16], uCityQ[16], uCityA[16]; uniform highp sampler2D uRoads; uniform int uRoadN;
+// street kinds (mirrors lineT() / lineHW() in JS): 0 street, 1 avenue every 6th line, 2 promenade every 12th; offsets < 0 = none
+const float AV_MED=1.4;
+int lineType(int i, int ax, float k){ vec4 A=uCityA[i]; float ao=ax==0?A.x:A.y, po=ax==0?A.z:A.w;
+  if(ao>=0.&&abs(mod(k-ao+.5,6.)-.5)<.1) return 1;
+  if(po>=0.&&abs(mod(k-po+.5,12.)-.5)<.1) return 2;
+  return 0; }
+float lineHW(int t, float W){ return t==1?W*1.15:t==2?W*.9:W*.5; }
+float hh2(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 // superblocks (mirrors mergeOf() / superPark() in JS)
 int mergeOf(int i, ivec2 c){ vec4 PR=uCityP[i], Q=uCityQ[i]; vec2 b0=vec2(c*2);
   if(PR.x<=PR.z&&b0.x+1.>PR.x-.5&&b0.x<PR.z+.5&&b0.y+1.>PR.y-.5&&b0.y<PR.w+.5) return 0;
@@ -1817,20 +1826,44 @@ void main(){
   for(int i=0;i<16;i++){ vec4 C=uCity[i]; if(C.z<=0.) continue; vec2 d=p-C.xy; float dd=length(d); if(dd>C.z*sqrt(uCityS[i].x)*(1.+uCityS[i].z)+60.||alt<.5) continue;
     float cr=cos(C.w), sr=sin(C.w); vec2 l=vec2(cr*d.x+sr*d.y,-sr*d.x+cr*d.y);
     float dn=dd<1e-3?0.:dd*C.z/cityEdge(i,l); if(dn>C.z+60.) continue;
-    float B=uCityB[i].x, W=uCityB[i].y; vec2 g=streetG(i,l,B); float sd=min(g.x,g.y);
-    float dash=step(sd,.2)*step(.5,fract((g.x<g.y?l.y:l.x)/7.));
+    float B=uCityB[i].x, W=uCityB[i].y; vec2 g=streetG(i,l,B), kk=floor(l/B+.5);
+    // which street corridor this is (mirrors corridor() in JS): avenues and promenades are wider; at a crossing the road wins
+    int tx=lineType(i,0,kk.x), ty=lineType(i,1,kk.y); float hx=lineHW(tx,W), hy=lineHW(ty,W); vec2 ee=g-vec2(hx,hy);
+    bool inter=ee.x<0.&&ee.y<0., useX=ee.x<ee.y; if(inter&&((tx==2)!=(ty==2))) useX=ty==2;
+    int lt=useX?tx:ty; float gd=useX?g.x:g.y, hw=useX?hx:hy, se=useX?ee.x:ee.y, along=useX?l.y:l.x;
     vec3 pave=uPave*(.6+.25*v2), road=vec3(.06,.06,.065)*(.9+.2*v2);
     // the central park swallows its inner streets
-    vec4 PR=uCityP[i]; vec2 pk0=PR.xy*B+W*.5, pk1=(PR.zw+1.)*B-W*.5;
+    vec4 PR=uCityP[i];
+    vec2 pk0=PR.xy*B+vec2(lineHW(lineType(i,0,PR.x),W),lineHW(lineType(i,1,PR.y),W)), pk1=(PR.zw+1.)*B-vec2(lineHW(lineType(i,0,PR.z+1.),W),lineHW(lineType(i,1,PR.w+1.),W));
     bool cpark=PR.x<=PR.z&&l.x>pk0.x&&l.y>pk0.y&&l.x<pk1.x&&l.y<pk1.y;
-    vec3 cc=sd<W*.5-2.2?mix(road,vec3(.85,.78,.45),dash*.8):sd<W*.5?pave*1.25:pave;
-    int bk=cpark?1:sd>=W*.5?blockKind(i,ivec2(floor(l/B))):0;
-    float green=0., pf=smoothstep(C.z+60.,C.z,dn)*(1.-smoothstep(.12,.22,slope)); cpave=max(cpave,smoothstep(C.z+60.,C.z,dn));
+    float rd=0., green=0., rEdge=hw-(lt==1?2.6:2.2);
+    vec3 cc=pave;
+    if(se<0.){
+      if(lt==2){
+        // promenade: warm brick paving in a running bond, a kerbed strip of lawn and trees down the middle
+        float row=floor(gd/.9), bond=floor(along/1.8+row*.5), bh=hh2(vec2(row,bond));
+        cc=mix(uPave,vec3(.72,.5,.38),.45)*(.95+.2*v2)*(.86+.2*bh);
+        cc*=1.-.25*(smoothstep(.06,0.,abs(fract(gd/.9)-.5)-.44)+smoothstep(.05,0.,abs(fract(along/1.8+row*.5)-.5)-.47));
+        if(gd>hw-.6) cc=pave*1.3;
+        float sw=hw*.22;
+        if(!inter&&gd<sw+.3){ cc=gd<sw?mix(uGrass,uGrass2,v1)*(.85+.3*v2):uPave*1.35; green=step(gd,sw); }
+      } else if(lt==1&&!inter&&gd<AV_MED){
+        // avenue median: a kerb around a planted strip
+        cc=gd<AV_MED-.3?mix(uGrass,uGrass2,v1)*(.8+.3*v2):uPave*1.3; green=step(gd,AV_MED-.3);
+      } else if(gd<rEdge){
+        rd=1.;
+        float dash=step(gd,.2)*step(.5,fract(along/7.))*float(lt==0);
+        if(lt==1&&!inter){ float mid=(AV_MED+rEdge)*.5; dash=step(abs(gd-mid),.12)*step(.45,fract(along/9.))+step(abs(gd-AV_MED-.35),.08)*.6; }
+        cc=mix(road,vec3(.85,.78,.45),min(dash,1.)*.8);
+      } else cc=pave*1.25;
+    }
+    int bk=cpark?1:se>=0.?blockKind(i,ivec2(floor(l/B))):0;
+    float pf=smoothstep(C.z+60.,C.z,dn)*(1.-smoothstep(.12,.22,slope)); cpave=max(cpave,smoothstep(C.z+60.,C.z,dn));
     if(bk==1){
       // park: lawns crossed by winding gravel paths, a walk around the edge, a pond in the big parks
       vec3 lawn=mix(uGrass,uGrass2,v1)*(.85+.3*v2);
       float path=smoothstep(.07,.04,abs(gn(l/42.+vec2(float(i)*7.1,3.3))));
-      vec2 bl=cpark?min(l-pk0,pk1-l):vec2(sd-W*.5);
+      vec2 bl=cpark?min(l-pk0,pk1-l):vec2(se);
       path=max(path,smoothstep(2.6,2.,min(bl.x,bl.y)));
       cc=mix(lawn,uPave*1.3*(.85+.2*v2),path); green=1.-path;
       vec2 pc=vec2(0.), pr=vec2(0.); bool hasPond=false;
@@ -1840,14 +1873,15 @@ void main(){
         float sh=smoothstep(1.,.88,e); cc=mix(cc,uPondC,sh); green*=1.-sh; pond=max(pond,sh*pf); }
     } else if(bk==2){
       // plaza: chequered paving, concentric rings and a star around the fountain
-      vec2 bl=l-(floor(l/B)+.5)*B; float rr=length(bl);
+      vec2 bi=floor(l/B), b0=bi*B+vec2(lineHW(lineType(i,0,bi.x),W),lineHW(lineType(i,1,bi.y),W)), b1=(bi+1.)*B-vec2(lineHW(lineType(i,0,bi.x+1.),W),lineHW(lineType(i,1,bi.y+1.),W));
+      vec2 bl=l-(b0+b1)*.5; float rr=length(bl);
       float tile=mod(floor(bl.x/2.5)+floor(bl.y/2.5),2.), ring=smoothstep(.3,.1,abs(fract(rr/6.)-.5));
       float star=smoothstep(.85,1.,cos(atan(bl.y,bl.x)*8.))*step(rr,B*.32);
       cc=uPave*(1.3+.15*tile)*(.88+.18*v2)*mix(1.,.78,max(ring*.6,star*.7));
     }
     c=mix(c,cc,pf);
-    float along=g.x<g.y?l.y:l.x, rd=step(sd,W*.5-2.2)*(cpark?0.:1.), edge=smoothstep(W*.5-7.,W*.5-2.2,sd);
-    float streak=texture(uNoise,vec3(along/45.,.55,sd/2.5)).r;
+    rd*=cpark?0.:1.; float edge=smoothstep(rEdge-4.8,rEdge,gd);
+    float streak=texture(uNoise,vec3(along/45.,.55,gd/2.5)).r;
     vec3 neonC=uCityB[i].z>.5?mix(uNeonA,uNeonB,smoothstep(.42,.58,texture(uNoise,vec3(along/120.,.3,float(i)*.1)).r)):vec3(1.,.7,.4);
     cem+=neonC*(1.-dayF())*pf*(1.-green)*(rd*(.003+uWet*(.015+.06*edge)*(.3+streak))+(1.-rd)*.003);
   }
@@ -3419,14 +3453,27 @@ function genPlantTile(s, tx, tz) {
   const n = 10, step = TT / n, w = new Float64Array(ns);
   // city parks are planted with the world's own trees
   if (!E.parkTrees) { E.parkTrees = []; E.plants.forEach((sp, k) => { if (sp.tall && sp.kind !== 'rock' && sp.kind !== 'crag') E.parkTrees.push(k); }); }
-  const nearCity = s.civ && s.civ.lv >= 2 && inCity(s, (tx + 0.5) * TT, (tz + 0.5) * TT, TT);
+  const nearCity = s.civ && s.civ.lv >= 2 && inCity(s, (tx + 0.5) * TT, (tz + 0.5) * TT, TT), pmSeen = new Set();
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = tx * TT + (i + r()) * step, z = tz * TT + (j + r()) * step, u = r(), u2 = r(), u3 = r(), u4 = r(), u5 = r(), u6 = r();
     const h1 = terrH(P, x, z, 1);
     if (h1 < P.sea + 0.3) continue;
     const city = nearCity && inCity(s, x, z, 30);
     if (city) {
-      if (u > 0.32 || !E.parkTrees.length || !cityGreen(city, x, z, 3) || (s.roadAll.length && roadDist(s, x, z, 9) < 8)) continue;
+      if (!E.parkTrees.length) continue;
+      // a promenade's planted strip: snap onto its centre line for an even row of trees, one every 12 m
+      const [cu, cv] = cityUV(city, x, z), cr = corridor(city, cu, cv);
+      if (cr.t === 2 && cr.e < 0 && !cr.inter) {
+        const B = city.B, L = Math.round((cr.ax ? cv : cu) / B) * B, ta = Math.round(((cr.ax ? cu : cv) - 4) / 12) * 12 + 4, pu = cr.ax ? ta : L, pv = cr.ax ? L : ta;
+        const pc = corridor(city, pu, pv), [px, pz] = cityXZ(city, pu, pv);
+        if (pc.t !== 2 || pc.inter || pc.e > -4 || Math.abs(Math.round(ta / B) * B - ta) < lineHW(city, lineT(city, 1 - cr.ax, Math.round(ta / B))) + 4 || cityN(city, pu, pv) > 0.95 || inParkRect(city, pu, pv, 2)) continue;
+        if (Math.floor(px / TT) !== tx || Math.floor(pz / TT) !== tz || pmSeen.has(pu + ',' + pv)) continue;
+        pmSeen.add(pu + ',' + pv);
+        const k = E.parkTrees[Math.floor(u2 * E.parkTrees.length)], sp = E.plants[k], tint = sp.tints[Math.floor(u3 * sp.tints.length)], tv = 0.82 + u4 * 0.36;
+        out[k].push(px, terrH(P, px, pz, 3) - sp.sink, pz, lerp(sp.scale[0], sp.scale[1], 0.25 + u5 * 0.3), u6 * TAU, tint[0] * tv, tint[1] * tv, tint[2] * tv);
+        continue;
+      }
+      if (u > 0.32 || !cityGreen(city, x, z, 3) || (s.roadAll.length && roadDist(s, x, z, 9) < 8)) continue;
       const k = E.parkTrees[Math.floor(u2 * E.parkTrees.length)], sp = E.plants[k], tint = sp.tints[Math.floor(u3 * sp.tints.length)], tv = 0.82 + u4 * 0.36;
       out[k].push(x, terrH(P, x, z, 3) - sp.sink, z, lerp(sp.scale[0], sp.scale[1], Math.pow(u5, 1.5) * 0.7), u6 * TAU, tint[0] * tv, tint[1] * tv, tint[2] * tv);
       continue;
@@ -4100,6 +4147,7 @@ function cityEdge(c, u, v) {
 }
 const cityN = (c, u, v) => { const d = Math.hypot(u, v); return d < 1e-6 ? 0 : d / cityEdge(c, u, v); };
 const cityUV = (c, x, z) => { const dx = x - c.x, dz = z - c.z; return [c.co * dx + c.si * dz, -c.si * dx + c.co * dz]; };
+const cityXZ = (c, u, v) => [c.x + c.co * u - c.si * v, c.z + c.si * u + c.co * v];
 // how far (x, z) lies outside the city's edge; negative inside
 function cityOut(c, x, z) { const [u, v] = cityUV(c, x, z), d = Math.hypot(u, v); return d < 1e-6 ? -c.R : d - cityEdge(c, u, v); }
 // blocks: 0 buildings, 1 park, 2 plaza; mirrored by blockKind() in the terrain shader
@@ -4125,6 +4173,35 @@ function superPark(c, i, j, mk) { const [a, b] = superAnchor(i, j, mk); return (
 // is the street along u = k*B present through block row j / the street along v = m*B through block column i
 const streetV = (c, k, j) => !(k & 1) || !(mergeOf(c, (k - 1) / 2, Math.floor(j / 2)) & 1);
 const streetH = (c, m, i) => !(m & 1) || !(mergeOf(c, Math.floor(i / 2), (m - 1) / 2) & 2);
+// street lines come in three kinds: 0 ordinary street, 1 avenue (wide, two lanes each way and a planted median),
+// 2 promenade (car-free, tiled, tree-lined, with benches and festoon lights). Only even lines, which superblocks never close.
+// c.lines = [avenue offset along u, along v, promenade offset along u, along v]; -1 = none. Mirrored by lineType() in the shader
+const AV_STEP = 6, PM_STEP = 12, AV_MED = 1.4;
+function lineT(c, ax, k) {
+  const L = c.lines; if (!L) return 0;
+  const ao = L[ax], po = L[2 + ax];
+  if (ao >= 0 && (((k - ao) % AV_STEP) + AV_STEP) % AV_STEP === 0) return 1;
+  if (po >= 0 && (((k - po) % PM_STEP) + PM_STEP) % PM_STEP === 0) return 2;
+  return 0;
+}
+const lineHW = (c, t) => t === 1 ? c.SW * 1.15 : t === 2 ? c.SW * 0.9 : c.SW / 2;
+// which street corridor (u, v) is in: e < 0 inside it (metres beyond its edge otherwise), its kind, distance to its centre line, and
+// whether this is a crossing. At a crossing of a road and a promenade the road wins (cars pass through)
+function corridor(c, u, v) {
+  const B = c.B, ku = Math.round(u / B), kv = Math.round(v / B);
+  const gx = streetV(c, ku, Math.floor(v / B)) ? Math.abs(u - ku * B) : B, gy = streetH(c, kv, Math.floor(u / B)) ? Math.abs(v - kv * B) : B;
+  const tx = lineT(c, 0, ku), ty = lineT(c, 1, kv), ex = gx - lineHW(c, tx), ey = gy - lineHW(c, ty), inter = ex < 0 && ey < 0;
+  let useX = ex < ey; if (inter && (tx === 2) !== (ty === 2)) useX = ty === 2;
+  return useX ? { e: ex, t: tx, gd: gx, inter, ax: 0 } : { e: ey, t: ty, gd: gy, inter, ax: 1 };
+}
+// the kind of street an agent is travelling along, and its lane offset from the centre line (right-hand side)
+function streetKindOf(c, a) { return a.dir & 1 ? lineT(c, 0, Math.round(a.u / c.B)) : lineT(c, 1, Math.round(a.v / c.B)); }
+function laneOf(c, a, drive) {
+  if (a.alt) return 0;
+  const t = streetKindOf(c, a), hw = lineHW(c, t);
+  if (drive) return t === 1 ? AV_MED + (hw - 2.2 - AV_MED) * (a.lsel ? 0.72 : 0.28) : 2.4;
+  return t === 2 ? a.pf * (hw - 1.5) : (hw - 1.4) * a.ljit;
+}
 // distance to the nearest street that is really there
 function streetDist(c, u, v) {
   const B = c.B, k = Math.round(u / B), m = Math.round(v / B);
@@ -4138,8 +4215,12 @@ function superPond(c, u, v, k) {
   if (mergeOf(c, I, J) !== 3 || !superPark(c, I * 2, J * 2, 3)) return false;
   const a = (u - (I * 2 + 1) * B) / (B * 0.34 * k), b = (v - (J * 2 + 1) * B) / (B * 0.26 * k); return a * a + b * b < 1;
 }
-// inside the central park, where its inner streets give way to lawns (m = margin from its outer streets)
-function inParkRect(c, u, v, m) { const p = c.park, B = c.B; return !!p && u > p[0] * B + m && u < (p[2] + 1) * B - m && v > p[1] * B + m && v < (p[3] + 1) * B - m; }
+// inside the central park, where its inner streets give way to lawns (m = margin beyond an ordinary street's half width)
+function inParkRect(c, u, v, m) {
+  const p = c.park, B = c.B; if (!p) return false;
+  const e = k => lineHW(c, k) - c.SW / 2 + m;
+  return u > p[0] * B + e(lineT(c, 0, p[0])) && u < (p[2] + 1) * B - e(lineT(c, 0, p[2] + 1)) && v > p[1] * B + e(lineT(c, 1, p[1])) && v < (p[3] + 1) * B - e(lineT(c, 1, p[3] + 1));
+}
 function inPond(c, u, v, k) { const o = c.pond; if (!o) return false; const a = (u - o[0]) / (o[2] * k), b = (v - o[1]) / (o[3] * k); return a * a + b * b < 1; }
 // streets that run through the central park have been turned into lawn
 const parkStreet = (c, u, v) => inParkRect(c, u, v, 1);
@@ -4148,7 +4229,10 @@ function cityGreen(c, x, z, m) {
   const [u, v] = cityUV(c, x, z), B = c.B, h = c.SW / 2 + m;
   if (cityN(c, u, v) > 1) return false;
   if (inParkRect(c, u, v, h)) return !inPond(c, u, v, 1.15);
-  if (streetDist(c, u, v) < h) return false;
+  const cr = corridor(c, u, v);
+  // the planted strip down the middle of a promenade
+  if (cr.t === 2 && !cr.inter && cr.e < 0) return cr.gd < lineHW(c, 2) * 0.22 - m * 0.5;
+  if (cr.e < m) return false;
   return blockKind(c, Math.floor(u / B), Math.floor(v / B)) === 1 && !superPond(c, u, v, 1.15);
 }
 function cityCore(s, cx, cz) {
@@ -4194,6 +4278,11 @@ function cityCore(s, cx, cz) {
           c.pond = [(i0 + wi / 2) * c.B, (j0 + hj / 2) * c.B, wi * c.B * 0.24, hj * c.B * 0.24];
           if (c.plaza[0] >= c.park[0] && c.plaza[0] <= c.park[2] && c.plaza[1] >= c.park[1] && c.plaza[1] <= c.park[3]) c.plaza = [c.park[2] + 1, c.plaza[1]];
         }
+        // big cities get avenues; towns and up get car-free promenades (on one axis only in smaller places)
+        const eo = () => Math.floor(r() * 3) * 2;
+        c.lines = [R > 700 ? eo() : -1, R > 700 ? eo() : -1, R > 380 ? eo() + 2 : -1, R > 900 ? eo() + 2 : -1];
+        if (c.lines[0] >= 0 && (c.lines[2] - c.lines[0]) % AV_STEP === 0) c.lines[2] += 2;
+        if (c.lines[1] >= 0 && c.lines[3] >= 0 && (c.lines[3] - c.lines[1]) % AV_STEP === 0) c.lines[3] += 2;
         P.pads = (P.pads || []).concat([c]).sort((a, b) => a.key < b.key ? -1 : 1);
       }
     }
@@ -4256,13 +4345,13 @@ function cityExits(c, dx, dz) {
   for (const [au, av] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const sc = au * du + av * dv; if (sc < 0.3) continue;
     const lat = (au ? dv : du) * ed, m0 = Math.round(lat / B / 2) * 2;
-    for (const m of [m0, m0 + 2, m0 - 2]) {
-      const L = m * B, P = t => au ? [t * au, L] : [L, t * av];
-      if (cityN(c, ...P(0)) > 0.75) continue;
+    for (const m of [m0, m0 + 2, m0 - 2, m0 + 4, m0 - 4]) {
+      const L = m * B, P = t => au ? [t * au, L] : [L, t * av], kind = lineT(c, au ? 1 : 0, m);
+      if (kind === 2 || cityN(c, ...P(0)) > 0.75) continue;
       let t = 0, tE = -1;
       while (t < c.Rmax * 1.6) { const f = cityN(c, ...P(t)); if (f > 1) break; if (f <= 0.95) tE = t; t += B / 8; }
       if (tE < B || [0, 0.5, 1].some(k => parkStreet(c, ...P(tE - k * B)))) continue;
-      out.push({ E: W(...P(tE)), A: W(...P(t + Math.max(140, B * 2.2))), score: sc - Math.abs(m - m0) * 0.05 });
+      out.push({ E: W(...P(tE)), A: W(...P(t + Math.max(140, B * 2.2))), score: sc - Math.abs(m - m0) * 0.05 + (kind === 1 ? 0.25 : 0) });
     }
   }
   return out.sort((p, q) => q.score - p.score);
@@ -4382,14 +4471,16 @@ function genCityTile(s, tx, tz) {
   // great cities: a handful of tiered mega-skyscrapers near the centre
   const mega = new Set();
   if (c.R > 1000) for (let k = 0, nm = 2 + Math.floor(r() * 5); k < nm; k++) mega.add(Math.floor((r() - 0.5) * c.R * 0.55 / B) + ',' + Math.floor((r() - 0.5) * c.R * 0.55 / B));
-  const lc = cul.glowC, inner = B - c.SW;
+  const lc = cul.glowC;
+  // a block's buildable area between the edges of its streets (some of them avenues or promenades): [u0, u1, v0, v1]
+  const blockBox = (i0, j0, i1, j1) => [i0 * B + lineHW(c, lineT(c, 0, i0)), (i1 + 1) * B - lineHW(c, lineT(c, 0, i1 + 1)), j0 * B + lineHW(c, lineT(c, 1, j0)), (j1 + 1) * B - lineHW(c, lineT(c, 1, j1 + 1))];
   const stroll = (u, v, roam) => {
     const si = pick(r, cul.people), C = E.creatures[si], [px, pz] = W(u, v);
     out.agents.push({ si, id: (r() * 1e9) | 0, hx: px, hz: pz, roam, x: px, z: pz, y: 0, stale: true, head: r() * TAU, phase: r() * TAU, graze: 0, walk: 0, spd: 0, state: 'graze', t: r() * 6, tx: px, tz: pz, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 15, cm: 4 });
   };
   // parks and plazas: lawns and paths are painted by the terrain shader, trees grow from the plant tiles
   const communal = (i, j, bk) => {
-    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, [x, z] = W(bu, bv), y = c.hAt(bu, bv);
+    const bb = blockBox(i, j, i, j), bu = (bb[0] + bb[1]) / 2, bv = (bb[2] + bb[3]) / 2, [x, z] = W(bu, bv), y = c.hAt(bu, bv), inner = Math.min(bb[1] - bb[0], bb[3] - bb[2]);
     if (bk === 2) {
       // a fountain basin with a monument at its heart, ringed by lamps and idlers
       const R0 = inner * (0.15 + r() * 0.07), col = jit(r, pick(r, st.walls), 0.05);
@@ -4412,13 +4503,13 @@ function genCityTile(s, tx, tz) {
   // where a highway runs in along a street, its own lamps take over from the street lamps
   const onRoad = (x, z, m) => s.roadAll.length > 0 && roadDist(s, x, z, m) < m;
   const single = (i, j) => {
-    const bu = (i + 0.5) * B, bv = (j + 0.5) * B, f = cityN(c, bu, bv);
+    const bb = blockBox(i, j, i, j), bu = (bb[0] + bb[1]) / 2, bv = (bb[2] + bb[3]) / 2, f = cityN(c, bu, bv);
     const isMega = mega.has(i + ',' + j);
     if (!isMega && r() < 0.04 + f * 0.08) return;
     const hs = [nhAt(i, j), nhAt(i + 1, j), nhAt(i, j + 1), nhAt(i + 1, j + 1)];
     const hmin = Math.min(...hs), hmax = Math.max(...hs);
     if (hmax - hmin > 30 || hmin < P.sea + 1.5) return;
-    const inner = B - c.SW, m = c.SW / 2, sub = f < 0.25 ? 1 : r() < 0.5 ? 2 : 4;
+    const iu = bb[1] - bb[0], iv = bb[3] - bb[2], inner = Math.min(iu, iv), sub = f < 0.25 ? 1 : r() < 0.5 ? 2 : 4;
     if (isMega) {
       const [x, z] = W(bu, bv), y = hmin - 2, w0 = inner * 0.94, h = 380 + r() * 760, kind = st.tall[1] > st.tall[0] || r() < 0.4 ? 1 : 0, col = jit(r, pick(r, st.walls), 0.06);
       let top = y, first = true;
@@ -4432,8 +4523,8 @@ function genCityTile(s, tx, tz) {
     const lots = sub === 1 ? [[0, 0, 1, 1]] : sub === 2 ? [[0, 0, 0.5, 1], [0.5, 0, 1, 1]] : [[0, 0, 0.5, 0.5], [0.5, 0, 1, 0.5], [0, 0.5, 0.5, 1], [0.5, 0.5, 1, 1]];
     const list = [];
     for (const [a0, b0, a1, b1] of lots) {
-      const u0 = i * B + m + a0 * inner + (a0 > 0 ? 1.5 : 0), u1 = i * B + m + a1 * inner - (a1 < 1 ? 1.5 : 0);
-      const v0 = j * B + m + b0 * inner + (b0 > 0 ? 1.5 : 0), v1 = j * B + m + b1 * inner - (b1 < 1 ? 1.5 : 0);
+      const u0 = bb[0] + a0 * iu + (a0 > 0 ? 1.5 : 0), u1 = bb[0] + a1 * iu - (a1 < 1 ? 1.5 : 0);
+      const v0 = bb[2] + b0 * iv + (b0 > 0 ? 1.5 : 0), v1 = bb[2] + b1 * iv - (b1 < 1 ? 1.5 : 0);
       const lw = u1 - u0, ld = v1 - v0; if (lw < 6 || ld < 6) continue;
       let h = Math.max(c.Hc * Math.exp(-((f * 2.2) ** 2)) * (0.25 + r() ** 2 * 1.5), 4 + r() * 6);
       const floors = Math.max(1, Math.round(h / 3.4)); h = floors * 3.4;
@@ -4456,7 +4547,7 @@ function genCityTile(s, tx, tz) {
     if (!inside.length) return;
     if (blockKind(c, i0, j0) === 1) { for (const [i, j] of inside) communal(i, j, 1); return; }
     if (inside.length < blocks.length) { for (const [i, j] of inside) single(i, j); return; }
-    const m = c.SW / 2, u0 = i0 * B + m, u1 = (i1 + 1) * B - m, v0 = j0 * B + m, v1 = (j1 + 1) * B - m;
+    const [u0, u1, v0, v1] = blockBox(i0, j0, i1, j1);
     const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, wu = u1 - u0, wv = v1 - v0, wm = Math.min(wu, wv), f = cityN(c, cu, cv);
     const hs = []; for (let j = j0; j <= j1 + 1; j++) for (let i = i0; i <= i1 + 1; i++) hs.push(nhAt(i, j));
     const hmin = Math.min(...hs); if (Math.max(...hs) - hmin > 40 || hmin < P.sea + 1.5) return;
@@ -4523,28 +4614,64 @@ function genCityTile(s, tx, tz) {
     single(i, j);
   }
   c.pop = pop; c.nb = nb;
-  // street lamps along both sides of every street
-  const off = c.SW / 2 - 1;
-  for (let k = -n; k <= n; k++) for (let t = -c.Rmax; t <= c.Rmax; t += 38) for (const sd of [-off, off]) for (const ax of [0, 1]) {
-    const u = ax ? t : k * B + sd, v = ax ? k * B + sd : t;
-    if (cityN(c, u, v) > 1 || inParkRect(c, u, v, 2)) continue;
-    if (ax ? !streetH(c, k, Math.floor(t / B)) : !streetV(c, k, Math.floor(t / B))) continue;
-    const [x, z] = W(u, v), y = c.hAt(u, v) + 6;
-    if (y < P.sea + 7 || onRoad(x, z, 6)) continue;
-    const lcol = st.cyber ? pick(r, [st.n1, st.n2, lc, lc]) : lc;
-    out.lamps.push(x, y, z, 0.6, lcol[0], lcol[1], lcol[2], 0);
+  // street lamps along both sides of every street; avenues add a row down the median, promenades get
+  // warm lamp posts with festoon lights strung between them, benches beside the tree strip, and idlers
+  const festC = st.cyber ? [st.n1, st.n2, lc] : [[1, 0.78, 0.45], [1, 0.62, 0.35], [1, 0.9, 0.62], lc];
+  for (let k = -n; k <= n; k++) for (const ax of [0, 1]) {
+    const lt = lineT(c, ax, k), hw = lineHW(c, lt), L = k * B, at = (t, o) => ax ? [t, L + o] : [L + o, t];
+    const step = lt === 2 ? 16 : 38;
+    for (let t = -c.Rmax; t <= c.Rmax; t += step) {
+      if (ax ? !streetH(c, k, Math.floor(t / B)) : !streetV(c, k, Math.floor(t / B))) continue;
+      const kc = Math.round(t / B), cross = Math.abs(t - kc * B) < lineHW(c, lineT(c, 1 - ax, kc)) + 2;
+      if (lt !== 2) {
+        for (const o of lt === 1 && !cross ? [-(hw - 1), 0, hw - 1] : [-(hw - 1), hw - 1]) {
+          const [u, v] = at(t, o);
+          if (cityN(c, u, v) > 1 || inParkRect(c, u, v, 2)) continue;
+          const [x, z] = W(u, v), y = c.hAt(u, v) + (o === 0 ? 8 : 6);
+          if (y < P.sea + 7 || onRoad(x, z, 6)) continue;
+          const lcol = st.cyber ? pick(r, [st.n1, st.n2, lc, lc]) : lc;
+          out.lamps.push(x, y, z, o === 0 ? 0.75 : 0.6, lcol[0], lcol[1], lcol[2], 0);
+        }
+        continue;
+      }
+      if (cross) continue;
+      const [cu, cv] = at(t, 0);
+      if (cityN(c, cu, cv) > 0.97 || inParkRect(c, cu, cv, 2)) continue;
+      const g0 = c.hAt(cu, cv); if (g0 < P.sea + 1.5) continue;
+      for (const sg of [-1, 1]) {
+        const o = sg * (hw - 2.6), [u, v] = at(t, o), [x, z] = W(u, v), y = terrH(P, x, z, 2), top = y + 4.3;
+        out.inst[1].push(x, y - 0.3, z, c.rot, 0.24, 4.6, 0.24, r(), 0.16, 0.15, 0.14, 2);
+        out.lamps.push(x, top + 0.25, z, 0.55, 1, 0.8, 0.52, 0);
+        // a string of small bulbs sagging to the next post
+        const kn = Math.round((t + step) / B);
+        if (Math.abs(t + step - kn * B) >= lineHW(c, lineT(c, 1 - ax, kn)) + 2 && t + step <= c.Rmax) {
+          const [u2, v2] = at(t + step, o), [x2, z2] = W(u2, v2), y2 = terrH(P, x2, z2, 2) + 4.3;
+          for (let q = 1; q < 6; q++) { const f = q / 6, fc = festC[(((q + k) % festC.length) + festC.length) % festC.length]; out.lamps.push(lerp(x, x2, f), lerp(top, y2, f) - Math.sin(f * Math.PI) * 0.9, lerp(z, z2, f), 0.26, fc[0], fc[1], fc[2], 0); }
+        }
+        // a bench facing the walkway, its back to the trees
+        if (cityN(c, cu, cv) < 0.92 && Math.abs(t + 8 - Math.round((t + 8) / B) * B) > lineHW(c, lineT(c, 1 - ax, Math.round((t + 8) / B))) + 2.5) {
+          const bo = sg * (hw * 0.22 + 0.9), bt = t + 8, [bu, bv] = at(bt, bo), [bx, bz] = W(bu, bv), by = terrH(P, bx, bz, 2);
+          const [ru, rv] = at(bt, bo + sg * -0.22), [rx, rz] = W(ru, rv), wood = jit(r, [0.42, 0.27, 0.15], 0.06), L2 = 2, D = 0.55;
+          out.inst[0].push(bx, by - 0.1, bz, c.rot, ax ? L2 : D, 0.55, ax ? D : L2, r(), wood[0], wood[1], wood[2], 2);
+          out.inst[0].push(rx, by + 0.45, rz, c.rot, ax ? L2 : 0.1, 0.55, ax ? 0.1 : L2, r(), wood[0] * 0.85, wood[1] * 0.85, wood[2] * 0.85, 2);
+          if (r() < 0.22) { const [pu, pv] = at(bt + (r() - 0.5) * 6, sg * (hw * 0.22 + 2.6)); stroll(pu, pv, 5); }
+        }
+      }
+    }
   }
   // pedestrians and traffic on the street grid
   const lines = []; for (let k = -n; k <= n; k++) if (Math.abs(k * B) < c.Rmax * 0.9) lines.push(k * B);
   const spawn = (si, lane, alt) => {
+    const car = E.creatures[si].beh === 'drive' && !alt;
     for (let k = 0; k < 10; k++) {
       const ax = r() < 0.5 ? 1 : 0, line = pick(r, lines), t = (r() * 2 - 1) * c.Rmax, u = ax ? line : t, v = ax ? t : line, f = cityN(c, u, v);
       if (f > 0.9 || parkStreet(c, u, v) || !onStreet(c, u, v, ax) || r() > 0.06 + Math.exp(-((f * 1.9) ** 2))) continue;
+      if (car && lineT(c, ax ? 0 : 1, Math.round(line / B)) === 2) continue;
       out.agents.push(streetAgent(s, c, si, u, v, ax, lane, alt, r)); return;
     }
   };
   const big = c.R / 1000, np = Math.round(120 * big * big * (cul.lv === 4 ? 2.2 : 1.4) + 60), nv = Math.round(np * 0.22);
-  for (let k = 0; k < np; k++) spawn(pick(r, cul.people), off - 0.4, 0);
+  for (let k = 0; k < np; k++) spawn(pick(r, cul.people), c.SW / 2 - 1.4, 0);
   const ground = cul.vehicles.filter(si => !E.creatures[si].fly), air = cul.vehicles.filter(si => E.creatures[si].fly);
   if (ground.length) for (let k = 0; k < nv; k++) spawn(pick(r, ground), 2.4, 0);
   if (air.length) for (let k = 0; k < nv * 0.4; k++) { const si = pick(r, air), fl = E.creatures[si].fly; spawn(si, 0, lerp(fl[0], fl[1], r())); }
@@ -4552,7 +4679,10 @@ function genCityTile(s, tx, tz) {
 }
 function streetAgent(s, c, si, u, v, ax, lane, alt, r) {
   const C = s.eco.creatures[si], B = c.B, t = ax ? v : u, dir = ax ? (r() < 0.5 ? 1 : 3) : (r() < 0.5 ? 0 : 2), sg = dir < 2 ? 1 : -1;
-  const a = { si, id: (r() * 1e9) | 0, city: c, u, v, dir, lane: lane * (C.beh === 'drive' ? 1 : 0.8 + r() * 0.4), alt, x: 0, z: 0, y: 0, head: 0, phase: r() * TAU, graze: 0, walk: 0, spd: 0, spd0: C.walk * (0.8 + r() * 0.4), state: 'walk', t: 0, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 20, cm: 6, wait: C.beh === 'drive' ? 0 : r() < 0.15 ? r() * 20 : 0 };
+  const a = { si, id: (r() * 1e9) | 0, city: c, u, v, dir, lane: 0, alt, x: 0, z: 0, y: 0, head: 0, phase: r() * TAU, graze: 0, walk: 0, spd: 0, spd0: C.walk * (0.8 + r() * 0.4), state: 'walk', t: 0, scale: C.scale * (0.85 + r() * 0.3), callT: 3 + r() * 20, cm: 6, wait: C.beh === 'drive' ? 0 : r() < 0.15 ? r() * 20 : 0 };
+  // lane choice: which of an avenue's two lanes, where on a promenade, how close to the kerb
+  a.lsel = r() < 0.5 ? 1 : 0; a.pf = (r() < 0.5 ? -1 : 1) * (0.3 + r() * 0.62); a.ljit = 0.8 + r() * 0.4;
+  a.lane = laneOf(c, a, C.beh === 'drive');
   a.next = sg > 0 ? (Math.floor(t / B) + 1) * B : (Math.ceil(t / B) - 1) * B;
   const co = Math.cos(c.rot), si2 = Math.sin(c.rot);
   a.x = c.x + co * u - si2 * v; a.z = c.z + si2 * u + co * v; a.y = c.hAt(u, v) + alt;
@@ -4578,6 +4708,7 @@ function crowdStep(s) {
       if (d > 0.9 || Math.random() > 0.12 + 0.88 * Math.exp(-((d * 1.8) ** 2))) continue;
       const su = Math.round(u / c.B) * c.B, sv = Math.round(v / c.B) * c.B, ax = Math.abs(u - su) < Math.abs(v - sv) ? 1 : 0;
       if (parkStreet(c, ax ? su : u, ax ? v : sv) || !onStreet(c, ax ? su : u, ax ? v : sv, ax)) continue;
+      if (E.creatures[si2].beh === 'drive' && !alt && lineT(c, ax ? 0 : 1, Math.round((ax ? su : sv) / c.B)) === 2) continue;
       const na = streetAgent(s, c, si2, ax ? su : u, ax ? v : sv, ax, lane, alt, Math.random);
       if (a) { Object.assign(a, na); return a; }
       return na;
@@ -4618,9 +4749,9 @@ function gridStep(s, a, C, dt, dC, walking) {
     const ku = Math.round(a.u / B), kv = Math.round(a.v / B);
     // only along streets that exist (superblocks close some), inside the city and not through the central park
     const segOK = d => d === 0 ? streetH(c, kv, ku) : d === 2 ? streetH(c, kv, ku - 1) : d === 1 ? streetV(c, ku, kv) : streetV(c, ku, kv - 1);
-    const okD = d => segOK(d) && cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2);
+    const okD = d => segOK(d) && cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2) && !(drive && !a.alt && ((d & 1) ? lineT(c, 0, ku) : lineT(c, 1, kv)) === 2);
     if (!okD(nd)) nd = opts.find(okD) ?? (a.dir + 2) % 4;
-    a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B);
+    a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B); a.lane = laneOf(c, a, drive);
     if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
   } else if (ax) a.v = p; else a.u = p;
   // keep to the right of the direction of travel
@@ -4695,7 +4826,7 @@ void main(){ vec3 n=normalize(vN); vec3 rel=vW-uCam; float dist=length(rel), nig
   vec2 g=vec2(fract(u/2.8),fract((fy-gf)/3.4)), id=vec2(floor(u/2.8),floor((fy-gf)/3.4));
   float ax=clamp(fwidth(u/2.8),1e-4,1.), ay=clamp(fwidth((fy-gf)/3.4),1e-4,1.), far=smoothstep(.2,.55,max(ax,ay));
   float mxy=smoothstep(.2-ax,.2+ax,g.x)*smoothstep(.8+ax,.8-ax,g.x)*smoothstep(.25-ay,.25+ay,g.y)*smoothstep(.8+ay,.8-ay,g.y);
-  float wm=uKind<2.5?mix(mxy,.33,far)*step(gf+1.,fy)*step(fy,H-1.)*vert:0.;
+  float wm=uKind<2.5?mix(mxy,.33,far)*step(gf+1.,fy)*step(fy,H-1.)*vert*step(1.2,min(vX.x,vX.z)):0.;
   float h=hh(vec3(id,seed*91.+face)), lit=mix(step(h,mix(.05,.6,night)),mix(.05,.6,night),far)*wm;
   float dif=max(dot(n,uSun),0.)*shadowAt(vW,.0003);
   vec3 col=base*(sunLight()*dif+ambient()*(.55+.45*n.y)+flashAt(vW,n,0.));
@@ -4752,10 +4883,10 @@ function rebuildCity(s) {
 }
 function cityUniforms(s) {
   const near = s.P.pads.map(p => s.ccache.get(p.key)).filter(Boolean).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z)).slice(0, 16).sort((a, b) => a.key < b.key ? -1 : 1);
-  s.cityU.fill(0); s.cityB.fill(0); s.cityS.fill(0); s.cityP.fill(0); s.cityQ.fill(0);
+  s.cityU.fill(0); s.cityB.fill(0); s.cityS.fill(0); s.cityP.fill(0); s.cityQ.fill(0); s.cityA.fill(-1);
   near.forEach((c, i) => {
     s.cityU.set([c.x, c.z, c.R, c.rot], i * 4); s.cityB.set([c.B, c.SW, s.civ.city.cyber ? 1 : 0, c.h0], i * 4);
-    s.cityS.set([c.ea, c.sa, c.irr, c.ph], i * 4); s.cityP.set(c.park || [1, 0, 0, 0], i * 4); s.cityQ.set([c.sx, c.sz, c.plaza[0], c.plaza[1]], i * 4);
+    s.cityS.set([c.ea, c.sa, c.irr, c.ph], i * 4); s.cityP.set(c.park || [1, 0, 0, 0], i * 4); s.cityQ.set([c.sx, c.sz, c.plaza[0], c.plaza[1]], i * 4); s.cityA.set(c.lines || [-1, -1, -1, -1], i * 4);
   });
 }
 function drawCity(p) { cityMeshes.forEach((M, k) => { if (!M.n) return; p.set('uKind', k); gl.bindVertexArray(M.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, M.verts, M.n); }); }
@@ -4792,7 +4923,7 @@ function makeSurface(planet, sys, entryDir) {
     ftiles: new Map(), fdirty: false, frebuildT: 0, footY: g0, heroYaw: yaw, walkPhase: 0, vyJ: 0, air: false, park: null,
     ttiles: new Map(), vtiles: new Map(), vcache: new Map(), vdirty: false, vrebuildT: 0, titans: [], seenV: new Set(), civ: null,
     ctiles: new Map(), ccache: new Map(), cityList: [], cityU: new Float32Array(64), cityB: new Float32Array(64), cdirty: false,
-    cityS: new Float32Array(64), cityP: new Float32Array(64), cityQ: new Float32Array(64), roads: new Map(), roadAll: [], roadList: [], rollU: 0, bank: 0,
+    cityS: new Float32Array(64), cityP: new Float32Array(64), cityQ: new Float32Array(64), cityA: new Float32Array(64).fill(-1), roads: new Map(), roadAll: [], roadList: [], rollU: 0, bank: 0,
     flP: new Float32Array(8), flD: new Float32Array(8), flC: new Float32Array(6), flGlow: [], torchK: 0, scanned: new Set()
   };
   s.cloudCov = (P.sCloud ?? P.cloud) * 0.9; s.home = [sx, sz]; if (P.gas) s.walked = true;
@@ -5108,7 +5239,7 @@ function renderSurface(s, time, camQ, cam) {
     .set('uSea', P.sea).set('uSnowLine', P.snowLine).set('uTreeLine', P.treeLine).set('uTreeDen', P.treeDen)
     .set('uPat', P.pat || [0, 0, 0, 60]).set('uAlt', P.alt || [0, 0, 0]).set('uStrA', P.strA || [0, 0, 0]).set('uStrB', P.strB || [0, 0, 0])
     .set('uGas', P.gas || 0).set('uG1', P.g1).set('uG2', P.g2).set('uG3', P.g3).set('uLava', P.lava || 0)
-    .set('uCity', s.cityU).set('uCityB', s.cityB).set('uCityS', s.cityS).set('uCityP', s.cityP).set('uCityQ', s.cityQ).set('uPave', s.civ ? s.civ.pave : [0.4, 0.4, 0.4])
+    .set('uCity', s.cityU).set('uCityB', s.cityB).set('uCityS', s.cityS).set('uCityP', s.cityP).set('uCityQ', s.cityQ).set('uCityA', s.cityA).set('uPave', s.civ ? s.civ.pave : [0.4, 0.4, 0.4])
     .set('uPondC', P.iceSea ? vmul(P.water, 0.7) : vmul(P.waterShallow, 0.3)).set('uRoadLamp', s.civ ? s.civ.glowC : [1, 0.7, 0.4]).set('uRoadN', s.roadList.length)
     .set('uWet', s.rain).set('uNeonA', s.civ ? s.civ.city.n1 : [1, 0, 1]).set('uNeonB', s.civ ? s.civ.city.n2 : [0, 1, 1]);
   gl.bindVertexArray(terrMesh.vao);
@@ -6098,15 +6229,17 @@ function toggleBuggy() {
     s.bug = { x, z, y: terrH(P, x, z, 3) + 4, yaw: s.yaw, v: 0, vy: 0, air: true, steer: 0, pitch: 0, roll: 0, spin: 0, wh: [0, 0, 0, 0] };
   }
   s.driving = true; s.walkV = 0; s.pitch = 0;
-  toast('Moon buggy \u00b7 W gas \u00b7 S brake / reverse \u00b7 A D steer \u00b7 Shift boost \u00b7 E step out');
+  toast('Moon buggy \u00b7 W gas \u00b7 Shift speed up (120 km/h) \u00b7 Space brake \u00b7 S reverse \u00b7 A D steer \u00b7 E step out');
 }
 function driveStep(s, dt) {
-  const P = s.P, k = keys, b = s.bug, boost = k.ShiftLeft || k.ShiftRight, vmax = boost ? 38 : 24;
-  const thr = (k.KeyW || k.ArrowUp) ? 1 : 0, brk = (k.KeyS || k.ArrowDown) ? 1 : 0, steerIn = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
+  // Shift accelerates hard up to 120 km/h (W cruises at up to about 85), Space is a fast brake that never reverses
+  const P = s.P, k = keys, b = s.bug, boost = k.ShiftLeft || k.ShiftRight, vmax = boost ? 40 : 24, hard = k.Space ? 1 : 0;
+  const thr = (k.KeyW || k.ArrowUp || boost) && !hard ? 1 : 0, brk = (k.KeyS || k.ArrowDown) && !hard ? 1 : 0, steerIn = ((k.KeyA || k.ArrowLeft) ? 1 : 0) - ((k.KeyD || k.ArrowRight) ? 1 : 0);
   if (!b.air) {
-    if (thr) b.v += (b.v < 0 ? 14 : (boost ? 9 : 6) * Math.max(1 - b.v / vmax, -0.5) + 0.4) * dt;
+    if (thr) b.v += (b.v < 0 ? 14 : (boost ? 10 : 6) * Math.max(1 - b.v / vmax, -0.5) + 0.4) * dt;
     if (brk) b.v -= (b.v > 0.5 ? 11 : 4) * dt;
-    b.v = Math.max(b.v, -8);
+    if (hard) b.v -= Math.sign(b.v) * Math.min(Math.abs(b.v), 18 * dt);
+    b.v = clamp(b.v, -8, 120 / 3.6);
     b.v -= (b.v * 0.035 + Math.sign(b.v) * 0.4) * dt * (thr || brk ? 0.4 : 1);
     if (!thr && !brk && Math.abs(b.v) < 0.3) b.v = 0;
     b.v -= 9.8 * Math.sin(b.pitch) * dt * 0.55;
@@ -6856,7 +6989,7 @@ function updateInfo(dt) {
     tgt = surf.planet.name;
   }
   const nv = surf && nearVehicle(surf);
-  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 S brake \u00b7 A D steer \u00b7 E step out' : surf && surf.phase === 'walk' ? (nv === 'ship' ? 'E board the ship \u00b7 ' : nv === 'buggy' ? 'E drive the buggy \u00b7 ' : '') + 'on foot \u00b7 B buggy \u00b7 F light \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost \u00b7 Space slow';
+  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 Shift faster \u00b7 Space brake \u00b7 S reverse \u00b7 E step out' : surf && surf.phase === 'walk' ? (nv === 'ship' ? 'E board the ship \u00b7 ' : nv === 'buggy' ? 'E drive the buggy \u00b7 ' : '') + 'on foot \u00b7 B buggy \u00b7 F light \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost \u00b7 Space slow';
   if (!S.auto && S.sel && S.mode !== 'surface' && jumpDest(S.sel)) {
     const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'sun' ? [0, 0, 0] : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
     tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'J to jump · ' + hint;
