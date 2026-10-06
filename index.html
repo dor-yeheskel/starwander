@@ -96,6 +96,10 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #chat .m.n{background:rgba(110,210,255,.09);border:1px solid rgba(110,210,255,.16);border-top-left-radius:3px}
 #chat .m.p{margin-left:auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-top-right-radius:3px;color:#cfeeff;text-align:right}
 #chat .m.old{opacity:.45}
+#chat .m.wait{opacity:.75;min-width:2.4em}
+#chat .m.wait::after{content:'';animation:dots 1.2s steps(1) infinite}
+@keyframes dots{0%{content:'\00B7'}33%{content:'\00B7 \00B7'}66%{content:'\00B7 \00B7 \00B7'}}
+#chat .ai{font-size:9.5px;letter-spacing:.06em;opacity:.38;padding:0 14px 9px;margin-top:-5px}
 #chat .sep{font-size:10px;letter-spacing:.2em;opacity:.35;text-align:center;margin:2px 0 8px}
 #chat .opts{display:flex;flex-wrap:wrap;gap:6px;padding:4px 14px 8px}
 #chat .opts button{font:inherit;font-size:11px;letter-spacing:.04em;color:#dff4ff;background:rgba(110,210,255,.08);border:1px solid rgba(110,210,255,.35);border-radius:14px;padding:3px 10px;cursor:pointer}
@@ -128,6 +132,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div class="log"></div>
   <div class="opts"></div>
   <form autocomplete="off"><input maxlength="160" placeholder="Say something&hellip;"><button title="Send">&rsaquo;</button></form>
+  <div class="ai">Replies are written by AI &middot; what you say is sent to an online service</div>
 </div>
 <div id="pause">PAUSED</div>
 <div id="bar" class="ui">
@@ -6982,14 +6987,64 @@ function chatSay(k, said) {
   const c = chat; if (!c) return;
   if (said) { chatBubble('p', said); c.m.log.push({ who: 'p', text: said }); }
   c.m.n++;
-  const text = npcReply(c.p, k, mulberry(hashInts(c.a.id | 0, c.m.n, c.m.visits, k.length * 31 + k.charCodeAt(0))), c.m);
   if (TALK_TOPICS.includes(k)) c.m.asked.add(k);
-  c.m.log.push({ who: 'n', text }); if (c.m.log.length > 40) c.m.log.splice(0, c.m.log.length - 40);
-  c.q.push({ text, el: chatBubble('n', ''), i: 0, lb: -9 });
   c.bye = k === 'bye';
   $('chat').querySelector('.opts').innerHTML = '';
+  // what the traveller says goes to the online chat; greetings and goodbyes stay local (instant and free)
+  if (said && k !== 'bye' && chatOnline()) { chatFetch(c, k, said); return; }
+  chatReply(c, npcReply(c.p, k, chatRng(c, k), c.m));
 }
-function chatAsk(k) { const c = chat; if (!c || c.cur || c.q.length || c.bye) return; chatSay(k, chipLabel(k, c.p)); }
+const chatRng = (c, k) => mulberry(hashInts(c.a.id | 0, c.m.n, c.m.visits, k.length * 31 + k.charCodeAt(0)));
+function chatReply(c, text) {
+  c.m.log.push({ who: 'n', text }); if (c.m.log.length > 40) c.m.log.splice(0, c.m.log.length - 40);
+  c.q.push({ text, el: c.waitEl || chatBubble('n', ''), i: 0, lb: -9 }); c.waitEl = null;
+}
+// ---- online replies through the game's chat Worker (it holds the key; the game never does)
+let CHAT_API = 'https://space-chat-api.poogazoz123.workers.dev/chat';
+const chatNet = { offUntil: 0, warned: false };
+const chatOnline = () => !!CHAT_API && Date.now() > chatNet.offUntil && navigator.onLine !== false;
+function chatNetFail(secs, status) {
+  chatNet.offUntil = Date.now() + secs * 1000;
+  if (!chatNet.warned) { chatNet.warned = true; toast(status === 429 ? 'The locals need a short rest \u00b7 simple replies for a minute' : 'Can\u2019t reach the chat service \u00b7 locals keep it simple for now'); }
+}
+// the person's character sheet: only facts that really exist in this world, worded for the Worker
+function npcFacts(p) {
+  const h = p.home, w = p.planet;
+  let home;
+  if (!h.name) home = 'a lone homestead out in the wilds';
+  else if (h.urban) home = h.name + ', ' + an(h.kind) + (h.pop ? ' of about ' + h.pop + ' souls' : '') + (h.buildings ? ' with ' + h.buildings.toLocaleString('en') + ' buildings' : '') + '; it has '
+    + joinList([h.promenades && 'car-free promenades with trees, benches and strings of little lights', h.park && 'a big central park with a pond', h.avenues && 'wide avenues', 'fountain squares', h.neon && 'neon on every corner at night', h.towers && 'tall towers'].filter(Boolean));
+  else home = h.name + ', ' + (h.camp ? 'a nomad camp of ' + h.homes + ' tents that moves with the herds' : 'a small ' + h.kind + ' of ' + h.homes + ' homes') + (h.centre && VILLAGE_CENTRE[h.centre] ? '; ' + lc1(VILLAGE_CENTRE[h.centre]) : '');
+  const sky = [w.rings && 'great rings', w.moons > 1 ? w.moons + ' moons' : w.moons && 'a big moon', w.aurora && 'auroras at night', w.veil && 'a shimmering veil some nights', w.tint && 'a sky of its own colour'].filter(Boolean);
+  return {
+    name: p.name, age: p.plan === 'robot' ? 'built ' + p.age + ' years ago' : p.age + ' years old', people: p.folk + ' \u2014 ' + (PLAN_DESC[p.plan] || PLAN_DESC.human),
+    job: p.job + (JOB_LINE[p.job] ? ' (' + JOB_LINE[p.job] + ')' : ''), personality: p.trait, mood: p.mood, hobbies: p.hobbies, home,
+    planet: w.name + ', ' + (WORLD_WORD[w.type] || 'a quiet world') + (sky.length ? '; in the sky: ' + joinList(sky) : ''),
+    peoples: p.peoples.map(x => 'the ' + x),
+    creatures: p.wild.slice(0, 8).map(x => x.name + ': ' + x.look + '; ' + x.habit + (x.titan ? '; a rare giant' : '') + (x.shy ? '; shy' : '')),
+    plants: p.plants.slice(0, 6).map(x => x.name + (x.glow ? ' (glows at night)' : '')),
+    landmarks: p.marks.map(x => x.name + ', ' + x.desc + (x.dist != null ? ': ' + fmtDist(x.dist) + ' away, ' + x.dir : ': far away, elsewhere on this world')),
+    cities: p.cities.filter(o => o.name !== h.name).map(o => o.name + ' (' + o.kind + '): ' + fmtDist(o.dist) + ' away, ' + o.dir),
+    now: p.time + (p.rain ? ', raining' : ', clear'), traveller: p.shipNear ? 'came down in a small starship parked nearby' : 'came from another world'
+  };
+}
+async function chatFetch(c, k, said) {
+  const el = chatBubble('n', ''); el.classList.add('wait'); c.waitEl = el; c.wait = true;
+  const history = c.m.log.slice(0, -1).slice(-10).map(L => ({ role: L.who === 'p' ? 'player' : 'npc', text: L.text }));
+  let body = null; try { body = JSON.stringify({ npc: npcFacts(npcPersona(surf, c.t)), history, message: said.slice(0, 280) }); } catch (e) { }
+  let text = null;
+  if (body) try {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 16000);
+    const res = await fetch(CHAT_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: ctl.signal });
+    clearTimeout(tm);
+    if (res.ok) { const j = await res.json(); if (j && typeof j.reply === 'string' && j.reply.trim()) { text = j.reply.trim().slice(0, 600); chatNet.warned = false; } }
+    else chatNetFail(res.status === 429 ? clamp(+res.headers.get('Retry-After') || 60, 10, 600) : 45, res.status);
+  } catch (e) { chatNetFail(45); }
+  c.wait = false;
+  if (chat !== c) return;
+  chatReply(c, text || npcReply(c.p, k, chatRng(c, k), c.m));
+}
+function chatAsk(k) { const c = chat; if (!c || c.cur || c.q.length || c.bye || c.wait) return; chatSay(k, chipLabel(k, c.p)); }
 function chatOptions() {
   const c = chat, el = $('chat').querySelector('.opts'); el.innerHTML = '';
   const list = TALK_TOPICS.filter(k => !c.m.asked.has(k) && (k !== 'life' || c.p.wild.length || c.p.plants.length)).slice(0, 3);
@@ -7021,7 +7076,7 @@ function chatStep(dt) {
   if (!s || S.mode !== 'surface' || s.phase !== 'walk' || s.driving) { chatClose(); return; }
   if (Math.hypot(c.a.x - s.x, c.a.z - s.z) > TALK_R * 1.8) { toast('You wave goodbye to ' + c.p.first); chatClose(); return; }
   if (c.closeT > 0) { c.closeT -= dt; if (c.closeT <= 0) chatClose(); return; }
-  if (!c.cur) { if (!c.q.length) return; c.cur = c.q.shift(); c.typeT = 0.18; }
+  if (!c.cur) { if (!c.q.length) return; c.cur = c.q.shift(); c.cur.el.classList.remove('wait'); c.typeT = 0.18; }
   const cur = c.cur, cps = c.p.mood === 'hurried' ? 46 : c.p.mood === 'dreamy' || c.p.mood === 'shy' ? 28 : 34;
   c.typeT -= dt;
   for (let g = 0; c.typeT <= 0 && cur.i < cur.text.length && g < 40; g++) {
@@ -7058,7 +7113,7 @@ function talkNearest() {
   el.querySelector('.x').onclick = () => chatClose();
   el.querySelector('.log').onclick = () => { if (chat && (chat.cur || chat.q.length)) chatSkip(); };
   form.onsubmit = e => {
-    e.preventDefault(); const v = inp.value.trim(); if (!v || !chat || chat.bye) return; inp.value = '';
+    e.preventDefault(); const v = inp.value.trim(); if (!v || !chat || chat.bye || chat.wait) return; inp.value = '';
     if (chat.cur || chat.q.length) chatSkip();
     chatSay(chatIntent(v), v);
   };

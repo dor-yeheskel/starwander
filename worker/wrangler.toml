@@ -1,0 +1,18 @@
+# Starwander NPC chat Worker (deploy with: npx wrangler deploy, from this folder)
+# The OpenAI key is NOT here: it is the encrypted secret OPENAI_API_KEY, set in the Cloudflare dashboard
+# or with: npx wrangler secret put OPENAI_API_KEY
+name = "space-chat-api"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+# keep any variables set in the dashboard (such as ALLOWED_ORIGINS) when deploying from here
+keep_vars = true
+
+# Shared per-IP limit across Cloudflare's network: 10 chat messages per minute
+[[ratelimits]]
+name = "CHAT_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
+# Optional: only accept calls from these origins ("null" = the game opened as a local file)
+# [vars]
+# ALLOWED_ORIGINS = "https://your-site.example,null"
