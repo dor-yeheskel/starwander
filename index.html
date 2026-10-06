@@ -83,6 +83,28 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #scan [data-at]{transition:opacity .25s,filter .25s}
 #scan .bar{height:2px;background:rgba(255,255,255,.1);margin-top:9px;border-radius:2px;overflow:hidden}
 #scan .bar i{display:block;height:100%;width:0;background:#ff6a5a;box-shadow:0 0 6px #ff6a5a}
+#chat{position:fixed;left:24px;top:22px;width:320px;z-index:4;display:none;flex-direction:column;font-size:12px;letter-spacing:.03em;line-height:1.55;text-shadow:0 0 8px #000;max-height:calc(100vh - 44px);background:rgba(8,12,24,.8);border:1px solid rgba(110,210,255,.35);border-radius:12px;backdrop-filter:blur(6px);box-shadow:inset 0 0 30px rgba(60,170,255,.08)}
+@media (max-width:1150px){#chat{top:70px;max-height:calc(100vh - 92px)}}
+#chat .ch{position:relative;padding:9px 14px 8px;border-bottom:1px solid rgba(110,210,255,.18);background:repeating-linear-gradient(0deg,rgba(80,190,255,.05) 0 1px,transparent 1px 4px);border-radius:12px 12px 0 0}
+#chat .st{font-size:10px;letter-spacing:.3em;color:#9fdcff}
+#chat .x{position:absolute;right:10px;top:2px;cursor:pointer;font-size:20px;font-weight:300;opacity:.6}
+#chat .x:hover{opacity:1}
+#chat .h{font-size:16px;letter-spacing:.12em;font-weight:300}
+#chat .d{font-size:11px;opacity:.6}
+#chat .log{flex:1 1 auto;min-height:60px;overflow-y:auto;padding:10px 14px 4px;scrollbar-width:thin;scrollbar-color:rgba(110,210,255,.3) transparent;cursor:default}
+#chat .m{margin:0 0 8px;padding:6px 10px;border-radius:10px;max-width:88%;white-space:pre-wrap}
+#chat .m.n{background:rgba(110,210,255,.09);border:1px solid rgba(110,210,255,.16);border-top-left-radius:3px}
+#chat .m.p{margin-left:auto;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-top-right-radius:3px;color:#cfeeff;text-align:right}
+#chat .m.old{opacity:.45}
+#chat .sep{font-size:10px;letter-spacing:.2em;opacity:.35;text-align:center;margin:2px 0 8px}
+#chat .opts{display:flex;flex-wrap:wrap;gap:6px;padding:4px 14px 8px}
+#chat .opts button{font:inherit;font-size:11px;letter-spacing:.04em;color:#dff4ff;background:rgba(110,210,255,.08);border:1px solid rgba(110,210,255,.35);border-radius:14px;padding:3px 10px;cursor:pointer}
+#chat .opts button:hover{background:rgba(110,210,255,.2)}
+#chat .opts button.bye{border-color:rgba(255,255,255,.2);color:#bbb}
+#chat form{display:flex;gap:6px;padding:0 14px 12px}
+#chat input{flex:1;font:inherit;font-size:12px;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(110,210,255,.3);border-radius:8px;padding:5px 9px;outline:none}
+#chat input:focus{border-color:rgba(110,210,255,.7)}
+#chat form button{font:inherit;color:#9fdcff;background:none;border:1px solid rgba(110,210,255,.35);border-radius:8px;padding:0 10px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -101,6 +123,12 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 <div id="syslist" class="ui"></div>
 <div id="preview" class="ui"></div>
 <div id="scan" class="ui"></div>
+<div id="chat" class="ui">
+  <div class="ch"><div class="st">TALKING</div><b class="x" title="Say goodbye (Esc)">&times;</b><div class="h"></div><div class="d"></div></div>
+  <div class="log"></div>
+  <div class="opts"></div>
+  <form autocomplete="off"><input maxlength="160" placeholder="Say something&hellip;"><button title="Send">&rsaquo;</button></form>
+</div>
 <div id="pause">PAUSED</div>
 <div id="bar" class="ui">
   <button id="bLand" title="Land / take off (L)" style="display:none">LAND</button>
@@ -127,6 +155,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <div><b>Space</b>jump</div>
   <div><b>E</b>get in / out of a ship or buggy beside you</div>
   <div><b>Hold click</b>scan a creature, person or plant</div>
+  <div><b>R-click / R</b>talk to a person</div>
   <div><b>B / L</b>buggy / fly from anywhere</div>
   <div><b>Buggy</b>W gas &middot; <b style="width:auto">Shift</b> up to 120 km/h &middot; <b style="width:auto">Space</b> brake</div>
   <div class="s">Anywhere</div>
@@ -148,6 +177,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
     <div><b>Cities</b>oval and sprawling, with parks, ponds, fountain plazas and lit highways to their neighbours</div>
     <div><b>Landmarks</b>arches, needles, floating isles, giant bones, table mountains, crystal spires, sea stacks and stone rings</div>
     <div><b>Skies</b>tinted skies, rings, great moons, auroras and shimmering veils</div>
+    <div><b>Locals</b>stop and chat &mdash; they know the sights, creatures and cities around them</div>
   <div><b>Mists</b>fog that pools in valleys and over water, thickest at dawn and in rain, tinted on some worlds</div>
   </details>
 </div>
@@ -3741,10 +3771,10 @@ function simAnimals(s, dt) {
       const want = dd < 2 ? 0 : Math.min(dd * 0.6, C.run * a.scale);
       if (want > 0) turnTo(a, tx, tz, 2.5, adt);
       spd = want; a.graze = lerp(a.graze, want < 0.3 ? 1 : 0, 1 - Math.exp(-adt * 2));
-    } else if ((beh === 'village' || beh === 'curious') && walking && dC < (beh === 'village' ? 9 : 40) && a.state !== 'flee') {
-      // meet the traveller: approach, stop and look
+    } else if ((a.talk || (beh === 'village' || beh === 'curious') && walking && dC < (beh === 'village' ? 9 : 40)) && a.state !== 'flee') {
+      // meet the traveller: approach, stop and look (and stay put while talking)
       turnTo(a, s.x, s.z, 3, adt);
-      const stop = beh === 'village' ? 99 : 3 + C.rad * a.scale * 2;
+      const stop = beh === 'village' || a.talk ? 99 : 3 + C.rad * a.scale * 2;
       spd = dC > stop ? C.walk * a.scale : 0; a.graze = lerp(a.graze, 0, 1 - Math.exp(-adt * 4)); a.state = 'graze'; a.t = Math.max(a.t, 2);
     } else if (a.state === 'graze') {
       a.graze = lerp(a.graze, 1, 1 - Math.exp(-adt * 1.5));
@@ -4716,7 +4746,7 @@ function crowdStep(s) {
     return null;
   };
   let budget = 60;
-  for (const a of s.crowd) if (budget > 0 && Math.hypot(a.x - s.x, a.z - s.z) > 260) { budget--; const ck = a.ck, l0 = a.lane0; place(a, a.si, l0, a.alt); a.ck = ck; a.lane0 = l0; a.cm = 10; }
+  for (const a of s.crowd) if (budget > 0 && !a.talk && Math.hypot(a.x - s.x, a.z - s.z) > 260) { budget--; const ck = a.ck, l0 = a.lane0; place(a, a.si, l0, a.alt); a.ck = ck; a.lane0 = l0; a.cm = 10; }
   const count = { p: 0, v: 0, a: 0 }; for (const a of s.crowd) count[a.ck]++;
   // too many for this part of town: drop the furthest extras
   if (count.p > want.p * 1.1 + 5 || count.v > want.v * 1.1 + 3) {
@@ -4737,7 +4767,7 @@ function gridStep(s, a, C, dt, dC, walking) {
   const c = a.city, B = c.B, P = s.P, drive = C.beh === 'drive';
   let want = a.spd0;
   if (a.wait > 0) { a.wait -= dt; want = 0; }
-  const meet = walking && dC < (drive ? 12 : 7) && !a.alt;
+  const meet = (walking && dC < (drive ? 12 : 7) || a.talk) && !a.alt;
   if (meet) want = 0;
   a.spd = lerp(a.spd, want, 1 - Math.exp(-dt * (drive ? 1.5 : 3)));
   const sg = a.dir < 2 ? 1 : -1, ax = a.dir & 1;
@@ -5531,6 +5561,21 @@ const Music = {
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.05);
     o.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + 0.06);
     this.release(0.1, g);
+  },
+  // a person speaking: one short syllable blip in their own voice (warbles waver, hoots fall, trills rise, automatons buzz)
+  talk(V, plan, lift) {
+    if (!this.ctx || !V) return;
+    const C = this.ctx, t = C.currentTime + 0.005, o = C.createOscillator(), f = C.createBiquadFilter(), g = C.createGain();
+    const base = clamp(V.f0, 150, 820) * (0.86 + Math.random() * 0.3) * (lift || 1), d = 0.05 + Math.random() * 0.035;
+    o.type = plan === 'robot' ? 'square' : V.kind === 'hoot' ? 'sine' : 'triangle';
+    const end = V.kind === 'hoot' ? 0.82 : V.kind === 'trill' ? 1.22 : 1.04;
+    o.frequency.setValueAtTime(base * (V.kind === 'trill' ? 0.92 : 1), t); o.frequency.exponentialRampToValueAtTime(base * end, t + d);
+    if (V.kind === 'warble') { const l = C.createOscillator(), lg = C.createGain(); l.frequency.value = 22; lg.gain.value = base * 0.06; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + d + 0.03); this.release(d + 0.1, lg); }
+    f.type = 'lowpass'; f.frequency.value = plan === 'robot' ? 1600 : 2600;
+    const v = plan === 'robot' ? 0.05 : V.kind === 'hoot' ? 0.13 : 0.1;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.008); g.gain.setValueAtTime(v, t + d * 0.55); g.gain.exponentialRampToValueAtTime(0.0008, t + d);
+    o.connect(f); f.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + d + 0.02);
+    this.release(d + 0.05, f, g);
   },
   // disconnect one-shot sound nodes once they have finished, so busy places don't pile up idle audio nodes
   release(secs, ...nodes) { setTimeout(() => { for (const n of nodes) try { n.disconnect(); } catch (e) { } }, secs * 1000 + 250); },
@@ -6607,7 +6652,7 @@ function personHome(s, a) {
   if (a.city) return urban(a.city);
   const hx = a.hx ?? a.x, hz = a.hz ?? a.z, c = inCity(s, hx, hz, 0); if (c) return urban(c);
   const v = villageSite(s, Math.floor(hx / VT), Math.floor(hz / VT));
-  if (v.name && Math.hypot(hx - v.cx, hz - v.cz) < v.R + 40) return { name: v.name, kind: s.civ && s.civ.lv === 0 ? 'the camp' : v.hamlet ? 'the hamlet' : 'the village', urban: false };
+  if (v.name && Math.hypot(hx - v.cx, hz - v.cz) < v.R + 40) return { name: v.name, kind: s.civ && s.civ.lv === 0 ? 'the camp' : v.hamlet ? 'the hamlet' : 'the village', urban: false, site: v };
   return { name: null, kind: 'a lone homestead', urban: false };
 }
 function scanPerson(s, t) {
@@ -6619,14 +6664,14 @@ function scanPerson(s, t) {
   const jobs = (home.urban ? JOBS_CITY : cul && cul.lv === 0 ? JOBS_NOMAD : JOBS_VILLAGE).concat(plan === 'robot' ? ['maintenance unit', 'archivist'] : []);
   const f = [PLAN_DESC[plan] || PLAN_DESC.human, 'dresses in ' + colourName(C.c1) + (C.pack ? ', carries a pack' : ''), colourName(C.c2) + ' ' + (PLAN_SKIN[plan] || 'skin')];
   if (C.voice) f.push('speaks in ' + (PERSON_VOICE[C.voice.kind] || 'soft murmurs'));
-  f.push(pick(r, PERSON_TRAIT));
+  const trait = pick(r, PERSON_TRAIT); f.push(trait);
   // the city's population, and the other peoples who share it
   if (home.urban && home.city && home.city.pop) {
     const others = cul ? [...new Set(cul.plans)].filter(p => p !== plan).map(p => 'the ' + (PLAN_FOLK[p] || 'folk')) : [];
     f.push('one of ~' + fmtPop(home.city.pop) + ' souls in ' + home.name + (others.length ? ', living alongside ' + others.join(' and ') : ''));
   }
   const e = {
-    title, latin: (cul ? cul.folk.replace(/-\d+$/, '') + ' ' : '') + (PLAN_FOLK[plan] || 'folk'), person: true, feats: f.map(cap1), key, home, plan,
+    title, latin: (cul ? cul.folk.replace(/-\d+$/, '') + ' ' : '') + (PLAN_FOLK[plan] || 'folk'), person: true, feats: f.map(cap1), key, home, plan, trait,
     age: Math.round(lerp(life[0], life[0] + (life[1] - life[0]) * 0.8, r())), job: pick(r, jobs), idle: pick(r, ['chatting with neighbours', 'resting in the shade', 'watching the sky', 'tending a small garden'])
   };
   s.scanCache.set(key, e); return e;
@@ -6645,6 +6690,7 @@ function personRows(t, sp) {
 }
 // ---- scan flow
 function scanBegin(t) {
+  if (chat) chatClose();
   const s = surf, sp = scanSpecies(s, t);
   S.scan = { tgt: t, prog: 0, holding: true, done: false, known: s.scanned.has(sp.key) };
   S.scanView = { tgt: t, phase: 0, head: 0.5 };
@@ -6691,9 +6737,331 @@ function scanHoverAt(cx, cy) {
   const s = surf, tip = $('tip'), t = S.scan && S.scan.holding ? null : scanPick(s, cx, cy);
   S.scanHover = t;
   if (!t) { tip.style.display = 'none'; canvas.style.cursor = ''; return; }
-  const known = s.scanned.has(scanKey(t)) ? scanSpecies(s, t) : null;
-  tip.innerHTML = '<b>' + (known ? known.title : t.type === 'animal' ? 'Unknown creature' : t.type === 'person' ? 'Unknown person' : 'Unknown plant') + '</b><br><span>hold left mouse to scan</span>';
+  const known = s.scanned.has(scanKey(t)) || (s.met && s.met.has(scanKey(t))) ? scanSpecies(s, t) : null;
+  tip.innerHTML = '<b>' + (known ? known.title : t.type === 'animal' ? 'Unknown creature' : t.type === 'person' ? 'Unknown person' : 'Unknown plant') + '</b><br><span>hold left mouse to scan' + (t.type === 'person' ? ' \u00b7 right-click to talk' : '') + '</span>';
   tip.style.display = 'block'; tip.style.left = (cx + 16) + 'px'; tip.style.top = (cy + 12) + 'px'; canvas.style.cursor = 'crosshair';
+}
+// ---- talking with people: a short, friendly chat that only speaks of things that really exist on this world
+// npcPersona() gathers everything a local knows; phase 1 composes the replies here from those facts
+const TALK_R = 22;
+const HOBBIES = ['stargazing', 'long walks at dusk', 'cooking for friends', 'collecting old maps', 'painting the skyline', 'tending a rooftop garden', 'playing the reed flute', 'watching the birds',
+  'carving little figures', 'swimming at dawn', 'writing long letters', 'board games with the neighbours', 'watching the moons rise', 'learning old songs', 'pressing flowers', 'fixing old clocks'];
+const JOB_LINE = {
+  merchant: 'I trade spices and cloth at the market', engineer: 'I keep the city’s pumps and lifts running', teacher: 'I teach the little ones their letters and their stars',
+  courier: 'I carry parcels all over the city — I know every shortcut', musician: 'I play in the squares in the evenings', gardener: 'I look after the parks and the trees along the streets',
+  architect: 'I design buildings — a few of these roofs are mine', cook: 'I cook at a little place near the square', astronomer: 'I watch the sky from a rooftop observatory',
+  'tram driver': 'I drive the trams up and down the streets', painter: 'I paint — mostly the light on the towers at dusk', librarian: 'I look after a library full of very old books',
+  'street vendor': 'I sell hot buns from a cart on the corner', clockmaker: 'I mend clocks — tiny gears, very patient work', botanist: 'I study the plants that grow around here',
+  doctor: 'I look after people when they are unwell', farmer: 'I grow crops in the fields around the village', potter: 'I make bowls and jars from river clay', weaver: 'I weave cloth on an old loom',
+  herder: 'I look after our herds out on the grass', baker: 'I bake the bread — come by early, it’s still warm', smith: 'I work the forge — tools, hinges, the odd bell',
+  fisher: 'I fish the waters nearby', healer: 'I mix remedies from herbs and roots', 'lamp-keeper': 'I light the lamps when the sun goes down', beekeeper: 'I keep bees — the honey here is wonderful',
+  carpenter: 'I build and mend — doors, roofs, fences', miller: 'I grind grain into flour', storyteller: 'I keep the old stories and tell them by the fire', tracker: 'I read tracks and find the herds when they wander',
+  'fire-keeper': 'I keep the camp fire alive through the night', forager: 'I gather roots, berries and herbs', 'maintenance unit': 'I repair what is broken. Most things break eventually',
+  archivist: 'I record everything that happens here. Everything'
+};
+const TRAIT_MOOD = {
+  'friendly, stops to greet travellers': 'warm', 'loves telling long stories': 'chatty', 'hums while walking': 'calm', 'collects smooth stones': 'calm', 'knows every star by name': 'dreamy',
+  'grows herbs by the window': 'calm', 'never misses a sunrise': 'dreamy', 'laughs easily': 'chatty', 'keeps a small notebook of sketches': 'dreamy', 'shy at first, warm once you say hello': 'shy',
+  'always seems to be in a hurry': 'hurried', 'is saving up for a trip off-world': 'dreamy'
+};
+const TRAIT_SELF = {
+  'friendly, stops to greet travellers': 'I always stop to greet travellers — you meet the most interesting people that way', 'loves telling long stories': 'Everyone says my stories are far too long. They’re wrong, of course',
+  'hums while walking': 'I hum when I walk. I don’t even notice I’m doing it', 'collects smooth stones': 'I collect smooth stones — I have a whole shelf of them', 'knows every star by name': 'I know every star in our sky by name',
+  'grows herbs by the window': 'I grow herbs on my windowsill', 'never misses a sunrise': 'I haven’t missed a sunrise in years', 'laughs easily': 'People say I laugh too easily. Ha! Maybe they’re right',
+  'keeps a small notebook of sketches': 'I carry a little notebook and sketch whatever catches my eye', 'shy at first, warm once you say hello': 'I’m a bit shy with strangers… but you seem nice',
+  'always seems to be in a hurry': 'I’m always in a hurry — there’s never enough time in a day', 'is saving up for a trip off-world': 'I’m saving up to travel off-world one day — like you!'
+};
+const MOOD_OPEN = {
+  warm: ['Oh, hello there!', 'Well, hello!', 'Hello, traveller!'], chatty: ['Oh! A visitor!', 'Well now, look at you!', 'Ha! Hello, hello!'], calm: ['Hello.', 'Ah, hello there.', 'Good to meet you.'],
+  dreamy: ['Oh… hello.', 'Mm? Oh, hello!', 'Ah, a traveller.'], shy: ['Oh — um, hello.', 'Um… hi.', 'Oh! You startled me. Hello.'], hurried: ['Hi, hi — hello!', 'Oh, hello! Quickly though —', 'Hello! Can’t stay long, but —'],
+  robot: ['Greetings, traveller.', 'Hello. Visitor detected.', 'Greetings. Welcome.']
+};
+const MOOD_LEAD = { warm: ['Of course!', 'Happily!', ''], chatty: ['Oh, where do I start?', 'Ooh, good question!', ''], calm: ['Let me think.', '', ''], dreamy: ['Mm.', 'Ah…', ''], shy: ['Um, well…', 'Oh — okay.', ''], hurried: ['Quick version:', 'Right —', ''], robot: ['Query accepted.', 'Retrieving.', ''] };
+const MOOD_BYE = {
+  warm: ['Safe travels, friend!', 'Come back and tell me what you found!'], chatty: ['Off you go then — and come back with stories!', 'Bye! Oh, I could talk all day…'], calm: ['Go well, traveller.', 'Safe travels.'],
+  dreamy: ['May the sky be clear for you.', 'Bye… look up tonight.'], shy: ['Oh — bye! It was nice… talking.', 'Bye! Um, come again.'], hurried: ['Bye! Must run!', 'Safe travels — I’m late!'],
+  robot: ['Farewell, traveller. You are saved to memory.', 'Goodbye. Travel safely.']
+};
+const WORLD_WORD = { terran: 'a green, gentle world', ocean: 'a world of endless seas', desert: 'a dry, sun-baked world', ice: 'a cold world of ice and snow', alien: 'a strange and beautiful world', lava: 'a world of fire and ash' };
+const VILLAGE_CENTRE = {
+  fire: 'In the middle there’s a fire that never goes out — we all gather around it in the evenings', totem: 'An old carved totem stands in the middle — older than anyone remembers',
+  obelisk: 'A tall obelisk stands in the middle. Nobody knows who raised it', stones: 'There’s a ring of standing stones in the middle where we meet'
+};
+const an = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
+const lc1 = t => t ? t[0].toLowerCase() + t.slice(1) : t;
+const sent = t => /[.!?…]$/.test(t) ? t : t + '.';
+const joinList = a => a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+const fmtDist = m => m < 950 ? 'about ' + Math.max(100, Math.round(m / 100) * 100) + ' metres' : 'about ' + (Math.round(m / 500) / 2).toLocaleString('en') + ' km';
+// where a point lies from the traveller's point of view
+function relDir(s, x, z) {
+  const dx = x - s.x, dz = z - s.z, f = -dx * Math.sin(s.yaw) - dz * Math.cos(s.yaw), rt = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw), a = Math.atan2(rt, f), side = a > 0 ? 'right' : 'left', A = Math.abs(a);
+  return A < 0.35 ? 'straight ahead of you' : A < 1.1 ? 'ahead of you, a little to the ' + side : A < 2 ? 'off to your ' + side : A < 2.8 ? 'behind you, to the ' + side : 'right behind you';
+}
+// everything this person knows: who they are, their home, and the real places, peoples, creatures and sky of their world
+function npcPersona(s, t) {
+  const sp = scanSpecies(s, t), a = t.a, P = s.P, E = s.eco, cul = s.civ, r = mulberry(hashInts(P.seed | 0, a.id | 0, 4242));
+  const home = sp.home, c = home.city, v = home.site, fx = P.skyFx || {};
+  const hobbies = []; while (hobbies.length < 2) { const h = pick(r, HOBBIES); if (!hobbies.includes(h)) hobbies.push(h); }
+  const wild = [];
+  E.creatures.forEach((C, si) => {
+    if (C.villager || C.beh === 'drive' || !C.box) return;
+    const e = scanSpecies(s, { type: 'animal', si, C }), habit = lc1(e.feats[2] || '');
+    wild.push({ name: e.title, look: lc1(e.feats[1] || ''), habit: habit.startsWith('solitary') ? 'likes to be alone' : habit, titan: !!C.titan, fly: !!C.fly || C.beh === 'flock', shy: C.shy > 0.8 });
+  });
+  const plants = [];
+  E.plants.forEach((p, k) => { if (p.kind !== 'rock' && p.kind !== 'crag' && p.box && (p.tall || p.glowI > 0)) plants.push({ name: scanSpecies(s, { type: 'plant', k, sp: p }).title, glow: p.glowI > 0 }); });
+  // the nearest of each landmark that is loaded around here (they are named the same all over the world)
+  const marks = E.marks.map((L, k) => {
+    let best = null, bd = Infinity; for (const o of s.lmSpots || []) if (o.k === k) { const d = Math.hypot(o.x - s.x, o.z - s.z); if (d < bd) { bd = d; best = o; } }
+    return { name: L.name, desc: L.desc, dist: best ? bd : null, dir: best ? relDir(s, best.x, best.z) : null };
+  });
+  const cities = (P.pads || []).filter(k => k !== c).map(k => ({ name: k.name, kind: k.R > 1000 ? 'great city' : k.R > 450 ? 'city' : 'town', dist: Math.hypot(k.x - s.x, k.z - s.z), x: k.x, z: k.z }))
+    .sort((p, q) => p.dist - q.dist).slice(0, 3);
+  cities.forEach(o => { o.dir = relDir(s, o.x, o.z); });
+  const place = { name: home.name, kind: home.kind.replace(/^the /, ''), urban: home.urban };
+  if (c) Object.assign(place, { pop: c.pop ? fmtPop(c.pop) : null, buildings: c.nb, park: !!c.park, promenades: !!(c.lines && c.lines[2] >= 0), avenues: !!(c.lines && c.lines[0] >= 0), neon: !!(cul && cul.city.cyber), towers: c.Hc > 120 });
+  else if (v) Object.assign(place, { homes: v.n, centre: cul && cul.kinds[cul.centre] ? cul.kinds[cul.centre].kind : null, camp: cul && cul.lv === 0 });
+  const peoples = cul ? [...new Set(cul.plans)].map((p, i) => (i ? '' : cul.folk.replace(/-\d+$/, '') + ' ') + (PLAN_FOLK[p] || 'folk')) : [];
+  const sy = s.sun ? s.sun[1] : 1;
+  return {
+    name: sp.title, first: sp.title.split(' ')[0], age: sp.age, job: sp.job, trait: sp.trait, mood: sp.plan === 'robot' ? 'robot' : TRAIT_MOOD[sp.trait] || 'warm', plan: sp.plan, folk: sp.latin,
+    hobbies, voice: t.C.voice, home: place, peoples, wild, plants, marks, cities,
+    planet: { name: s.planet.name, type: s.planet.type, rings: !!fx.ring, moons: (fx.moons || []).length, aurora: !!fx.aurora, veil: !!fx.veil, tint: !!P.sky },
+    time: sy > 0.3 ? 'day' : sy > -0.06 ? 'dusk' : 'night', rain: s.rain > 0.3, shipNear: !!s.park && Math.hypot(s.park.x - s.x, s.park.z - s.z) < 400
+  };
+}
+// ---- phase 1 replies, composed from the persona
+const TALK_TOPICS = ['me', 'home', 'see', 'life', 'people', 'world'];
+function chipLabel(k, p) {
+  return { me: 'Who are you?', home: 'Tell me about ' + (p.home.name || 'your home'), see: 'What should I see here?', life: 'Any creatures around?', people: 'Who else lives here?', world: 'Tell me about ' + p.planet.name, more: 'Tell me something else', bye: 'Goodbye' }[k];
+}
+function skyLine(p, r) {
+  const w = p.planet, L = [];
+  if (w.aurora) L.push(p.time === 'night' ? 'Look up — the aurora is out tonight!' : 'Stay until dark — the aurora dances right across the sky.');
+  if (w.rings) L.push('Watch the rings at sunset — they turn to gold.');
+  if (w.moons > 1) L.push('At night ' + w.moons + ' moons rise over us.'); else if (w.moons === 1) L.push('Our moon looks enormous when it rises.');
+  if (w.veil) L.push('Some nights a shimmering veil hangs across the whole sky.');
+  return L.length ? pick(r, L) : '';
+}
+function npcReply(p, k, r, m) {
+  const lead = () => { const l = pick(r, MOOD_LEAD[p.mood]); return l ? l + ' ' : ''; }, out = [];
+  const h = p.home, w = p.planet, brief = p.mood === 'hurried' || p.mood === 'shy';
+  if (k === 'hello') {
+    if (m.visits > 1 && m.n > 1) return pick(r, p.mood === 'robot' ? ['Welcome back. You are in my memory.', 'Hello again, traveller.'] : ['You came back!', 'Oh, hello again!', 'Welcome back, traveller!']) + ' ' + pick(r, ['What else would you like to know?', 'Did you find anything good?', 'I was hoping you’d come by again.']);
+    if (m.n > 1) return pick(r, ['Hello again!', 'Hi! Still here.', 'Yes?']) + ' What would you like to know?';
+    out.push(pick(r, MOOD_OPEN[p.mood]) + ' I’m ' + p.first + ', ' + an(p.job) + (h.name ? (h.urban ? ' here in ' : ' from ') + h.name : ', living out here on my own') + '.');
+    if (p.shipNear && r() < 0.7) out.push(pick(r, ['Was that your ship I saw coming down?', 'Is that your ship over there? It’s beautiful.']));
+    else if (p.rain && r() < 0.5) out.push('Terrible weather for exploring, isn’t it?');
+    else out.push(pick(r, ['You’re not from ' + w.name + ', are you?', 'You must have come from far away.', 'I don’t think I’ve seen you around before.']));
+    out.push(pick(r, ['Would you like to hear about me, or about ' + (h.name || 'this place') + '?', 'What would you like to know?', p.mood === 'shy' ? 'Can I… help you with something?' : 'Ask me anything — I love visitors.']));
+    return out.join(' ');
+  }
+  if (k === 'me') {
+    out.push(lead() + 'I’m ' + p.name + ', ' + (p.plan === 'robot' ? 'built ' + p.age + ' years ago' : p.age + ' years old') + '.');
+    out.push(sent(JOB_LINE[p.job] || 'I work as ' + an(p.job)));
+    out.push(sent(TRAIT_SELF[p.trait] || 'I like a quiet life'));
+    if (!brief) out.push('When I have time off, I love ' + p.hobbies[0] + ' and ' + p.hobbies[1] + '.');
+    if (p.plan === 'twohead' && r() < 0.6) out.push('“And I do all the talking,” says my other head. Don’t listen to it.');
+    return out.join(' ');
+  }
+  if (k === 'home') {
+    if (!h.name) return lead() + 'I live out here on my own, in a lone homestead. It’s quiet — just me, the wind' + (p.wild[0] ? ' and the ' + p.wild[0].name + ' herds' : ' and the stars') + '.';
+    if (h.urban) {
+      out.push(lead() + h.name + ' is ' + an(h.kind) + (h.pop ? ' of about ' + h.pop + ' souls' : '') + (h.buildings ? ', with ' + h.buildings.toLocaleString('en') + ' buildings' : '') + '.');
+      const like = [];
+      if (h.promenades) like.push('the promenades — streets with no cars at all, just trees, benches and little lights strung overhead');
+      if (h.park) like.push('the big park with its pond');
+      if (h.avenues) like.push('the great avenues, so wide you can hardly shout across them');
+      like.push('the fountain square');
+      out.push('My favourite part is ' + like[0] + '.');
+      if (like.length > 1 && !brief) out.push('And you should see ' + like[1] + '.');
+      if (h.neon) out.push('At night the whole place glows — neon on every corner.'); else if (h.towers && !brief) out.push('Watch the towers at dusk, when all the windows light up.');
+      if (p.peoples.length > 1) out.push('We all live here together — ' + joinList(p.peoples.map(x => 'the ' + x)) + '.');
+      return out.join(' ');
+    }
+    if (h.camp) out.push(lead() + 'We’re nomads — the camp of ' + h.name + ' moves with the herds. Right now we have ' + h.homes + ' tents.');
+    else out.push(lead() + h.name + ' is a small ' + h.kind + ' — ' + h.homes + ' homes, give or take.');
+    if (h.centre && VILLAGE_CENTRE[h.centre]) out.push(VILLAGE_CENTRE[h.centre] + '.');
+    if (!brief) out.push(pick(r, ['Everyone knows everyone here.', 'It’s quiet, but I wouldn’t live anywhere else.', 'The nights are very peaceful.']));
+    return out.join(' ');
+  }
+  if (k === 'see') {
+    const near = p.marks.filter(x => x.dist != null).sort((x, y) => x.dist - y.dist);
+    if (near.length) {
+      out.push(lead() + 'You must see ' + near[0].name + ' — ' + near[0].desc + '. It’s ' + fmtDist(near[0].dist) + ' from here, ' + near[0].dir + '.');
+      if (near[1] && !brief) out.push('There’s also ' + near[1].name + ', ' + near[1].desc + ' — ' + fmtDist(near[1].dist) + ', ' + near[1].dir + '.');
+    } else if (p.marks.length) out.push(lead() + 'Somewhere on ' + w.name + ' there’s ' + p.marks[0].name + ' — ' + p.marks[0].desc + '. It’s far from here, but people say it’s worth the trip.');
+    const sky = skyLine(p, r); if (sky) out.push(sky);
+    if (p.cities[0] && (!near.length || r() < 0.5) && p.cities[0].name !== h.name) out.push('And if you like cities, ' + p.cities[0].name + ' is ' + fmtDist(p.cities[0].dist) + ' away, ' + p.cities[0].dir + '.');
+    if (!out.length) out.push('Honestly? Just walk. Every hill here has something new behind it.');
+    return out.join(' ');
+  }
+  if (k === 'life') {
+    const g = p.wild.filter(x => !x.titan), ti = p.wild.find(x => x.titan);
+    if (g.length) {
+      const x = pick(r, g);
+      out.push(lead() + 'Keep an eye out for the ' + x.name + ' — it ' + x.habit + '. You’ll know it by its ' + x.look + '.');
+      if (x.shy) out.push('It’s shy, so walk softly.');
+      const y = g.find(o => o !== x); if (y && !brief) out.push('The ' + y.name + ' is around here too — it ' + y.habit + '.');
+    }
+    if (ti) out.push('And sometimes, if you’re lucky, ' + an(ti.name) + ' passes by. The whole ground shakes!');
+    const gp = p.plants.find(o => o.glow); if (gp) out.push('At night the ' + gp.name + ' glows softly.'); else if (p.plants[0] && !brief) out.push('The ' + p.plants[0].name + ' grows all around here.');
+    if (!out.length) out.push('Not many creatures live near here, I’m afraid. It’s mostly us.');
+    out.push('Hold your scanner on anything you’re curious about — it will tell you more than I can.');
+    return out.join(' ');
+  }
+  if (k === 'people') {
+    if (p.peoples.length > 1) out.push(lead() + 'Here on ' + w.name + ' you’ll find ' + joinList(p.peoples.map(x => 'the ' + x)) + '.');
+    else out.push(lead() + 'We ' + p.peoples[0] + ' are the only people on ' + w.name + ', as far as I know.');
+    const cs = p.cities.filter(o => o.name !== h.name);
+    if (cs[0]) out.push('The nearest ' + cs[0].kind + ' is ' + cs[0].name + ', ' + fmtDist(cs[0].dist) + ' away, ' + cs[0].dir + '.');
+    if (cs[1] && !brief) out.push('Then there’s ' + cs[1].name + ', ' + an(cs[1].kind) + ' ' + fmtDist(cs[1].dist) + ' away.');
+    if (!cs.length) out.push('Our neighbours live in small villages scattered across the land.');
+    return out.join(' ');
+  }
+  if (k === 'world') {
+    out.push(lead() + 'This is ' + w.name + ' — ' + (WORLD_WORD[w.type] || 'a quiet world') + '.');
+    if (w.tint) out.push('Our sky has a colour all of its own. I think it’s the prettiest anywhere.');
+    const sky = skyLine(p, r); if (sky) out.push(sky);
+    out.push(p.rain ? 'Shame about the rain — though I do like the sound of it.' : p.time === 'night' ? 'I love nights like this.' : p.time === 'dusk' ? 'This is my favourite hour — everything turns gold.' : 'Lovely day for exploring, isn’t it?');
+    return out.join(' ');
+  }
+  if (k === 'more') {
+    const L = ['Have you been to other worlds? I’d love to hear about them one day.', 'My favourite thing? ' + cap1(p.hobbies[pick(r, [0, 1])]) + '. Nothing beats it.'];
+    if (p.wild[0]) L.push('Yesterday a ' + p.wild[0].name + ' wandered right up to me. I didn’t move a muscle!');
+    const bones = p.marks.find(x => /colossus|forgotten|living crystal/.test(x.desc)); if (bones) L.push('The old ones say ' + bones.name + ' is older than the sky. I believe them.');
+    if (w.moons || w.rings || w.aurora) L.push('When I was little I thought the sky was painted every night just for us.');
+    if (p.plan === 'robot') L.push('I have catalogued ' + (1000 + Math.floor(r() * 9000)).toLocaleString('en') + ' sunsets. All of them were acceptable. Some were beautiful.');
+    return lead() + pick(r, L);
+  }
+  if (k === 'how') return pick(r, p.mood === 'robot' ? ['All systems nominal. Thank you for asking.'] : ['I’m well, thank you! Better for the company.', 'Oh, can’t complain! And you?', 'Good, good — busy, but good.']) + ' What would you like to know?';
+  if (k === 'thanks') return pick(r, ['You’re welcome!', 'Any time!', 'Happy to help.']) + ' ' + pick(r, ['Anything else?', 'What else?', 'Enjoy ' + w.name + '!']);
+  if (k === 'bye') return pick(r, MOOD_BYE[p.mood]);
+  const sug = TALK_TOPICS.find(t => !m.asked.has(t)) || 'see';
+  return pick(r, ['Hmm, I’m not sure I follow.', 'Ha, that’s a strange question!', p.mood === 'robot' ? 'Query not understood.' : 'I’m not sure what you mean.']) + ' You could ask me “' + chipLabel(sug, p) + '”';
+}
+// what the traveller typed, matched to a topic
+const TALK_INTENTS = [
+  ['bye', /\b(bye|goodbye|farewell|see you|got to go|gotta go|leaving)\b/], ['thanks', /\b(thanks|thank you|thx|cheers)\b/], ['how', /\bhow (are|r) (you|u)\b|how’?s it going|how do you do/],
+  ['home', /where do you live|your (city|town|village|home|camp)/], ['me', /who are you|your name|about you|yourself|your job|work|what do you do|how old|\bage\b|hobb|for fun/],
+  ['life', /animal|creature|wildlife|beast|bird|fish|plant|tree|flower|forest|herd/], ['people', /people|folk|species|who else|neighbou?r|other (city|cities|town|village)|cities|towns/],
+  ['world', /planet|world|sky|weather|rain|moon|ring|aurora|night|sunset|star/], ['see', /\bsee\b|visit|sight|landmark|interesting|explore|go to|recommend|where|places?\b|do around/],
+  ['home', /\bcity\b|\btown\b|village|\blive\b|home|this place|street|park|square/], ['more', /\bmore\b|\belse\b|another|story|tell me something/], ['hello', /^(hi|hello|hey|greetings|good (morning|evening|day))\b/]
+];
+const chatIntent = t => { t = t.toLowerCase(); for (const [k, re] of TALK_INTENTS) if (re.test(t)) return k; return '?'; };
+// ---- chat flow: open, type out replies with the person's voice, offer topics, remember the conversation while on this world
+let chat = null;
+function chatMemOf(s, key) {
+  s.chatMem = s.chatMem || new Map(); let m = s.chatMem.get(key);
+  if (!m) { m = { visits: 0, n: 0, asked: new Set(), log: [] }; s.chatMem.set(key, m); if (s.chatMem.size > 40) s.chatMem.delete(s.chatMem.keys().next().value); }
+  return m;
+}
+function chatOpen(t) {
+  const s = surf; if (!s || !t || t.type !== 'person') return;
+  if (Math.hypot(t.a.x - s.x, t.a.z - s.z) > TALK_R) { toast('Walk a little closer to talk'); return; }
+  if (chat && chat.a === t.a) return;
+  if (chat) chatClose();
+  if (S.scan || S.scanView) scanClose();
+  $('tip').style.display = 'none';
+  const key = scanKey(t), p = npcPersona(s, t), m = chatMemOf(s, key);
+  m.visits++; (s.met = s.met || new Set()).add(key); t.a.talk = true;
+  chat = { t, a: t.a, p, m, q: [], cur: null, typeT: 0, closeT: 0 };
+  const el = $('chat'), log = el.querySelector('.log');
+  el.querySelector('.h').textContent = p.name;
+  el.querySelector('.d').textContent = p.folk + ' \u00b7 ' + p.job + (p.home.name ? ' \u00b7 ' + p.home.name : '');
+  log.innerHTML = '';
+  if (m.log.length) { for (const L of m.log) chatBubble(L.who, L.text).classList.add('old'); const sp = document.createElement('div'); sp.className = 'sep'; sp.textContent = '\u00b7 \u00b7 \u00b7'; log.appendChild(sp); }
+  el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex';
+  chatSay('hello');
+}
+function chatBubble(who, text) {
+  const log = $('chat').querySelector('.log'), d = document.createElement('div');
+  d.className = 'm ' + who; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+function chatSay(k, said) {
+  const c = chat; if (!c) return;
+  if (said) { chatBubble('p', said); c.m.log.push({ who: 'p', text: said }); }
+  c.m.n++;
+  const text = npcReply(c.p, k, mulberry(hashInts(c.a.id | 0, c.m.n, c.m.visits, k.length * 31 + k.charCodeAt(0))), c.m);
+  if (TALK_TOPICS.includes(k)) c.m.asked.add(k);
+  c.m.log.push({ who: 'n', text }); if (c.m.log.length > 40) c.m.log.splice(0, c.m.log.length - 40);
+  c.q.push({ text, el: chatBubble('n', ''), i: 0, lb: -9 });
+  c.bye = k === 'bye';
+  $('chat').querySelector('.opts').innerHTML = '';
+}
+function chatAsk(k) { const c = chat; if (!c || c.cur || c.q.length || c.bye) return; chatSay(k, chipLabel(k, c.p)); }
+function chatOptions() {
+  const c = chat, el = $('chat').querySelector('.opts'); el.innerHTML = '';
+  const list = TALK_TOPICS.filter(k => !c.m.asked.has(k) && (k !== 'life' || c.p.wild.length || c.p.plants.length)).slice(0, 3);
+  if (list.length < 3) list.push('more');
+  list.push('bye');
+  for (const k of list) {
+    const b = document.createElement('button'); b.textContent = chipLabel(k, c.p); if (k === 'bye') b.className = 'bye';
+    b.onmousedown = e => e.preventDefault(); b.onclick = () => { Music.click(); chatAsk(k); }; el.appendChild(b);
+  }
+}
+// show everything still being typed at once
+function chatSkip() {
+  const c = chat; if (!c) return;
+  for (const q of [c.cur, ...c.q]) if (q) { q.i = q.text.length; q.el.textContent = q.text; }
+  c.cur = null; c.q.length = 0; chatTyped();
+}
+function chatTyped() {
+  const c = chat, log = $('chat').querySelector('.log'); log.scrollTop = log.scrollHeight;
+  if (c.bye) c.closeT = 1.8; else chatOptions();
+}
+function chatClose() {
+  if (!chat) return;
+  chat.a.talk = false; chat = null;
+  const el = $('chat'), i = el.querySelector('input'); el.style.display = 'none'; if (document.activeElement === i) i.blur();
+}
+function chatStep(dt) {
+  const c = chat; if (!c) return;
+  const s = surf;
+  if (!s || S.mode !== 'surface' || s.phase !== 'walk' || s.driving) { chatClose(); return; }
+  if (Math.hypot(c.a.x - s.x, c.a.z - s.z) > TALK_R * 1.8) { toast('You wave goodbye to ' + c.p.first); chatClose(); return; }
+  if (c.closeT > 0) { c.closeT -= dt; if (c.closeT <= 0) chatClose(); return; }
+  if (!c.cur) { if (!c.q.length) return; c.cur = c.q.shift(); c.typeT = 0.18; }
+  const cur = c.cur, cps = c.p.mood === 'hurried' ? 46 : c.p.mood === 'dreamy' || c.p.mood === 'shy' ? 28 : 34;
+  c.typeT -= dt;
+  for (let g = 0; c.typeT <= 0 && cur.i < cur.text.length && g < 40; g++) {
+    const ch = cur.text[cur.i++];
+    let d = 1 / cps;
+    if (/[,;:—]/.test(ch)) d += 0.13; else if (/[.!?…]/.test(ch) && (cur.text[cur.i] || ' ') === ' ') d += 0.3;
+    // a syllable blip every few letters, rising towards the end of a question
+    if (/[a-z0-9]/i.test(ch) && cur.i - cur.lb >= 3 && (/[aeiouy]/i.test(ch) || cur.i === 1 || cur.text[cur.i - 2] === ' ')) {
+      const rest = cur.text.slice(cur.i), e = rest.search(/[.!?]/), q = e >= 0 && e < 10 && rest[e] === '?';
+      Music.talk(c.p.voice, c.p.plan, q ? 1.1 + (10 - e) * 0.012 : 1); cur.lb = cur.i;
+    }
+    c.typeT += d;
+  }
+  cur.el.textContent = cur.text.slice(0, cur.i);
+  const log = cur.el.parentNode; if (log) log.scrollTop = log.scrollHeight;
+  if (cur.i >= cur.text.length) { c.cur = null; if (!c.q.length) chatTyped(); }
+}
+// R: talk to the nearest person in front of you
+function talkNearest() {
+  const s = surf, E = s.eco, fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw); let best = null, bd = 12;
+  const look = a => {
+    const C = E.creatures[a.si]; if (!C || !C.villager || a.alt) return;
+    const dx = a.x - s.x, dz = a.z - s.z, d = Math.hypot(dx, dz); if (d >= bd || (d > 3 && (dx * fx + dz * fz) / d < 0.3)) return;
+    bd = d; best = a;
+  };
+  for (const t of s.vtiles.values()) if (t.a.people) t.a.people.forEach(look);
+  for (const t of s.ctiles.values()) t.a.agents.forEach(look);
+  if (s.crowd) s.crowd.forEach(look);
+  if (!best) { toast('No one close enough to talk to'); return; }
+  chatOpen({ type: 'person', a: best, si: best.si, C: E.creatures[best.si], rad: 1 });
+}
+{
+  const el = $('chat'), form = el.querySelector('form'), inp = el.querySelector('input');
+  el.querySelector('.x').onclick = () => chatClose();
+  el.querySelector('.log').onclick = () => { if (chat && (chat.cur || chat.q.length)) chatSkip(); };
+  form.onsubmit = e => {
+    e.preventDefault(); const v = inp.value.trim(); if (!v || !chat || chat.bye) return; inp.value = '';
+    if (chat.cur || chat.q.length) chatSkip();
+    chatSay(chatIntent(v), v);
+  };
 }
 // ---- live preview: the scanned creature or plant, animated, drawn into the panel window
 const scanIB = gl.createBuffer(), scanZero = new Float32Array(8);
@@ -6793,6 +7161,7 @@ function update(dt) {
     if (surf) updateSurfaceWorld(surf, dt);
   }
   scanStep(dt);
+  chatStep(dt);
   engineSound(dt);
 }
 
@@ -6895,6 +7264,10 @@ canvas.addEventListener('pointerleave', () => { $('tip').style.display = 'none';
 canvas.addEventListener('pointerup', e => {
   canvas.classList.remove('drag');
   if (S.scan && S.scan.holding) scanRelease();
+  // a right click (not a drag) on a person nearby starts a chat
+  if (drag && drag.look && e.button === 2 && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6 && performance.now() - drag.t < 450 && S.started && !S.paused && S.mode === 'surface' && surf && surf.phase === 'walk' && !surf.driving) {
+    const t = scanPick(surf, e.clientX, e.clientY); if (t && t.type === 'person') chatOpen(t);
+  }
   if (drag && !drag.look && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6 && performance.now() - drag.t < 450 && S.started) {
     const sc = canvas.width / canvas.clientWidth, t = pickAt(e.clientX * sc, e.clientY * sc);
     if (t) travelTo(t);
@@ -6923,6 +7296,8 @@ function centerView() {
 }
 function toggleView() { S.tp = !S.tp; $('bView').classList.toggle('on', S.tp); toast(S.tp ? 'Third-person view' : 'First-person view'); }
 window.addEventListener('keydown', e => {
+  // typing in the chat box: keys are words, not controls
+  if (e.target instanceof HTMLInputElement) { if (e.code === 'Escape') chatClose(); return; }
   if (e.repeat && !/^(Key[WASDQEX]|Arrow|Shift|Space)/.test(e.code)) return;
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
@@ -6934,7 +7309,8 @@ window.addEventListener('keydown', e => {
   // Space: jump on foot, otherwise take the controls and slow the craft down
   if (e.code === 'Space' && !e.repeat) { if (onFoot) heroJump(); else if (S.auto && S.goal?.kind !== 'jump') setAuto(false); }
   if (e.code === 'KeyJ') spaceJump();
-  if (e.code === 'Escape' && S.scanView) scanClose();
+  if (e.code === 'Escape') { if (S.scanView) scanClose(); if (chat) chatClose(); }
+  if (e.code === 'KeyR' && !e.repeat && onFoot && !surf.driving) talkNearest();
   // E on the ground: get into the ship or buggy you are standing next to, or out of the buggy
   if (e.code === 'KeyE' && !e.repeat && onFoot) useVehicle();
   if (e.code === 'KeyO') setAuto(!S.auto);
