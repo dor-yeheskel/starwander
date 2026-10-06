@@ -3692,7 +3692,46 @@ function herdStep(s, H, C, dt, fr) {
     H.x += Math.sin(H.head) * H.spd * dt; H.z += Math.cos(H.head) * H.spd * dt;
   }
 }
-let animFrame = 0;
+let animFrame = 0, followN = 0;
+// cars keep their distance: in every lane (same street or highway, same direction) each car learns the gap to the car
+// directly ahead and that car's speed. Only speeds are affected; a car never waits for one behind it, so traffic can't lock up
+function followPlan(s, groups, E) {
+  const lanes = new Map();
+  for (const g of groups) for (const a of g) {
+    if (!(a.city || a.road) || a.alt) continue;
+    const C = E.creatures[a.si]; if (C.beh !== 'drive') continue;
+    a.gap = Infinity;
+    if (Math.abs(a.x - s.x) > 1400 || Math.abs(a.z - s.z) > 1400) continue;
+    let key;
+    if (a.road) { const R = a.road; R.fid = R.fid || ++followN; key = 'r' + R.fid + ':' + a.dir; a.fpos = a.t * a.dir; }
+    else {
+      const c = a.city, ax = a.dir & 1; c.fid = c.fid || ++followN;
+      key = c.fid + ':' + a.dir + ':' + Math.round((ax ? a.u : a.v) / c.B) + ':' + Math.round(a.lane);
+      a.fpos = (ax ? a.v : a.u) * (a.dir < 2 ? 1 : -1);
+    }
+    a.flen = C.rad * a.scale;
+    let L = lanes.get(key); if (!L) lanes.set(key, L = []); L.push(a);
+  }
+  s.fLanes = lanes;
+  for (const L of lanes.values()) {
+    if (L.length < 2) continue;
+    L.sort((p, q) => q.fpos - p.fpos || q.id - p.id);
+    for (let i = 1; i < L.length; i++) { const f = L[i], l = L[i - 1]; f.gap = l.fpos - f.fpos - f.flen - l.flen; f.gapV = l.spd; }
+  }
+}
+// the speed a following car may drive at: ease off well before the car ahead, never closer than 1.5 m
+const followWant = (a, want) => a.gap < Infinity ? Math.min(want, Math.max(0, a.gapV + (a.gap - 3) * 0.8)) : want;
+const followCap = (a, dt) => a.gap < Infinity ? Math.min(a.spd, Math.max(0, a.gapV + (a.gap - 1.5) / Math.max(dt, 0.05))) : a.spd;
+// is there room to turn into direction d at this intersection (no car sitting at the entrance of that lane)?
+function laneFree(s, c, a, d, C) {
+  if (!s.fLanes || !c.fid) return true;
+  const ax = d & 1, t = { u: a.u, v: a.v, dir: d, alt: a.alt, lsel: a.lsel, pf: a.pf, ljit: a.ljit };
+  const L = s.fLanes.get(c.fid + ':' + d + ':' + Math.round((ax ? a.u : a.v) / c.B) + ':' + Math.round(laneOf(c, t, true)));
+  if (!L) return true;
+  const pos = (ax ? a.v : a.u) * (d < 2 ? 1 : -1), me = C.rad * a.scale;
+  for (const o of L) { if (o === a) continue; const d2 = o.fpos - pos, r = me + o.flen; if (d2 > -r && d2 < r + 1.5) return false; }
+  return true;
+}
 function simAnimals(s, dt) {
   const P = s.P, E = s.eco, lists = E.creatures.map(() => []);
   const low = s.y - s.ground, walking = s.phase === 'walk';
@@ -3705,6 +3744,7 @@ function simAnimals(s, dt) {
   for (const t of s.ctiles.values()) if (t.a.agents.length) groups.push(t.a.agents);
   if (s.crowd && s.crowd.length) groups.push(s.crowd);
   if (s.civ && s.civ.lv >= 2) for (const R of s.roadList) groups.push(roadCars(s, R));
+  followPlan(s, groups, E);
   const turnTo = (a, tx, tz, rate, d) => { let da = Math.atan2(tx - a.x, tz - a.z) - a.head; da = Math.atan2(Math.sin(da), Math.cos(da)); a.head += clamp(da, -rate * d, rate * d); return da; };
   for (const g of groups) for (const a of g) {
     const C = E.creatures[a.si], beh = C.beh, H = a.H;
@@ -4517,7 +4557,9 @@ function roadCars(s, R) {
 }
 function roadStep(s, a, C, dt, dC) {
   const R = a.road;
-  a.spd = lerp(a.spd, a.spd0, 1 - Math.exp(-dt * 0.8));
+  const want = followWant(a, a.spd0);
+  a.spd = lerp(a.spd, want, 1 - Math.exp(-dt * (want < a.spd ? 2.5 : 0.8)));
+  a.spd = followCap(a, dt);
   a.t += a.dir * a.spd * dt;
   // at either city the driver swings round and heads back the other way
   if (a.t > R.len) { a.t = R.len; a.dir = -1; } else if (a.t < 0) { a.t = 0; a.dir = 1; }
@@ -4785,6 +4827,8 @@ function crowdStep(s) {
       if (parkStreet(c, ax ? su : u, ax ? v : sv) || !onStreet(c, ax ? su : u, ax ? v : sv, ax)) continue;
       if (E.creatures[si2].beh === 'drive' && !alt && lineT(c, ax ? 0 : 1, Math.round((ax ? su : sv) / c.B)) === 2) continue;
       const na = streetAgent(s, c, si2, ax ? su : u, ax ? v : sv, ax, lane, alt, Math.random);
+      // never drop a new car onto one already there (e.g. into a queue)
+      if (E.creatures[si2].beh === 'drive' && !alt && !laneFree(s, c, na, na.dir, E.creatures[si2])) continue;
       if (a) { Object.assign(a, na); return a; }
       return na;
     }
@@ -4814,7 +4858,9 @@ function gridStep(s, a, C, dt, dC, walking) {
   if (a.wait > 0) { a.wait -= dt; want = 0; }
   const meet = (walking && dC < (drive ? 12 : 7) || a.talk) && !a.alt;
   if (meet) want = 0;
-  a.spd = lerp(a.spd, want, 1 - Math.exp(-dt * (drive ? 1.5 : 3)));
+  if (drive) want = followWant(a, want);
+  a.spd = lerp(a.spd, want, 1 - Math.exp(-dt * (drive ? (want < a.spd ? 3 : 1.5) : 3)));
+  if (drive) a.spd = followCap(a, dt);
   const sg = a.dir < 2 ? 1 : -1, ax = a.dir & 1;
   let p = (ax ? a.v : a.u) + sg * a.spd * dt;
   if ((p - a.next) * sg >= 0) {
@@ -4826,8 +4872,18 @@ function gridStep(s, a, C, dt, dC, walking) {
     const segOK = d => d === 0 ? streetH(c, kv, ku) : d === 2 ? streetH(c, kv, ku - 1) : d === 1 ? streetV(c, ku, kv) : streetV(c, ku, kv - 1);
     const okD = d => segOK(d) && cityN(c, a.u + du[d], a.v + dv[d]) < 0.92 && !parkStreet(c, a.u + du[d] / 2, a.v + dv[d] / 2) && !(drive && !a.alt && ((d & 1) ? lineT(c, 0, ku) : lineT(c, 1, kv)) === 2);
     if (!okD(nd)) nd = opts.find(okD) ?? (a.dir + 2) % 4;
-    a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B); a.lane = laneOf(c, a, drive);
-    if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
+    // cars only turn into a lane with room at its entrance: otherwise another free way, or a short wait at the corner
+    let hold = false;
+    if (drive && !a.alt && !laneFree(s, c, a, nd, C)) {
+      const alt = opts.filter(d => d !== nd && okD(d)).concat((a.dir + 2) % 4).find(d => laneFree(s, c, a, d, C));
+      if (alt !== undefined) nd = alt; else if ((a.blockT = (a.blockT || 0) + dt) < 5) hold = true;
+    }
+    if (hold) a.spd = 0;
+    else {
+      a.blockT = 0;
+      a.dir = nd; a.next = ((nd & 1) ? a.v : a.u) + (nd < 2 ? B : -B); a.lane = laneOf(c, a, drive);
+      if (!drive && Math.random() < 0.15) a.wait = 2 + Math.random() * 8;
+    }
   } else if (ax) a.v = p; else a.u = p;
   // keep to the right of the direction of travel
   const du = [1, 0, -1, 0][a.dir], dv = [0, 1, 0, -1][a.dir], lu = a.u - dv * a.lane, lv = a.v + du * a.lane;
