@@ -5720,7 +5720,7 @@ function showLoc(t, s, kind) {
   el.querySelector('.t').textContent = t; el.querySelector('.s').textContent = s || '';
   el.style.transition = 'opacity .4s, transform .4s'; el.style.opacity = 0; el.style.transform = 'translateX(-12px)';
   setTimeout(() => { el.style.transition = 'opacity 2s, transform 2s cubic-bezier(.2,.7,.2,1)'; el.style.opacity = 1; el.style.transform = 'none'; }, 450);
-  clearTimeout(locTimer); locTimer = setTimeout(() => { el.style.transition = 'opacity 4s'; el.style.opacity = 0; }, 13500);
+  clearTimeout(locTimer); locTimer = setTimeout(() => { el.style.transition = 'opacity 4s'; el.style.opacity = 0; }, 10000);
 }
 function toast(msg) {
   const el = $('toast'); el.textContent = msg; el.style.transition = 'opacity .5s'; el.style.opacity = 0.85;
