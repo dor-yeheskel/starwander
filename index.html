@@ -22,6 +22,9 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #intro .go{margin-top:1.8em;padding:.85em 2.4em;border:1px solid rgba(160,215,255,.65);border-radius:40px;background:rgba(20,40,90,.45);backdrop-filter:blur(4px);letter-spacing:.3em;font-size:13px;font-weight:500;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);animation:pulse 3s ease-in-out infinite}
 @media (max-width:640px){#intro h1{letter-spacing:.22em;margin-left:.22em;font-size:clamp(28px,9vw,44px)}}
 body.pre #info,body.pre #loc{opacity:0!important}
+#intro p.mob{display:none;max-width:420px;margin-top:1.2em;padding:.6em 1.1em;border-radius:12px;background:rgba(20,40,90,.4);font-size:13px;letter-spacing:.04em;line-height:1.5;color:#cfe4ff}
+/* touch-only devices (phones, tablets): no mouse or keyboard to walk with */
+@media (hover:none) and (pointer:coarse){#intro p.mob{display:block}}
 @keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(120,190,255,.25)}50%{box-shadow:0 0 22px rgba(120,190,255,.6)}}
 #loc{position:fixed;left:26px;bottom:26px;max-width:min(calc(100vw - 360px),900px);pointer-events:none;opacity:0;padding:14px 34px 15px 20px;border-left:2px solid rgba(140,215,255,.85);border-radius:0 14px 14px 0;background:linear-gradient(90deg,rgba(6,10,22,.68),rgba(6,10,22,.42) 65%,rgba(6,10,22,0));backdrop-filter:blur(3px)}
 #loc .k{font-size:11px;font-weight:600;letter-spacing:.38em;text-transform:uppercase;color:#9fdcff;margin-bottom:3px;text-shadow:0 0 10px rgba(0,0,0,.9)}
@@ -136,7 +139,8 @@ body.pre #info,body.pre #loc{opacity:0!important}
   <h1>STARWANDER</h1>
   <p>Drift through an endless universe. Land on living worlds.</p>
   <p class="hi">Meet the locals, and talk to them in your own language.</p>
-  <p class="small">headphones recommended</p>
+  <p class="small">best with sound on</p>
+  <p class="mob">Best on a computer with a keyboard &middot; on a phone, sit back and enjoy the autopilot</p>
   <div class="go">CLICK TO BEGIN</div>
 </div>
 <div id="loc" class="ui"><div class="k"></div><div class="t"></div><div class="s"></div></div>
