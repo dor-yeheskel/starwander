@@ -14,11 +14,15 @@ canvas{display:block;width:100vw;height:100vh;cursor:grab}
 canvas.drag{cursor:grabbing}
 .ui{transition:opacity 1.2s ease}
 body.hideui .ui{opacity:0!important;pointer-events:none!important}
-#intro{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(0,0,0,.05) 0%,rgba(0,0,0,.55) 100%);cursor:pointer;z-index:10;transition:opacity 2.2s ease}
-#intro h1{font-weight:200;letter-spacing:.55em;font-size:clamp(34px,6vw,76px);margin:0 0 .2em .55em;text-shadow:0 0 30px rgba(140,180,255,.55)}
-#intro p{margin:.35em;font-weight:300;letter-spacing:.12em;opacity:.8;font-size:clamp(12px,1.5vw,16px)}
-#intro .go{margin-top:2.2em;padding:.8em 2.2em;border:1px solid rgba(255,255,255,.35);border-radius:40px;letter-spacing:.3em;font-size:13px;animation:pulse 3s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+#intro{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 24px;text-align:center;background:radial-gradient(ellipse 62% 48% at 50% 50%,rgba(3,5,14,.78) 0%,rgba(3,5,14,.5) 55%,rgba(0,0,0,.2) 100%);cursor:pointer;z-index:10;transition:opacity 2.2s ease}
+#intro h1{font-weight:300;letter-spacing:.5em;font-size:clamp(34px,6vw,76px);margin:0 0 .45em .5em;color:#fff;text-shadow:0 0 28px rgba(140,190,255,.75),0 2px 6px rgba(0,0,0,.9)}
+#intro p{margin:.3em 0;font-weight:400;letter-spacing:.08em;font-size:clamp(14px,1.6vw,18px);color:#e6eeff;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 14px rgba(0,0,0,.85)}
+#intro p.hi{color:#bfe6ff;font-weight:500}
+#intro p.small{margin-top:1.1em;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#cdd6ea;opacity:.75}
+#intro .go{margin-top:1.8em;padding:.85em 2.4em;border:1px solid rgba(160,215,255,.65);border-radius:40px;background:rgba(20,40,90,.45);backdrop-filter:blur(4px);letter-spacing:.3em;font-size:13px;font-weight:500;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);animation:pulse 3s ease-in-out infinite}
+@media (max-width:640px){#intro h1{letter-spacing:.22em;margin-left:.22em;font-size:clamp(28px,9vw,44px)}}
+body.pre #info,body.pre #loc{opacity:0!important}
+@keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(120,190,255,.25)}50%{box-shadow:0 0 22px rgba(120,190,255,.6)}}
 #loc{position:fixed;left:26px;bottom:26px;max-width:min(calc(100vw - 360px),900px);pointer-events:none;opacity:0;padding:14px 34px 15px 20px;border-left:2px solid rgba(140,215,255,.85);border-radius:0 14px 14px 0;background:linear-gradient(90deg,rgba(6,10,22,.68),rgba(6,10,22,.42) 65%,rgba(6,10,22,0));backdrop-filter:blur(3px)}
 #loc .k{font-size:11px;font-weight:600;letter-spacing:.38em;text-transform:uppercase;color:#9fdcff;margin-bottom:3px;text-shadow:0 0 10px rgba(0,0,0,.9)}
 #loc .t{font-weight:300;font-size:clamp(26px,3.3vw,44px);letter-spacing:.14em;line-height:1.15;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.9)}
@@ -125,12 +129,13 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #chat form button{font:inherit;color:#9fdcff;background:none;border:1px solid rgba(110,210,255,.35);border-radius:8px;padding:0 10px;cursor:pointer}
 </style>
 </head>
-<body>
+<body class="pre">
 <canvas id="c"></canvas>
 <div id="intro">
   <h1>STARWANDER</h1>
-  <p>an endless, gentle drift through an infinite universe</p>
-  <p style="opacity:.55">headphones recommended</p>
+  <p>Drift through an endless universe. Land on living worlds.</p>
+  <p class="hi">Meet the locals, and talk to them in your own language.</p>
+  <p class="small">headphones recommended</p>
   <div class="go">CLICK TO BEGIN</div>
 </div>
 <div id="loc" class="ui"><div class="k"></div><div class="t"></div><div class="s"></div></div>
@@ -7452,7 +7457,7 @@ $('bMarks').onclick = () => toggleMarks();
 function toggleMarks() { markOn = !markOn; $('bMarks').classList.toggle('on', markOn); toast(markOn ? 'Markers on' : 'Markers off'); }
 $('intro').addEventListener('click', () => {
   if (S.started) return;
-  S.started = true; Music.start();
+  S.started = true; Music.start(); document.body.classList.remove('pre');
   const el = $('intro'); el.style.opacity = 0; setTimeout(() => el.remove(), 2300);
   S.goal = null; S.queue = galaxyGoals(G0).slice(1);
   setTimeout(() => showLoc(G0.title, G0.desc, 'Galaxy'), 1200);
