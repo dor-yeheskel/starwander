@@ -15,10 +15,16 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #intro p{margin:.35em;font-weight:300;letter-spacing:.12em;opacity:.8;font-size:clamp(12px,1.5vw,16px)}
 #intro .go{margin-top:2.2em;padding:.8em 2.2em;border:1px solid rgba(255,255,255,.35);border-radius:40px;letter-spacing:.3em;font-size:13px;animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
-#loc{position:fixed;left:34px;bottom:30px;pointer-events:none;opacity:0}
-#loc .t{font-weight:200;font-size:clamp(20px,2.6vw,34px);letter-spacing:.18em;text-shadow:0 0 18px rgba(0,0,0,.8)}
-#loc .s{font-weight:300;font-size:13px;letter-spacing:.22em;opacity:.7;margin-top:6px;text-transform:uppercase;text-shadow:0 0 10px rgba(0,0,0,.9)}
-#info{position:fixed;right:30px;bottom:30px;text-align:right;font-size:12px;letter-spacing:.14em;opacity:.55;pointer-events:none;line-height:1.7;text-shadow:0 0 8px #000;font-variant-numeric:tabular-nums}
+#loc{position:fixed;left:26px;bottom:26px;max-width:min(calc(100vw - 360px),900px);pointer-events:none;opacity:0;padding:14px 34px 15px 20px;border-left:2px solid rgba(140,215,255,.85);border-radius:0 14px 14px 0;background:linear-gradient(90deg,rgba(6,10,22,.68),rgba(6,10,22,.42) 65%,rgba(6,10,22,0));backdrop-filter:blur(3px)}
+#loc .k{font-size:11px;font-weight:600;letter-spacing:.38em;text-transform:uppercase;color:#9fdcff;margin-bottom:3px;text-shadow:0 0 10px rgba(0,0,0,.9)}
+#loc .t{font-weight:300;font-size:clamp(26px,3.3vw,44px);letter-spacing:.14em;line-height:1.15;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.9)}
+#loc .s{font-weight:400;font-size:13px;letter-spacing:.16em;opacity:.9;margin-top:7px;text-transform:uppercase;text-shadow:0 0 10px rgba(0,0,0,.95)}
+#info{position:fixed;right:22px;bottom:22px;min-width:200px;max-width:min(46vw,420px);pointer-events:none;padding:9px 15px 10px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(6,10,22,.52);backdrop-filter:blur(6px);font-size:13px;line-height:1.75;text-shadow:0 0 8px #000;font-variant-numeric:tabular-nums}
+@media (max-width:760px){#loc{bottom:190px;max-width:calc(100vw - 52px)}}
+#info .r{display:flex;justify-content:space-between;align-items:baseline;gap:20px}
+#info .r span{font-size:10px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;opacity:.55;white-space:nowrap}
+#info .r b{font-weight:400;font-size:14px;letter-spacing:.06em;color:#fff;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#info .h{margin-top:3px;padding-top:4px;border-top:1px solid rgba(255,255,255,.08);font-size:10.5px;letter-spacing:.14em;color:#9fdcff;text-align:right}
 #bar{position:fixed;top:18px;right:18px;display:flex;gap:8px;z-index:5}
 #bar button{background:rgba(10,14,28,.35);border:1px solid rgba(255,255,255,.18);color:#dfe7ff;border-radius:20px;padding:7px 13px;font-size:12px;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(6px);transition:background .3s,border-color .3s}
 #bar button:hover{background:rgba(60,80,140,.4)}
@@ -119,7 +125,7 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
   <p style="opacity:.55">headphones recommended</p>
   <div class="go">CLICK TO BEGIN</div>
 </div>
-<div id="loc" class="ui"><div class="t"></div><div class="s"></div></div>
+<div id="loc" class="ui"><div class="k"></div><div class="t"></div><div class="s"></div></div>
 <div id="info" class="ui"></div>
 <div id="toast" class="ui"></div>
 <div id="marks" class="ui"></div>
@@ -5114,25 +5120,29 @@ function updateSurfaceWorld(s, dt) {
   // herds, walking mountains and villages
   tileSet(s.atiles, AT, ANIM_R, s.x, s.z, 2, (tx, tz) => genHerd(s, tx, tz));
   tileSet(s.ttiles, TIT_T, TIT_R, s.x, s.z, 1, (tx, tz) => genTitan(s, tx, tz));
+  // places are announced each time you arrive; one only counts as left once you are well away from it (or it unloads)
+  const nearNow = new Set(); let here = null;
+  const arrive = (key, near, far) => { const was = !!s.near && s.near.has(key); if (near || (was && !far)) nearNow.add(key); return near && !was; };
   if (s.civ) {
     if (tileSet(s.vtiles, VT, VIL_R, s.x, s.z, 1, (tx, tz) => genVillageTile(s, tx, tz))) s.vdirty = true;
     s.vrebuildT -= dt;
     if (s.vdirty && s.vrebuildT <= 0) { s.vdirty = false; s.vrebuildT = 0.5; s.civ.kinds.forEach((K, k) => uploadInst(K.m, mergeTiles(s.vtiles, k))); }
     for (const t of s.vtiles.values()) {
-      const v = t.a.site;
-      if (!v.n || s.seenV.has(v.key) || Math.hypot(v.cx - s.x, v.cz - s.z) > v.R + 150 || s.y - s.ground > 500) continue;
-      s.seenV.add(v.key);
-      showLoc(v.name, (s.civ.lv === 0 ? 'a nomad camp' : v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + ' \u00b7 ' + v.n + (s.civ.lv === 0 ? ' tents' : ' dwellings'));
+      const v = t.a.site; if (!v.n) continue;
+      const d = Math.hypot(v.cx - s.x, v.cz - s.z) - v.R, kind = s.civ.lv === 0 ? 'Camp' : v.hamlet ? 'Hamlet' : 'Village';
+      if (d < 40) here = { kind, name: v.name };
+      if (arrive(v.key, d < 150 && s.y - s.ground < 500, d > 600)) { s.seenV.add(v.key); showLoc(v.name, (s.civ.lv === 0 ? 'a nomad camp' : v.hamlet ? 'a quiet hamlet' : 'a village') + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + ' \u00b7 ' + v.n + (s.civ.lv === 0 ? ' tents' : ' dwellings'), kind); }
     }
     if (s.civ.lv >= 2) {
       if (tileSet(s.ctiles, CT, CITY_R, s.x, s.z, 1, (tx, tz) => genCityTile(s, tx, tz))) s.cdirty = true;
       if (s.cdirty) { s.cdirty = false; rebuildCity(s); }
       crowdStep(s);
       for (const c of s.cityList) {
-        if (s.seenV.has(c.key) || cityOut(c, s.x, s.z) > 300 || s.y - s.ground > 2500) continue;
+        const o = cityOut(c, s.x, s.z), kind = c.R > 1000 ? 'Great city' : c.R > 450 ? 'City' : 'Town';
+        if (o < 0) here = { kind, name: c.name };
+        if (!arrive(c.key, o < 300 && s.y - s.ground < 2500, o > 900)) continue;
         s.seenV.add(c.key);
-        const kind = c.R > 1000 ? 'a great city' : c.R > 450 ? 'a city' : 'a town', p = fmtPop(c.pop);
-        showLoc(c.name, kind + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + (s.civ.others === 1 ? ' and another people' : s.civ.others > 1 ? ' and ' + s.civ.others + ' other peoples' : '') + ' \u00b7 ' + c.nb + ' buildings \u00b7 ~' + p + ' souls');
+        showLoc(c.name, an(kind.toLowerCase()) + ' of the ' + s.civ.folk + ' ' + s.civ.folkKind + (s.civ.others === 1 ? ' and another people' : s.civ.others > 1 ? ' and ' + s.civ.others + ' other peoples' : '') + ' \u00b7 ' + c.nb.toLocaleString('en') + ' buildings \u00b7 ~' + fmtPop(c.pop) + ' souls', kind);
       }
     }
   }
@@ -5143,11 +5153,12 @@ function updateSurfaceWorld(s, dt) {
       E.marks.forEach((L, k) => uploadInst(L.m, mergeTiles(s.ltiles, k)));
       s.lmObs = []; s.lmSpots = []; for (const t of s.ltiles.values()) { s.lmObs.push(...t.a.obs); s.lmSpots.push(...t.a.spots); }
     }
-    if (s.y - s.ground < 1500) for (const o of s.lmSpots) {
-      const L = E.marks[o.k]; if (s.seenV.has('lm' + o.k) || Math.hypot(o.x - s.x, o.z - s.z) > 500 + L.scale[1]) continue;
-      s.seenV.add('lm' + o.k); showLoc(L.name, L.desc + ' \u00b7 ' + s.planet.name); break;
-    }
+    E.marks.forEach((L, k) => {
+      let d = Infinity; for (const o of s.lmSpots) if (o.k === k) d = Math.min(d, Math.hypot(o.x - s.x, o.z - s.z));
+      if (arrive('lm' + k, d < 500 + L.scale[1] && s.y - s.ground < 1500, d > 2000 + L.scale[1] * 2)) { s.seenV.add('lm' + k); showLoc(L.name, L.desc + ' \u00b7 ' + s.planet.name, 'Landmark'); }
+    });
   }
+  s.near = nearNow; s.here = here;
   // sky creatures drifting around the camera's path
   const fw = [-Math.sin(s.yaw), 0, -Math.cos(s.yaw)];
   if (s.floaters.length) {
@@ -5694,12 +5705,18 @@ const Music = {
 //  HUD
 // ============================================================================
 const $ = id => document.getElementById(id);
-let locTimer = 0, toastTimer = 0;
-function showLoc(t, s) {
-  const el = $('loc'); el.querySelector('.t').textContent = t; el.querySelector('.s').textContent = s || '';
-  el.style.transition = 'opacity .4s'; el.style.opacity = 0;
-  setTimeout(() => { el.style.transition = 'opacity 2.5s'; el.style.opacity = 1; }, 450);
-  clearTimeout(locTimer); locTimer = setTimeout(() => { el.style.transition = 'opacity 4s'; el.style.opacity = 0; }, 9000);
+let locTimer = 0, toastTimer = 0, locLast = { key: '', t: -1e9 };
+// the arrival banner: what kind of place, its name and a line about it (the same place won't repeat within 20 s)
+function showLoc(t, s, kind) {
+  const key = (kind || '') + ':' + t, now = performance.now();
+  if (key === locLast.key && now - locLast.t < 20000) return;
+  locLast = { key, t: now };
+  const el = $('loc'), k = el.querySelector('.k');
+  k.textContent = kind || ''; k.style.display = kind ? '' : 'none';
+  el.querySelector('.t').textContent = t; el.querySelector('.s').textContent = s || '';
+  el.style.transition = 'opacity .4s, transform .4s'; el.style.opacity = 0; el.style.transform = 'translateX(-12px)';
+  setTimeout(() => { el.style.transition = 'opacity 2s, transform 2s cubic-bezier(.2,.7,.2,1)'; el.style.opacity = 1; el.style.transform = 'none'; }, 450);
+  clearTimeout(locTimer); locTimer = setTimeout(() => { el.style.transition = 'opacity 4s'; el.style.opacity = 0; }, 13500);
 }
 function toast(msg) {
   const el = $('toast'); el.textContent = msg; el.style.transition = 'opacity .5s'; el.style.opacity = 0.85;
@@ -5788,7 +5805,7 @@ function nebulaGoals(n, quick) {
   visitedNeb.add(n.key);
   const dir = vnorm(vsub(S.pos, n.pos)), p = nebulaViewpoint(n);
   const ax = perpTo(dir);
-  return [goFly(() => p, n.R * 0.2, { label: n.title, obj: n, onArrive: () => showLoc(n.title, 'nebula · ' + fmtN(n.R * 2) + ' light years across') }),
+  return [goFly(() => p, n.R * 0.2, { label: n.title, obj: n, onArrive: () => showLoc(n.title, fmtN(n.R * 2) + ' light years across', 'Nebula') }),
   goOrbit(() => n.pos, ax, quick ? 8 : 18, 0.045, { label: n.title, obj: n })];
 }
 function starGoal(s) { return goFly(() => s.p, ENTER_LY * 0.6, { label: starName(s), obj: s }); }
@@ -5837,7 +5854,7 @@ function planetGoals(p, land, quick) {
   const sys = S.sys, Lw = vnorm(vmul(p.pos, -1)), side = vnorm(vcross(Lw, sys.up));
   const vp = planetViewpoint(p);
   const out = [];
-  out.push(goFly(() => vp, p.R * 0.7, { label: p.name, obj: p, onArrive: () => showLoc(p.name, p.desc + (p.landable ? '' : ' · ' + fmtN(p.R * 2000) + ' km')) }));
+  out.push(goFly(() => vp, p.R * 0.7, { label: p.name, obj: p, onArrive: () => showPlanet(p) }));
   if (!quick || !land) out.push(goOrbit(() => p.pos, sys.up, quick ? 6 : 12, (Math.random() < 0.5 ? 1 : -1) * 0.05, { label: p.name, obj: p }));
   if (land) {
     const en = vnorm(vadd(vmul(Lw, Math.cos(0.9)), vmul(side, Math.sin(0.9))));
@@ -5859,9 +5876,9 @@ function sunGoals() {
   const appr = vmul(dir, Rs * 7), inP = vmul(vnorm(vadd(dir, vmul(side, 0.5))), Rs * 0.55), name = S.sys.name;
   const out = vmul(vnorm(vadd(vmul(dir, -1), vmul(side, 0.1))), Rs * 7), ax = vnorm(vcross(inP, side));
   return [goFly(() => appr, Rs * 1.5, { label: name, obj: S.star, through: true }),
-  goFly(() => inP, Rs * 0.08, { label: 'into ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'inside the star \u00b7 rising plasma and the blazing core') }),
+  goFly(() => inP, Rs * 0.08, { label: 'into ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'inside the star \u00b7 rising plasma and the blazing core', 'Star') }),
   goOrbit(() => [0, 0, 0], ax, 30, 0.06, { label: 'inside ' + name, obj: S.star }),
-  goFly(() => out, Rs * 0.8, { label: 'through ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'flown straight through the star') })];
+  goFly(() => out, Rs * 0.8, { label: 'through ' + name, obj: S.star, through: true, onArrive: () => showLoc(name, 'flown straight through the star', 'Star') })];
 }
 function planSystem() {
   const sys = S.sys, q = [];
@@ -5901,8 +5918,9 @@ function enterSystem(st) {
   visitedStars.add(st.seed); S.goal = null; S.queue = [];
   if (S.auto) planSystem();
   const np = S.sys.planets.length;
-  showLoc(S.sys.name + ' System', starDesc(st) + ' · ' + (np ? np + ' planet' + (np > 1 ? 's' : '') : 'no planets'));
+  showLoc(S.sys.name, starDesc(st) + ' · ' + (np ? np + ' planet' + (np > 1 ? 's' : '') : 'no planets'), 'Star system');
 }
+const showPlanet = p => showLoc(p.name, p.desc + (p.landable ? '' : ' \u00b7 ' + fmtN(p.R * 2000) + ' km across'), 'Planet');
 function exitSystem() {
   S.pos = vadd(S.star.p, vmul(S.pos, 1 / SU_LY)); S.v /= SU_LY; S.mode = 'space';
   freeSysGL(S.sys); S.sys = null; S.goal = null; S.queue = []; S.galStay++;
@@ -5918,7 +5936,7 @@ function enterSurface(p) {
   S.mode = 'surface'; S.goal = null; S.fade = 1; S.fadeT = 0;
   S.fadeCol = skyDisplayColor(surf.P, S.sys.star.light, Math.asin(surf.sun0[1]));
   S.look.yaw = S.look.pitch = 0;
-  setTimeout(() => showLoc(p.name, p.desc + ' · surface'), 2500);
+  setTimeout(() => showLoc(p.name, p.desc + ' \u00b7 on the surface', 'Planet'), 2500);
 }
 function exitSurface() {
   const s = surf, p = s.planet;
@@ -6003,7 +6021,7 @@ function flyStep(dt) {
   const g = S.goal; if (!g) return;
   const turnK = 1 - Math.exp(-dt * 0.9);
   if (g.kind === 'jump') {
-    if (!g.dest) { g.dest = jumpDest(g.sel); if (!g.dest) { S.goal = null; return; } S.warpT = 0; Music.whoosh(); showLoc(selName(g.sel), 'hyperspace jump'); }
+    if (!g.dest) { g.dest = jumpDest(g.sel); if (!g.dest) { S.goal = null; return; } S.warpT = 0; Music.whoosh(); showLoc(selName(g.sel), 'jumping across space', 'Hyperspace'); }
     g.t += dt; S.thrust = 1;
     let up = refUp(); const dir = vnorm(vsub(g.dest.pos, S.pos)); if (Math.abs(vdot(up, dir)) > 0.97) up = qup(S.q);
     S.q = qslerp(S.q, qlook(dir, up), 1 - Math.exp(-dt * 4));
@@ -7183,7 +7201,7 @@ function update(dt) {
   if (S.mode === 'space') {
     updateGalaxies(S.pos);
     const hg = hostGalaxy(S.pos);
-    if (hg !== S.hostG) { S.hostG = hg; if (hg && S.started) showLoc(hg.title, hg.desc); }
+    if (hg !== S.hostG) { S.hostG = hg; if (hg && S.started) showLoc(hg.title, hg.desc, 'Galaxy'); }
     updateStarFields(S.pos, hg); updateNebulae(S.pos, hg);
     flyAndBank(dt);
     const [st, d] = nearestStar(S.pos);
@@ -7205,6 +7223,7 @@ function update(dt) {
         if (f > fade) { fade = f; fc = skyDisplayColor(p.pal, S.star.light, Math.asin(clamp(vdot(vnorm(rel), vnorm(vmul(p.pos, -1))), -1, 1))); }
         if (alt < p.R * 0.035) { enterSurface(p); return; }
         if (!S.auto && alt < p.R * 2.5 && !S.hinted?.has(p)) { (S.hinted ||= new Set()).add(p); toast('Fly down into the atmosphere to land'); }
+        if (alt < p.R * 2.5 && !p.near) { p.near = true; showPlanet(p); } else if (alt > p.R * 6) p.near = false;
       } else if (d < p.R * 1.003) S.pos = vadd(p.pos, vmul(rel, p.R * 1.003 / d));
     }
     S.fadeT += dt;
@@ -7411,33 +7430,40 @@ $('intro').addEventListener('click', () => {
   S.started = true; Music.start();
   const el = $('intro'); el.style.opacity = 0; setTimeout(() => el.remove(), 2300);
   S.goal = null; S.queue = galaxyGoals(G0).slice(1);
-  setTimeout(() => showLoc(G0.title, G0.desc), 1200);
+  setTimeout(() => showLoc(G0.title, G0.desc, 'Galaxy'), 1200);
 });
 
-// ---- info panel
+// ---- info panel: labelled rows (where you are, speed, height) and a prompt only when there is something to do
 let infoT = 0;
 function updateInfo(dt) {
   infoT -= dt; if (infoT > 0) return; infoT = 0.25;
-  let sp = '', tgt = '';
+  const rows = [], row = (k, v) => rows.push([k, v]), prompts = [];
   const gp = g => g.kind === 'fly' ? g.target() : g.kind === 'orbit' ? g.center() : g.dest ? g.dest.pos : S.pos;
-  if (S.mode === 'space') {
-    sp = fmtSpeedLy(Math.abs(S.v));
-    if (S.auto && S.goal) tgt = (S.goal.label || '') + ' · ' + fmtLy(vdist(gp(S.goal), S.pos));
-  } else if (S.mode === 'system') {
-    sp = fmtSpeedSU(Math.abs(S.v));
-    if (S.auto && S.goal) tgt = (S.goal.label || '') + ' · ' + fmtSU(vdist(gp(S.goal), S.pos));
+  const tname = l => (l || '').replace(/^(descending to|leaving|into|inside|through) /, '');
+  if (S.mode === 'space' || S.mode === 'system') {
+    const fd = S.mode === 'space' ? fmtLy : fmtSU;
+    if (S.mode === 'space') { if (S.hostG) row('Galaxy', S.hostG.title); else row('Location', 'between galaxies'); } else row('System', S.sys.name);
+    let tn = '', td = null;
+    if (!S.auto && S.sel && jumpDest(S.sel)) {
+      const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'sun' ? [0, 0, 0] : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
+      tn = selName(S.sel); td = vdist(p, S.pos); prompts.push('J \u00b7 jump there');
+    } else if (S.auto && S.goal && S.goal.label) { tn = tname(S.goal.label); td = vdist(gp(S.goal), S.pos); }
+    if (tn) { row('Target', tn); row('Distance', fd(td)); }
+    row('Speed', S.mode === 'space' ? fmtSpeedLy(Math.abs(S.v)) : fmtSpeedSU(Math.abs(S.v)));
   } else if (surf) {
-    const agl = Math.round(surf.y - surf.ground);
-    sp = surf.driving ? 'moon buggy \u00b7 ' + Math.round(surf.speed * 3.6) + ' km/h' : surf.phase === 'walk' ? 'on foot \u00b7 ' + (surf.speed * 3.6).toFixed(1) + ' km/h' : Math.round(surf.speed * 3.6) + ' km/h \u00b7 ' + agl + ' m';
-    tgt = surf.planet.name;
+    const s = surf;
+    row('Planet', s.planet.name);
+    if (s.here) row(s.here.kind, s.here.name);
+    if (s.driving) row('Buggy', Math.round(s.speed * 3.6) + ' km/h');
+    else if (s.phase === 'walk') row('On foot', (s.speed * 3.6).toFixed(1) + ' km/h');
+    else { row('Speed', Math.round(s.speed * 3.6).toLocaleString('en') + ' km/h'); row('Altitude', Math.round(s.y - s.ground).toLocaleString('en') + ' m'); }
+    const nv = nearVehicle(s);
+    if (!S.auto && nv === 'ship') prompts.push('E \u00b7 board the ship'); else if (!S.auto && nv === 'buggy') prompts.push('E \u00b7 drive the buggy');
   }
-  const nv = surf && nearVehicle(surf);
-  let hint = S.auto ? 'autopilot' : surf && surf.driving ? 'W gas \u00b7 Shift faster \u00b7 Space brake \u00b7 S reverse \u00b7 E step out' : surf && surf.phase === 'walk' ? (nv === 'ship' ? 'E board the ship \u00b7 ' : nv === 'buggy' ? 'E drive the buggy \u00b7 ' : '') + 'on foot \u00b7 B buggy \u00b7 F light \u00b7 L fly' : 'manual \u00b7 W thrust \u00b7 Shift boost \u00b7 Space slow';
-  if (!S.auto && S.sel && S.mode !== 'surface' && jumpDest(S.sel)) {
-    const o = S.sel.o, p = S.sel.type === 'star' ? o.p : S.sel.type === 'sun' ? [0, 0, 0] : S.sel.type === 'planet' ? o.pos : S.sel.type === 'galaxy' ? o.center : o.pos;
-    tgt = '◎ ' + selName(S.sel) + ' · ' + (S.mode === 'space' ? fmtLy(vdist(p, S.pos)) : fmtSU(vdist(p, S.pos))); hint = 'J to jump · ' + hint;
-  }
-  $('info').innerHTML = (tgt ? tgt.replace(/</g, '') + '<br>' : '') + sp + '<br>' + hint;
+  if (S.auto) prompts.unshift('Autopilot');
+  const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const html = rows.map(([k, v]) => '<div class="r"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>').join('') + (prompts.length ? '<div class="h">' + esc(prompts.join(' \u00b7 ')) + '</div>' : '');
+  const info = $('info'); if (info._h !== html) { info.innerHTML = html; info._h = html; }
   const bl = $('bLand'), onSurf = S.mode === 'surface' && surf;
   bl.style.display = onSurf ? '' : 'none';
   // while a landing is under way the button offers to abort it
