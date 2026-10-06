@@ -171,7 +171,7 @@ body.pre #info,body.pre #loc{opacity:0!important}
   <div class="ch"><div class="st">TALKING</div><b class="x" title="Say goodbye (Esc)">&times;</b><div class="h"></div><div class="d"></div></div>
   <div class="log"></div>
   <div class="opts"></div>
-  <form autocomplete="off"><input maxlength="160" placeholder="Say something&hellip;"><button title="Send">&rsaquo;</button></form>
+  <form autocomplete="off"><input maxlength="160" dir="auto" placeholder="Say something&hellip;"><button title="Send">&rsaquo;</button></form>
   <div class="ai" title="What you type is sent to OpenAI to write the reply. Conversations aren&rsquo;t stored.">Replies written by AI &middot; please don&rsquo;t share personal info</div>
 </div>
 <div id="pause">PAUSED</div>
@@ -7043,8 +7043,22 @@ function chatOpen(t) {
   el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex'; chatAiNote();
   chatSay('hello');
 }
+// should the letter just typed (text[i - 1]) carry a voice blip? lb = where the last blip was.
+// Alphabets with written vowels blip on vowels and word starts; scripts that mostly skip vowels (Hebrew, Arabic…)
+// blip every few letters; syllable scripts (Chinese, Japanese, Korean) blip every other character.
+const BLIP_LETTER = /[\p{L}\p{N}]/u, BLIP_VOWELS = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u,
+  BLIP_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýÿœаеёиоуыэюяіїєαεηιουωάέήίόύώ]/i, BLIP_SYLLABIC = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+function talkBlip(text, i, lb) {
+  const ch = text[i - 1], gap = i - lb;
+  if (!ch || !BLIP_LETTER.test(ch)) return false;
+  if (BLIP_SYLLABIC.test(ch)) return gap >= 2;
+  if (gap < 3) return false;
+  const wordStart = i === 1 || /\s/.test(text[i - 2]);
+  return BLIP_VOWELS.test(ch) ? BLIP_VOWEL.test(ch) || wordStart : true;
+}
 function chatBubble(who, text) {
   const log = $('chat').querySelector('.log'), d = document.createElement('div');
+  d.dir = 'auto';
   d.className = 'm ' + who; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
 }
 function chatSay(k, said) {
@@ -7149,10 +7163,10 @@ function chatStep(dt) {
   for (let g = 0; c.typeT <= 0 && cur.i < cur.text.length && g < 40; g++) {
     const ch = cur.text[cur.i++];
     let d = 1 / cps;
-    if (/[,;:—]/.test(ch)) d += 0.13; else if (/[.!?…]/.test(ch) && (cur.text[cur.i] || ' ') === ' ') d += 0.3;
-    // a syllable blip every few letters, rising towards the end of a question
-    if (/[a-z0-9]/i.test(ch) && cur.i - cur.lb >= 3 && (/[aeiouy]/i.test(ch) || cur.i === 1 || cur.text[cur.i - 2] === ' ')) {
-      const rest = cur.text.slice(cur.i), e = rest.search(/[.!?]/), q = e >= 0 && e < 10 && rest[e] === '?';
+    if (/[,;:—،、，]/.test(ch)) d += 0.13; else if (/[.!?…؟。！？]/.test(ch) && (cur.text[cur.i] || ' ') === ' ') d += 0.3;
+    // a syllable blip every few letters, rising towards the end of a question (in any language)
+    if (talkBlip(cur.text, cur.i, cur.lb)) {
+      const rest = cur.text.slice(cur.i), e = rest.search(/[.!?؟。！？]/), q = e >= 0 && e < 10 && /[?؟？]/.test(rest[e]);
       Music.talk(c.p.voice, c.p.plan, q ? 1.1 + (10 - e) * 0.012 : 1); cur.lb = cur.i;
     }
     c.typeT += d;
