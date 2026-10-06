@@ -117,7 +117,8 @@ body.pre #info,body.pre #loc{opacity:0!important}
 #chat .m.wait{opacity:.75;min-width:2.4em}
 #chat .m.wait::after{content:'';animation:dots 1.2s steps(1) infinite}
 @keyframes dots{0%{content:'\00B7'}33%{content:'\00B7 \00B7'}66%{content:'\00B7 \00B7 \00B7'}}
-#chat .ai{font-size:9.5px;letter-spacing:.06em;opacity:.38;padding:0 14px 9px;margin-top:-5px}
+#chat .ai{font-size:9.5px;letter-spacing:.06em;opacity:.45;padding:0 14px 9px;margin-top:-5px;cursor:help;align-self:flex-start}
+#chat .ai:hover{opacity:.8}
 #chat .sep{font-size:10px;letter-spacing:.2em;opacity:.35;text-align:center;margin:2px 0 8px}
 #chat .opts{display:flex;flex-wrap:wrap;gap:6px;padding:4px 14px 8px}
 #chat .opts button{font:inherit;font-size:11px;letter-spacing:.04em;color:#dff4ff;background:rgba(110,210,255,.08);border:1px solid rgba(110,210,255,.35);border-radius:14px;padding:3px 10px;cursor:pointer}
@@ -151,7 +152,7 @@ body.pre #info,body.pre #loc{opacity:0!important}
   <div class="log"></div>
   <div class="opts"></div>
   <form autocomplete="off"><input maxlength="160" placeholder="Say something&hellip;"><button title="Send">&rsaquo;</button></form>
-  <div class="ai">Replies are written by AI &middot; what you say is sent to an online service</div>
+  <div class="ai" title="What you type is sent to OpenAI to write the reply. Conversations aren&rsquo;t stored.">Replies written by AI &middot; please don&rsquo;t share personal info</div>
 </div>
 <div id="pause">PAUSED</div>
 <div id="bar" class="ui">
@@ -7019,7 +7020,7 @@ function chatOpen(t) {
   el.querySelector('.d').textContent = p.folk + ' \u00b7 ' + p.job + (p.home.name ? ' \u00b7 ' + p.home.name : '');
   log.innerHTML = '';
   if (m.log.length) { for (const L of m.log) chatBubble(L.who, L.text).classList.add('old'); const sp = document.createElement('div'); sp.className = 'sep'; sp.textContent = '\u00b7 \u00b7 \u00b7'; log.appendChild(sp); }
-  el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex';
+  el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex'; chatAiNote();
   chatSay('hello');
 }
 function chatBubble(who, text) {
@@ -7034,6 +7035,7 @@ function chatSay(k, said) {
   c.bye = k === 'bye';
   $('chat').querySelector('.opts').innerHTML = '';
   // what the traveller says goes to the online chat; greetings and goodbyes stay local (instant and free)
+  chatAiNote();
   if (said && k !== 'bye' && chatOnline()) { chatFetch(c, k, said); return; }
   chatReply(c, npcReply(c.p, k, chatRng(c, k), c.m));
 }
@@ -7046,8 +7048,10 @@ function chatReply(c, text) {
 let CHAT_API = 'https://space-chat-api.poogazoz123.workers.dev/chat';
 const chatNet = { offUntil: 0, warned: false };
 const chatOnline = () => !!CHAT_API && Date.now() > chatNet.offUntil && navigator.onLine !== false;
+// the AI note shows only while replies really come from the online chat
+const chatAiNote = () => { $('chat').querySelector('.ai').style.display = chatOnline() ? '' : 'none'; };
 function chatNetFail(secs, status) {
-  chatNet.offUntil = Date.now() + secs * 1000;
+  chatNet.offUntil = Date.now() + secs * 1000; chatAiNote();
   if (!chatNet.warned) { chatNet.warned = true; toast(status === 429 ? 'The locals need a short rest \u00b7 simple replies for a minute' : 'Can\u2019t reach the chat service \u00b7 locals keep it simple for now'); }
 }
 // the person's character sheet: only facts that really exist in this world, worded for the Worker
