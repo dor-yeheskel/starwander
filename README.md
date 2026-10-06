@@ -6,9 +6,9 @@ Everything is generated on the fly from deterministic seeds with WebGL2 and WebA
 
 ## Play
 
-Just open: [https://starwander.app](https://starwander.app)
+Just open: [https://starwander.app](https://starwander.app) on a computer, then click or press **Space** to begin. Starwander needs a keyboard and mouse, so phones and tablets show a short note instead.
 
-> For local play, open `index.html` in a recent desktop browser (Chrome, Edge or Firefox) and click to begin. You can also serve the folder with any static web server.
+> For local play, open `index.html` in a recent desktop browser (Chrome, Edge or Firefox) and click or press Space to begin. You can also serve the folder with any static web server.
 
 ## Controls 
 
