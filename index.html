@@ -5523,7 +5523,12 @@ const Music = {
     const C = this.ctx = new AC();
     // everything (music and sound effects) passes through one output, so a single switch silences it all
     this.out = C.createGain(); this.out.gain.value = this.muted ? 0 : 1; this.out.connect(C.destination);
-    this.master = C.createGain(); this.master.gain.value = 0; this.master.connect(this.out);
+    // music and effects share a bus that dips while someone is talking; the chat voice has its own line straight to the output
+    this.bus = C.createGain(); this.bus.connect(this.out);
+    this.voice = C.createGain(); this.voice.gain.value = 1.6; this.voice.connect(this.out);
+    // listens to the background (before the dip) in the voice's range, to dip it just enough
+    this.pre = C.createAnalyser(); this.pre.fftSize = 2048; this.pre.smoothingTimeConstant = 0.6; this.preF = new Float32Array(1024);
+    this.master = C.createGain(); this.master.gain.value = 0; this.master.connect(this.bus); this.master.connect(this.pre);
     this.master.gain.setTargetAtTime(this.on ? 0.75 : 0, C.currentTime, 3);
     const len = C.sampleRate * 6, ir = C.createBuffer(2, len, C.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
@@ -5538,7 +5543,7 @@ const Music = {
     this.windG = C.createGain(); this.windG.gain.value = 0;
     ns.connect(this.windF); this.windF.connect(this.windG); this.windG.connect(this.master); ns.start();
     // sound effects: independent of the music toggle
-    this.sfx = C.createGain(); this.sfx.gain.value = 0.9; this.sfx.connect(this.out);
+    this.sfx = C.createGain(); this.sfx.gain.value = 0.9; this.sfx.connect(this.bus); this.sfx.connect(this.pre);
     this.sfxRev = C.createConvolver(); this.sfxRev.buffer = ir; this.sfxRevG = C.createGain(); this.sfxRevG.gain.value = 0.35; this.sfxRev.connect(this.sfxRevG); this.sfxRevG.connect(this.sfx);
     const wb = C.createBuffer(1, C.sampleRate, C.sampleRate), wd = wb.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1; this.white = wb;
     const E = this.eng = {};
@@ -5717,8 +5722,22 @@ const Music = {
     f.type = 'lowpass'; f.frequency.value = plan === 'robot' ? 1600 : 2600;
     const v = plan === 'robot' ? 0.05 : V.kind === 'hoot' ? 0.13 : 0.1;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.008); g.gain.setValueAtTime(v, t + d * 0.55); g.gain.exponentialRampToValueAtTime(0.0008, t + d);
-    o.connect(f); f.connect(g); g.connect(this.sfx); o.start(t); o.stop(t + d + 0.02);
+    o.connect(f); f.connect(g); g.connect(this.voice); o.start(t); o.stop(t + d + 0.02);
     this.release(d + 0.05, f, g);
+  },
+  // while chatting, rain, traffic, engines and music dip so the person's voice is always clear
+  duck(on) {
+    if (!this.ctx || this.ducked === on) return; this.ducked = on; this.duckNext = 0;
+    if (!on) this.bus.gain.setTargetAtTime(1, this.ctx.currentTime, 0.8);
+  },
+  // while ducked: the louder the rain and traffic in the voice's range (300 Hz - 3 kHz), the deeper the dip (between 85% and 8%)
+  duckTick() {
+    if (!this.ctx || !this.ducked) return;
+    const t = this.ctx.currentTime; if (t < this.duckNext) return; this.duckNext = t + 0.1;
+    const f = this.preF, bin = this.ctx.sampleRate / 2048; this.pre.getFloatFrequencyData(f);
+    let p = 0; for (let i = Math.floor(300 / bin), e = Math.ceil(3000 / bin); i <= e; i++) p += Math.pow(10, f[i] / 10);
+    const L = 10 * Math.log10(p + 1e-12), g = clamp(Math.pow(10, (-50 - L) / 20), 0.08, 0.85);
+    this.bus.gain.setTargetAtTime(g, t, 0.2);
   },
   // disconnect one-shot sound nodes once they have finished, so busy places don't pile up idle audio nodes
   release(secs, ...nodes) { setTimeout(() => { for (const n of nodes) try { n.disconnect(); } catch (e) { } }, secs * 1000 + 250); },
@@ -7133,7 +7152,7 @@ function chatOpen(t) {
   el.querySelector('.d').textContent = p.folk + ' \u00b7 ' + p.job + (p.home.name ? ' \u00b7 ' + p.home.name : '');
   log.innerHTML = '';
   if (m.log.length) { for (const L of m.log) chatBubble(L.who, L.text).classList.add('old'); const sp = document.createElement('div'); sp.className = 'sep'; sp.textContent = '\u00b7 \u00b7 \u00b7'; log.appendChild(sp); }
-  el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex'; chatAiNote();
+  el.querySelector('.opts').innerHTML = ''; el.style.display = 'flex'; chatAiNote(); Music.duck(true);
   chatSay('hello');
 }
 // should the letter just typed (text[i - 1]) carry a voice blip? lb = where the last blip was.
@@ -7241,11 +7260,12 @@ function chatTyped() {
 }
 function chatClose() {
   if (!chat) return;
-  chat.a.talk = false; chat = null;
+  chat.a.talk = false; chat = null; Music.duck(false);
   const el = $('chat'), i = el.querySelector('input'); el.style.display = 'none'; if (document.activeElement === i) i.blur();
 }
 function chatStep(dt) {
   const c = chat; if (!c) return;
+  Music.duckTick();
   const s = surf;
   if (!s || S.mode !== 'surface' || s.phase !== 'walk' || s.driving) { chatClose(); return; }
   if (Math.hypot(c.a.x - s.x, c.a.z - s.z) > TALK_R * 1.8) { toast('You wave goodbye to ' + c.p.first); chatClose(); return; }
