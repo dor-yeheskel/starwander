@@ -30,6 +30,13 @@ body.hideui .ui{opacity:0!important;pointer-events:none!important}
 #intro p{margin:.3em 0;font-weight:400;letter-spacing:.08em;font-size:clamp(14px,1.6vw,18px);color:#e6eeff;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 14px rgba(0,0,0,.85)}
 #intro p.hi{color:#bfe6ff;font-weight:500}
 #intro p.small{margin-top:1.1em;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#cdd6ea;opacity:.75}
+#intro .load{margin-top:2.1em;display:flex;align-items:center;gap:14px;font-size:12px;font-weight:500;letter-spacing:.26em;text-transform:uppercase;color:#d3e4ff;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+/* an orbit: a faint ring with a glowing moon going round (a transform animation, so it keeps turning while the page is busy) */
+#intro .orb{position:relative;width:26px;height:26px;border-radius:50%;border:1.5px solid rgba(160,215,255,.25);animation:orbit 1.3s linear infinite;will-change:transform}
+#intro .orb::after{content:'';position:absolute;top:-4px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#dff4ff;box-shadow:0 0 8px 2px rgba(140,210,255,.85)}
+@keyframes orbit{to{transform:rotate(360deg)}}
+body.loading #intro{cursor:progress}
+body.loading #intro .go,body:not(.loading) #intro .load,body.loading #bar{display:none}
 #intro .go{margin-top:1.8em;padding:.85em 2.4em;border:1px solid rgba(160,215,255,.65);border-radius:40px;background:rgba(20,40,90,.45);backdrop-filter:blur(4px);letter-spacing:.3em;font-size:13px;font-weight:500;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);animation:pulse 3s ease-in-out infinite}
 @media (max-width:640px){#intro h1{letter-spacing:.22em;margin-left:.22em;font-size:clamp(28px,9vw,44px)}}
 body.pre #info,body.pre #loc{opacity:0!important}
@@ -61,19 +68,25 @@ body.pre #info,body.pre #loc{opacity:0!important}
 #bar button.on{border-color:rgba(150,200,255,.75);box-shadow:0 0 12px rgba(120,170,255,.35)}
 #bar button.busy{border-color:rgba(255,190,110,.85);color:#ffd9a8;animation:busy 1.4s ease-in-out infinite}
 @keyframes busy{0%,100%{box-shadow:0 0 6px rgba(255,170,90,.25)}50%{box-shadow:0 0 16px rgba(255,170,90,.7)}}
-#help{position:fixed;top:64px;right:18px;width:300px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 18px 14px;font-size:13px;line-height:1.75;backdrop-filter:blur(8px);display:none;z-index:6}
-#help b{color:#a9c4ff;font-weight:500}
-#help div:not(.s){padding-left:86px;text-indent:-86px}
-#help div:not(.s)>b:first-child{display:inline-block;width:86px;text-indent:0;vertical-align:top}
-#help details{margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:6px}
-#help details div{font-size:12px;opacity:.85}
-#help summary{cursor:pointer;font-size:11px;letter-spacing:.2em;opacity:.55;text-transform:uppercase;list-style:none;transition:opacity .2s}
+#help{position:fixed;top:64px;right:18px;width:300px;max-height:calc(100vh - 100px);overflow:auto;background:rgba(8,12,24,.8);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 16px 10px;font-size:13px;line-height:1.5;backdrop-filter:blur(8px);display:none;z-index:6;scrollbar-width:thin}
+#help .ttl{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:#bfe0ff;margin-bottom:6px}
+#help .ttl .x{cursor:pointer;font-size:20px;font-weight:300;letter-spacing:0;opacity:.6}
+#help .ttl .x:hover{opacity:1}
+#help details{border-top:1px solid rgba(255,255,255,.08)}
+#help summary{cursor:pointer;padding:8px 2px;font-size:14px;font-weight:500;color:#e6eeff;list-style:none;display:flex;align-items:center;gap:8px}
 #help summary::-webkit-details-marker{display:none}
-#help summary::before{content:'\25B8';display:inline-block;width:14px;transition:transform .2s}
-#help details[open] summary::before{transform:rotate(90deg)}
-#help summary:hover{opacity:.9}
+#help summary::before{content:'';width:6px;height:6px;border-right:1.5px solid #9fdcff;border-bottom:1.5px solid #9fdcff;transform:rotate(-45deg);transition:transform .2s;margin:0 3px 0 1px}
+#help details[open] summary::before{transform:rotate(45deg)}
+#help summary:hover{color:#fff}
+#help details>div:last-child{padding-bottom:8px}
+#help .r{display:flex;align-items:center;gap:10px;padding:3px 0 3px 18px;color:#d6e0f5}
+#help .r>span{flex:none;width:108px;display:flex;flex-wrap:wrap;gap:3px}
+#help .sub{margin:6px 0 2px 18px;font-size:10.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#9fdcff;opacity:.85}
+#help kbd{display:inline-block;min-width:20px;padding:0 5px;box-sizing:border-box;border:1px solid rgba(255,255,255,.22);border-bottom-width:2px;border-radius:5px;background:rgba(255,255,255,.06);font:600 11px/18px "Segoe UI",system-ui,sans-serif;color:#eef4ff;text-align:center}
+#help kbd.m{border-style:dashed;border-bottom-width:1px;color:#cfe4ff;font-weight:500}
+#help p{margin:4px 0;padding-left:18px;font-size:12px;color:#c9d4ea}
 #toast{position:fixed;left:50%;top:14%;transform:translateX(-50%);font-weight:300;letter-spacing:.3em;font-size:14px;opacity:0;pointer-events:none;text-transform:uppercase;text-shadow:0 0 12px #000;white-space:nowrap}
-#err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:18px;background:#000}
+#err{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:18px;background:#000}
 #marks{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
 .mk{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer}
 .mk .r{position:absolute;left:0;top:0;border:1px solid rgba(215,228,255,.5);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 6px rgba(140,180,255,.25);transition:border-color .3s}
@@ -102,7 +115,6 @@ body.pre #info,body.pre #loc{opacity:0!important}
 #preview .p{opacity:.8}#preview .p.live{color:#b8ffd4}
 #preview .p i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:0}
 #pause{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-weight:200;letter-spacing:.6em;font-size:clamp(22px,3vw,40px);background:rgba(0,0,0,.35);z-index:8;pointer-events:none;text-shadow:0 0 24px rgba(140,180,255,.6)}
-#help .s{margin-top:8px;font-size:11px;letter-spacing:.2em;opacity:.55;text-transform:uppercase}
 #scan{position:fixed;left:24px;top:22px;width:300px;z-index:4;display:none;font-size:12px;letter-spacing:.04em;line-height:1.65;text-shadow:0 0 8px #000;max-height:calc(100vh - 44px);overflow-y:auto;scrollbar-width:none}
 @media (max-width:1150px){#scan{top:70px;max-height:calc(100vh - 92px)}}
 #scan .sv{position:relative;height:190px;border:1px solid rgba(255,110,90,.45);border-bottom:none;border-radius:12px 12px 0 0;background:repeating-linear-gradient(0deg,rgba(255,80,60,.07) 0 1px,transparent 1px 4px);box-shadow:inset 0 0 30px rgba(255,60,40,.18);pointer-events:none}
@@ -152,13 +164,14 @@ body.pre #info,body.pre #loc{opacity:0!important}
 #chat form button{font:inherit;color:#9fdcff;background:none;border:1px solid rgba(110,210,255,.35);border-radius:8px;padding:0 10px;cursor:pointer}
 </style>
 </head>
-<body class="pre">
+<body class="pre loading">
 <canvas id="c"></canvas>
 <div id="intro">
   <h1>STARWANDER</h1>
   <p>Drift through an endless universe. Land on living worlds.</p>
   <p class="hi">Meet the locals, and talk to them in your own language.</p>
   <p class="small">best with sound on</p>
+  <div class="load"><div class="orb"></div><span>Preparing the universe&hellip;</span></div>
   <div class="go">CLICK TO BEGIN</div>
 </div>
 <div id="mobile">
@@ -199,46 +212,59 @@ body.pre #info,body.pre #loc{opacity:0!important}
   <button id="bFull" title="Fullscreen (Enter)">&#x26F6;</button>
 </div>
 <div id="help" class="ui">
-  <div class="s">Flying</div>
-  <div><b>W / Shift</b>thrust / boost</div>
-  <div><b>Space</b>slow down &middot; <b style="width:auto">S / X</b> brake / stop</div>
-  <div><b>Drag</b>steer &middot; <b style="width:auto">A / D</b> turn &middot; <b style="width:auto">&uarr; &darr;</b> pitch</div>
-  <div><b>Q / E</b>roll</div>
-  <div><b>L</b>land / take off</div>
-  <div class="s">Ground</div>
-  <div><b>W / S</b>walk &middot; <b style="width:auto">A / D</b> turn &middot; <b style="width:auto">Shift</b> run</div>
-  <div><b>Drag</b>steer where you walk</div>
-  <div><b>Space</b>jump</div>
-  <div><b>E</b>get in / out of a ship or buggy beside you</div>
-  <div><b>Click</b>talk to a person &middot; <b style="width:auto">R</b> the nearest one</div>
-  <div><b>Hold click</b>scan a creature, person or plant</div>
-  <div><b>B / L</b>buggy / fly from anywhere</div>
-  <div><b>Buggy</b>W gas &middot; <b style="width:auto">Shift</b> up to 120 km/h &middot; <b style="width:auto">Space</b> brake</div>
-  <div class="s">Anywhere</div>
-  <div><b>F</b>light on / off</div>
-  <div><b>Right drag</b>look around &middot; <b style="width:auto">Wheel</b> zoom</div>
-  <div><b>C / V</b>center view / first &ndash; third person</div>
-  <div><b>O</b>autopilot &middot; <b style="width:auto">P</b> pause</div>
-  <div><b>T / H</b>markers / hide interface</div>
-  <div><b>M</b>sound on / off &middot; <b style="width:auto">Enter</b> fullscreen</div>
-  <details>
-    <summary>Travel</summary>
-    <div><b>Click</b>a galaxy, star, planet or the sun to fly there</div>
-    <div><b>Hover</b>a star to preview its planets</div>
-    <div><b>J</b>hyperspace jump to your selection</div>
-    <div><b>Worlds</b>every one can be entered, even the star itself</div>
+  <div class="ttl">How to play <b class="x" title="Close (?)">&times;</b></div>
+  <details data-k="fly">
+    <summary>Flying</summary>
+    <div class="r"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>fly and turn</div>
+    <div class="r"><span><kbd>Shift</kbd><kbd>Space</kbd></span>speed up / slow down</div>
+    <div class="r"><span><kbd class="m">Left drag</kbd></span>steer</div>
+    <div class="r"><span><kbd>Q</kbd><kbd>E</kbd></span>roll</div>
+    <div class="r"><span><kbd>L</kbd></span>land on a planet</div>
   </details>
-  <details>
+  <details data-k="ground">
+    <summary>On the ground</summary>
+    <div class="sub">Walking</div>
+    <div class="r"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>walk and turn</div>
+    <div class="r"><span><kbd>Shift</kbd><kbd>Space</kbd></span>run / jump</div>
+    <div class="r"><span><kbd class="m">Left drag</kbd></span>steer</div>
+    <div class="r"><span><kbd class="m">Click</kbd></span>talk to a person</div>
+    <div class="r"><span><kbd class="m">Hold</kbd></span>scan a creature, person or plant</div>
+    <div class="r"><span><kbd>E</kbd></span>get into the ship or buggy</div>
+    <div class="r"><span><kbd>B</kbd><kbd>L</kbd></span>buggy / take off</div>
+    <div class="sub">Driving</div>
+    <div class="r"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>drive and steer</div>
+    <div class="r"><span><kbd>Shift</kbd><kbd>Space</kbd></span>speed up / brake</div>
+    <div class="r"><span><kbd>E</kbd></span>step out</div>
+  </details>
+  <details data-k="view">
+    <summary>View</summary>
+    <div class="r"><span><kbd class="m">Right drag</kbd></span>look around</div>
+    <div class="r"><span><kbd class="m">Wheel</kbd></span>zoom in / out</div>
+    <div class="r"><span><kbd>C</kbd></span>center the view</div>
+    <div class="r"><span><kbd>V</kbd></span>first / third person</div>
+  </details>
+  <details data-k="more">
+    <summary>More</summary>
+    <div class="r"><span><kbd class="m">Click</kbd></span>fly to a galaxy, star or planet</div>
+    <div class="r"><span><kbd>J</kbd></span>hyperspace jump to it</div>
+    <div class="r"><span><kbd>O</kbd></span>autopilot on / off</div>
+    <div class="r"><span><kbd>F</kbd></span>light</div>
+    <div class="r"><span><kbd>R</kbd></span>talk to the nearest person</div>
+    <div class="r"><span><kbd>T</kbd><kbd>H</kbd></span>markers / hide interface</div>
+    <div class="r"><span><kbd>P</kbd><kbd>M</kbd></span>pause / sound</div>
+    <div class="r"><span><kbd>Enter</kbd></span>fullscreen</div>
+  </details>
+  <details data-k="find">
     <summary>Things to find</summary>
-    <div><b>Cities</b>oval and sprawling, with parks, ponds, fountain plazas and lit highways to their neighbours</div>
-    <div><b>Landmarks</b>arches, needles, floating isles, giant bones, table mountains, crystal spires, sea stacks and stone rings</div>
-    <div><b>Skies</b>tinted skies, rings, great moons, auroras and shimmering veils</div>
-    <div><b>Locals</b>stop and chat &mdash; they know the sights, creatures and cities around them</div>
-  <div><b>Mists</b>fog that pools in valleys and over water, thickest at dawn and in rain, tinted on some worlds</div>
+    <p>Cities with parks, promenades and lit highways</p>
+    <p>Landmarks: arches, floating isles, giant bones, crystal spires</p>
+    <p>Skies with rings, great moons and auroras</p>
+    <p>Locals who love a chat</p>
+    <p>Every world can be landed on &mdash; you can even fly through a star</p>
   </details>
 </div>
 <div id="err"></div>
-<script>
+<script type="text/plain" id="game">
 'use strict';
 // ============================================================================
 //  STARWANDER — a relaxing, procedurally generated, infinite universe.
@@ -6110,7 +6136,7 @@ function flyStep(dt) {
     const boost = k.ShiftLeft || k.ShiftRight, R = speedRange();
     // Space is the opposite of boost: ease the ship down to a halt
     if (k.Space) { S.v *= Math.exp(-2.2 * dt); if (S.v < R.min * 0.2) S.v = 0; S.thrust = 0.05; }
-    else if (k.KeyW) { S.v = Math.max(S.v, R.min) * Math.exp((boost ? 2.2 : 0.8) * dt); S.thrust = boost ? 1 : 0.6; }
+    else if (k.KeyW || boost) { S.v = Math.max(S.v, R.min) * Math.exp((boost ? 2.2 : 0.8) * dt); S.thrust = boost ? 1 : 0.6; }
     else if (k.KeyS) { S.v *= Math.exp(-2.2 * dt); if (S.v < R.min * 0.2) S.v = 0; S.thrust = 0.05; }
     else S.thrust = S.v > 0 ? 0.25 : 0.08;
     if (k.KeyX) S.v *= Math.exp(-8 * dt);
@@ -6265,7 +6291,7 @@ function manualSurfFlight(s, dt) {
   const turn = 0.9 * dt;
   let q = qmul(qmul(qmul(s.q, qaxis([0, 1, 0], s.yawIn * turn)), qaxis([1, 0, 0], s.pitchV * turn)), qaxis([0, 0, 1], s.rollV * turn));
   if (k.Space) s.speed = Math.max(5.6, s.speed * Math.exp(-1.2 * dt) - 18 * dt);
-  else if (k.KeyW) s.speed = Math.min(s.speed + (boost ? 220 : 35) * dt, boost ? 1600 : 260);
+  else if (k.KeyW || boost) s.speed = Math.min(s.speed + (boost ? 220 : 35) * dt, boost ? 1600 : 260);
   else if (s.speed > 260) s.speed = lerp(s.speed, 260, 1 - Math.exp(-dt * 0.7));
   if (k.KeyS) s.speed = Math.max(0, s.speed - 70 * dt);
   if (k.KeyX) s.speed *= Math.exp(-5 * dt);
@@ -6285,7 +6311,7 @@ function manualSurfFlight(s, dt) {
   // the hull banks into turns (as in space); the view itself does not
   s.bank = lerp(s.bank || 0, clamp(s.yawIn * 0.9 * 1.2, -0.7, 0.7), 1 - Math.exp(-dt * 2.5));
   s.roll = s.rollU + s.bank;
-  S.thrust = k.Space ? 0.05 : k.KeyW ? (boost ? 1 : 0.6) : 0.15 + 0.2 * Math.min(s.speed / 200, 1);
+  S.thrust = k.Space ? 0.05 : k.KeyW || boost ? (boost ? 1 : 0.6) : 0.15 + 0.2 * Math.min(s.speed / 200, 1);
   const agl = s.y - s.ground;
   S.fade = Math.max(S.fade, smooth(1700, 2900, agl)); S.fadeCol = skyDisplayColor(P, s.sys.star.light, Math.asin(clamp(s.sun[1], -1, 1)));
   if (agl > 1200 && !s.hintUp) { s.hintUp = true; toast('Keep climbing to leave the atmosphere'); }
@@ -6483,7 +6509,7 @@ function boardShip(s) {
 }
 function startTakeoff() { if (!surf || surf.phase !== 'walk') return; if (surf.driving) { surf.driving = false; Music.buggy(0, 0, 0); } boardShip(surf); surf.phase = 'takeoff'; surf.pt = 0; surf.vy = 2; surf.speed = 0; toast('Taking off'); }
 function toggleLand() {
-  if (!surf) return;
+  if (!surf) { toast('Landing works near a planet \u00b7 fly down into its atmosphere'); return; }
   if (surf.phase === 'walk') startTakeoff();
   else if (surf.phase === 'cruise') startLanding();
   else if (surf.phase === 'landing') { surf.phase = 'cruise'; surf.pt = 0; toast('Landing aborted'); }
@@ -7515,7 +7541,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
   if (S.paused && !/^(KeyH|KeyM|KeyN|KeyF|Enter|NumpadEnter|Slash)$/.test(e.code)) return;
   const onFoot = S.mode === 'surface' && surf && surf.phase === 'walk';
-  if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
+  if (/^(KeyW|KeyA|KeyS|KeyD|KeyQ|KeyE|Arrow|Shift)/.test(e.code) && S.auto && !e.repeat) setAuto(false);
   // Space: jump on foot, otherwise take the controls and slow the craft down
   if (e.code === 'Space' && !e.repeat) { if (onFoot) heroJump(); else if (S.auto && S.goal?.kind !== 'jump') setAuto(false); }
   if (e.code === 'KeyJ') spaceJump();
@@ -7539,7 +7565,14 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 function syncButtons() { const b = $('bSound'); b.textContent = Music.muted ? '\u{1F507}' : '\u{1F50A}'; b.title = Music.muted ? 'Sound off · click to turn on (M)' : 'Sound on · click to mute (M)'; }
 function toggleSound() { Music.toggleMute(); syncButtons(); toast(Music.muted ? 'Sound off' : 'Sound on'); }
-function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; }
+function toggleHelp() {
+  const h = $('help'), show = h.style.display !== 'block';
+  h.style.display = show ? 'block' : 'none';
+  if (show) { const k = S.mode === 'surface' && surf && surf.phase === 'walk' ? 'ground' : 'fly'; for (const d of h.querySelectorAll('details')) d.open = d.dataset.k === k; }
+}
+// one help section open at a time
+$('help').querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { if (d.open) for (const o of $('help').querySelectorAll('details')) if (o !== d) o.open = false; }));
+$('help').querySelector('.x').onclick = () => toggleHelp();
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { }); else document.exitFullscreen?.(); }
 function toggleFlash() {
   if (S.mode !== 'surface' || !surf) { toast('Lights work on a planet\u2019s surface'); return; }
@@ -7577,7 +7610,7 @@ if (PHONE) {
 }
 $('intro').addEventListener('click', () => startGame());
 function startGame() {
-  if (S.started || PHONE) return;
+  if (S.started || PHONE || document.body.classList.contains('loading')) return;
   S.started = true; Music.start(); document.body.classList.remove('pre');
   const el = $('intro'); el.style.opacity = 0; setTimeout(() => el.remove(), 2300);
   S.goal = null; S.queue = galaxyGoals(G0).slice(1);
@@ -7776,9 +7809,10 @@ function resize() {
   resizeTargets(w, h);
   view.w = w; view.h = h; view.aspect = w / h; view.pxScale = h / 2 / Math.tan(view.fov / 2);
 }
-let last = performance.now() / 1000, perfAcc = 0, perfN = 0;
+let last = performance.now() / 1000, perfAcc = 0, perfN = 0, bootFrames = 0;
 function frame() {
   requestAnimationFrame(frame);
+  if (bootFrames < 3 && ++bootFrames === 3) document.body.classList.remove('loading');
   const now = performance.now() / 1000, rdt = now - last, dt = Math.min(rdt, 0.1); last = now;
   perfAcc += rdt; perfN++;
   if (perfAcc > 2.5) {
@@ -7794,6 +7828,16 @@ function frame() {
   updateSysList(dt);
 }
 if (!PHONE) requestAnimationFrame(frame);
+</script>
+<script>
+// show the title and the loading spinner first, then build the universe: compiling the graphics can take a few seconds on a first visit
+(function () {
+  let go = false;
+  const run = () => { if (go) return; go = true; const s = document.createElement('script'); s.textContent = document.getElementById('game').textContent; document.body.appendChild(s); };
+  requestAnimationFrame(() => setTimeout(run, 30));
+  setTimeout(run, 1500);
+  window.addEventListener('error', () => { if (document.body.classList.contains('loading')) { const l = document.querySelector('#intro .load'); if (l) l.innerHTML = '<span>Something went wrong &middot; please reload the page</span>'; } });
+})();
 </script>
 </body>
 </html>
