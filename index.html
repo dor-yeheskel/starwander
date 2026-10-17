@@ -5646,12 +5646,13 @@ const Music = {
     if (!this.ctx) return;
     const C = this.ctx, t = C.currentTime, E = this.eng;
     if (t < E.next) return; E.next = t + 0.1;
-    const tc = 0.25;
-    E.rg.gain.setTargetAtTime((rumble || 0) * 2.2, t, 0.8); E.rf.frequency.setTargetAtTime(70 + (rumble || 0) * 90 + Math.random() * 30, t, 0.3);
-    E.g.gain.setTargetAtTime(level * 0.11, t, tc);
-    E.ng.gain.setTargetAtTime(level * (0.25 + pitch * 0.5), t, tc);
-    E.o1.frequency.setTargetAtTime(38 + pitch * 95, t, tc); E.o2.frequency.setTargetAtTime((38 + pitch * 95) * 2.02, t, tc);
-    E.f.frequency.setTargetAtTime(160 + pitch * 1300, t, tc); E.nf.frequency.setTargetAtTime(250 + pitch * 2600, t, tc);
+    // a soft, low hum that swells gently with thrust (slow changes, darker filters, a narrower pitch range)
+    const tc = 0.6;
+    E.rg.gain.setTargetAtTime((rumble || 0) * 1.6, t, 0.8); E.rf.frequency.setTargetAtTime(70 + (rumble || 0) * 90 + Math.random() * 30, t, 0.3);
+    E.g.gain.setTargetAtTime(level * 0.06, t, tc);
+    E.ng.gain.setTargetAtTime(level * (0.13 + pitch * 0.22), t, tc);
+    E.o1.frequency.setTargetAtTime(38 + pitch * 70, t, tc); E.o2.frequency.setTargetAtTime((38 + pitch * 70) * 2.02, t, tc);
+    E.f.frequency.setTargetAtTime(140 + pitch * 800, t, tc); E.nf.frequency.setTargetAtTime(220 + pitch * 1500, t, tc);
   },
   step(kind, vol) {
     if (!this.ctx) return;
@@ -6121,12 +6122,12 @@ function flyAndBank(dt) {
 function engineSound(dt) {
   let level = 0, pitch = 0;
   if (S.mode === 'surface') {
-    if (surf && surf.phase !== 'walk') { level = 0.25 + S.thrust * 0.6; pitch = clamp(Math.log(1 + surf.speed) / Math.log(1600), 0, 1) * 0.6 + S.thrust * 0.4; }
+    if (surf && surf.phase !== 'walk') { level = 0.12 + S.thrust * 0.5; pitch = clamp(Math.log(1 + surf.speed) / Math.log(1600), 0, 1) * 0.6 + S.thrust * 0.4; }
     S.lvPrev = undefined;
   } else if (S.started) {
     const lv = Math.log(Math.max(S.v, 1e-12)), acc = S.lvPrev === undefined || S.warpT >= 0 ? 0 : clamp((lv - S.lvPrev) / Math.max(dt, 1e-3), -3, 3);
     S.lvPrev = lv; S.acc = lerp(S.acc || 0, acc, 1 - Math.exp(-dt * 4));
-    level = (S.v > 0 ? 0.22 : 0.08) + S.thrust * 0.45 + Math.abs(S.acc) * 0.15;
+    level = (S.v > 0 ? 0.1 : 0.04) + S.thrust * 0.38 + Math.abs(S.acc) * 0.08;
     pitch = clamp(0.2 + S.thrust * 0.45 + S.acc * 0.18, 0, 1);
   }
   if (S.auto) level *= 0.55;
