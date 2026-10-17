@@ -5637,8 +5637,8 @@ const Music = {
     if (!this.ctx) return;
     const C = this.ctx, t = C.currentTime, src = C.createBufferSource(), f = C.createBiquadFilter(), g = C.createGain();
     src.buffer = this.noiseBuf; src.loop = true; f.type = 'bandpass'; f.Q.value = 1.4;
-    f.frequency.setValueAtTime(140, t); f.frequency.exponentialRampToValueAtTime(2400, t + 1); f.frequency.exponentialRampToValueAtTime(110, t + 2.4);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.6, t + 0.95); g.gain.linearRampToValueAtTime(0, t + 2.4);
+    f.frequency.setValueAtTime(140, t); f.frequency.exponentialRampToValueAtTime(1600, t + 1); f.frequency.exponentialRampToValueAtTime(110, t + 2.4);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.7, t + 0.95); g.gain.linearRampToValueAtTime(0, t + 2.4);
     src.connect(f); f.connect(g); g.connect(this.sfx); g.connect(this.sfxRev); src.start(t); src.stop(t + 2.5);
   },
   // ship engine: level 0..1 (loudness), pitch 0..1; rate-limited parameter updates
@@ -5754,7 +5754,7 @@ const Music = {
   rainLevel(l) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, E = this.eng; if (t < E.rainNext) return; E.rainNext = t + 0.25;
-    E.rag.gain.setTargetAtTime(l * 0.09, t, 1.2); E.rbg.gain.setTargetAtTime(l * 0.5, t, 1.2);
+    E.rag.gain.setTargetAtTime(l * 0.045, t, 1.2); E.rbg.gain.setTargetAtTime(l * 0.26, t, 1.2);
   },
   // city ambience: traffic 0..1, crowd 0..1; also schedules horns, pass-bys and sirens
   city(traffic, crowd, weird) {
@@ -5807,8 +5807,8 @@ const Music = {
     if (!this.ctx || v <= 0) return;
     const C = this.ctx, t = C.currentTime, src = C.createBufferSource(), f = C.createBiquadFilter(), g = C.createGain(), L = 3 + Math.random() * 3;
     src.buffer = this.nb; src.loop = true; src.playbackRate.value = 0.35; f.type = 'lowpass'; f.frequency.setValueAtTime(260 + v * 500, t); f.frequency.exponentialRampToValueAtTime(70, t + L);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(2.6 * v, t + 0.08 + (1 - v) * 0.4);
-    for (let k = 1; k < 4; k++) g.gain.linearRampToValueAtTime(2.6 * v * (0.4 + Math.random() * 0.6) / k, t + k * L / 4);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8 * v, t + 0.25 + (1 - v) * 0.4);
+    for (let k = 1; k < 4; k++) g.gain.linearRampToValueAtTime(0.8 * v * (0.4 + Math.random() * 0.6) / k, t + k * L / 4);
     g.gain.linearRampToValueAtTime(0, t + L);
     src.connect(f); f.connect(g); g.connect(this.sfx); g.connect(this.sfxRev); src.start(t); src.stop(t + L + 0.1);
   },
